@@ -28,30 +28,36 @@ bool DB::InventoryTable::init(QString path)
 bool DB::InventoryTable::replace(DB::InventoryDataset dataset)
 {
     QSqlQuery query(db);
-    QString   sql;
-    if (countByCacheName(dataset.cache_name) > 0)
-        sql = buildInsertSql(dataset);
-    else if (countByCacheName(dataset.cache_name) == -1)
+    int count = countByCacheName(dataset.cache_name);
+    if (count == -1)
     {
-        qCritical(Database) << "replase failed" << sql << query.lastError().text();
+        qCritical(Database) << "replace failed" << query.lastError().text();
         return false;
     }
-    else
-        sql = buildUpdateSql(dataset);
-
-    if (!query.exec(sql))
+    QString sql = (count > 0) ? buildInsertSql(dataset) : buildUpdateSql(dataset);
+    query.prepare(sql);
+    query.bindValue(":resource_uri",    dataset.resource_uri);
+    query.bindValue(":cache_name",      dataset.cache_name);
+    query.bindValue(":content_type",    dataset.content_type);
+    query.bindValue(":content_length",  dataset.content_length);
+    query.bindValue(":last_update",     dataset.last_update.toString());
+    query.bindValue(":expires",         dataset.expires.toString());
+    query.bindValue(":state",           dataset.state);
+    query.bindValue(":etag",            dataset.etag);
+    if (!query.exec())
     {
         qCritical(Database) << "replace failed" << sql << query.lastError().text();
         return false;
     }
     return true;
-
 }
 
 DB::InventoryDataset DB::InventoryTable::findByCacheName(QString filename)
 {
     QSqlQuery query(db);
-    if (!query.exec("SELECT * FROM inventory WHERE cache_name ='" +filename+"' ORDER BY last_update DESC LIMIT 1"))
+    query.prepare("SELECT * FROM inventory WHERE cache_name = :cache_name ORDER BY last_update DESC LIMIT 1");
+    query.bindValue(":cache_name", filename);
+    if (!query.exec())
         qCritical(Database) << "select failed" << query.lastError().text();
 
     if (!query.first())
@@ -64,24 +70,29 @@ DB::InventoryDataset DB::InventoryTable::findByCacheName(QString filename)
 void DB::InventoryTable::updateFileStatusAndSize(QString resource_uri, int state, int size)
 {
     QSqlQuery query(db);
-    if (!query.exec("UPDATE inventory SET state = " +
-                    QString::number(state) +
-                    ", content_length = " + QString::number(size) +
-                    " WHERE resource_uri ='" +resource_uri+"'"))
+    query.prepare("UPDATE inventory SET state = :state, content_length = :size WHERE resource_uri = :resource_uri");
+    query.bindValue(":state", state);
+    query.bindValue(":size", size);
+    query.bindValue(":resource_uri", resource_uri);
+    if (!query.exec())
         qCritical(Database) << "delete failed" << query.lastError().text();
 }
 
 void DB::InventoryTable::deleteByResourceURI(QString resource_uri)
 {
     QSqlQuery query(db);
-    if (!query.exec("DELETE FROM inventory WHERE resource_uri ='" +resource_uri+"'"))
+    query.prepare("DELETE FROM inventory WHERE resource_uri = :resource_uri");
+    query.bindValue(":resource_uri", resource_uri);
+    if (!query.exec())
         qCritical(Database) << "delete failed" << query.lastError().text();
 }
 
 void DB::InventoryTable::deleteByCacheName(QString cache_name)
 {
     QSqlQuery query(db);
-    if (!query.exec("DELETE FROM inventory WHERE cache_name ='" +cache_name+"'"))
+    query.prepare("DELETE FROM inventory WHERE cache_name = :cache_name");
+    query.bindValue(":cache_name", cache_name);
+    if (!query.exec())
         qCritical(Database) << "delete failed" << query.lastError().text();
 }
 
@@ -89,7 +100,9 @@ DB::InventoryDataset DB::InventoryTable::findByCacheBaseName(QString base_name)
 {
     QSqlQuery query(db);
     InventoryDataset result;
-    query.exec("SELECT * FROM inventory WHERE cache_name LIKE '" + base_name +".%' LIMIT 1");
+    query.prepare("SELECT * FROM inventory WHERE cache_name LIKE :pattern LIMIT 1");
+    query.bindValue(":pattern", base_name + ".%");
+    query.exec();
     if (!query.first())
         return result;
 
@@ -214,36 +227,25 @@ bool DB::InventoryTable::createDbFile()
 
 QString DB::InventoryTable::buildInsertSql(InventoryDataset dataset)
 {
-    return "INSERT INTO inventory (resource_uri, cache_name, content_type, content_length, last_update, expires, state, etag ) \
-    VALUES( \
-            '" + dataset.resource_uri + "', \
-            '" + dataset.cache_name + "', \
-            '" + dataset.content_type + "', \
-            " + QString::number(dataset.content_length) + ", \
-            '" + dataset.last_update.toString() + "', \
-            '" + dataset.expires.toString() + "', \
-            " + QString::number(dataset.state) + ", \
-            '" + dataset.etag + "' \
-        )";
+    Q_UNUSED(dataset);
+    return "INSERT INTO inventory (resource_uri, cache_name, content_type, content_length, last_update, expires, state, etag) "
+           "VALUES(:resource_uri, :cache_name, :content_type, :content_length, :last_update, :expires, :state, :etag)";
 }
 
 QString DB::InventoryTable::buildUpdateSql(InventoryDataset dataset)
 {
-    return "UPDATE inventory SET \
-           resource_uri = '" + dataset.resource_uri + "', \
-           content_type = '" + dataset.content_type + "', \
-           content_length = " + QString::number(dataset.content_length) + ", \
-           last_update = '" + dataset.last_update.toString() + "', \
-           expires = '" + dataset.expires.toString() + "', \
-           state = " + QString::number(dataset.state) + ", \
-           etag = '" + dataset.etag + "' \
-           WHERE cache_name = '" + dataset.cache_name + "'";
+    Q_UNUSED(dataset);
+    return "UPDATE inventory SET resource_uri = :resource_uri, content_type = :content_type, "
+           "content_length = :content_length, last_update = :last_update, expires = :expires, "
+           "state = :state, etag = :etag WHERE cache_name = :cache_name";
 }
 
 int DB::InventoryTable::countByCacheName(QString cacheName)
 {
     QSqlQuery query(db);
-    if (!query.exec("SELECT COUNT(cache_name) FROM inventory WHERE cache_name ='" +cacheName+"'"))
+    query.prepare("SELECT COUNT(cache_name) FROM inventory WHERE cache_name = :cache_name");
+    query.bindValue(":cache_name", cacheName);
+    if (!query.exec())
         return -1;
 
     int count = 0;
