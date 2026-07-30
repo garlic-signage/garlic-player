@@ -40,7 +40,7 @@
 					</seq>
 				</priorityClass>
 				<priorityClass higher="stop">
-					<seq id="wrap_standby" begin="0" repeatCount="indefinite">
+					<seq id="wrap_standby" begin="0">
 						<img id="standby" dur="2s" src="{__url000}" region="screen3" fit="fill" />
 					</seq>
 				</priorityClass>
