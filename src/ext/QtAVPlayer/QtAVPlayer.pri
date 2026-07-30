@@ -1,11 +1,5 @@
 QT += concurrent
 CONFIG += C++1z
-macx {
-    QMAKE_CXXFLAGS += -I/Users/niko/Deployment/ffmpeg/lib_universal_include
-    QMAKE_CFLAGS   += -I/Users/niko/Deployment/ffmpeg/lib_universal_include
-    QMAKE_LFLAGS   += -L/Users/niko/Deployment/ffmpeg/lib_universal
-    QMAKE_LFLAGS   += -Wl,-rpath,/Users/niko/Deployment/ffmpeg/lib_universal
-}
 
 LIBS += -lavcodec -lavformat -lswscale -lavutil -lswresample -lswscale -lavfilter -lavdevice
 DEFINES += QT_BUILD_QTAVPLAYER_LIB

@@ -76,6 +76,7 @@ support_qtavplayer {
         INCLUDEPATH += /Users/niko/Deployment/ffmpeg/lib_universal_include
         LIBS += -L/Users/niko/Deployment/ffmpeg/lib_universal
         QMAKE_LFLAGS += -Wl,-rpath,/Users/niko/Deployment/ffmpeg/lib_universal
+        QMAKE_LFLAGS += -Wl,-rpath,@executable_path/../Frameworks
         LIBS += -ldav1d
     }
 }
