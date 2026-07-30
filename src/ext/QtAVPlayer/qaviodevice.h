@@ -8,33 +8,26 @@
 #ifndef QAVFIODEVICE_P_H
 #define QAVFIODEVICE_P_H
 
-//
-//  W A R N I N G
-//  -------------
-//
-// This file is not part of the Qt API.  It exists purely as an
-// implementation detail. This header file may change from version to
-// version without notice, or even be removed.
-//
-// We mean it.
-//
-
 #include <QtAVPlayer/qtavplayerglobal.h>
 #include <QIODevice>
+#include <QSharedPointer>
 #include <memory>
 
 QT_BEGIN_NAMESPACE
 
 struct AVIOContext;
 class QAVIODevicePrivate;
-class QAVIODevice : public QObject
+class Q_AVPLAYER_EXPORT QAVIODevice : public QObject
 {
 public:
-    QAVIODevice(QIODevice &device, QObject *parent = nullptr);
+    QAVIODevice(const QSharedPointer<QIODevice> &device, QObject *parent = nullptr);
     ~QAVIODevice();
 
     AVIOContext *ctx() const;
     void abort(bool aborted);
+
+    void setBufferSize(size_t size);
+    size_t bufferSize() const;
 
 protected:
     std::unique_ptr<QAVIODevicePrivate> d_ptr;

@@ -15,16 +15,73 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 #include <libavcodec/mediacodec.h>
 #include <libavutil/hwcontext_mediacodec.h>
+#include <stdatomic.h>
+
+struct FFAMediaCodec;
+struct FFAMediaFormat;
+// libavcodec/mediacodecdec_common.h
+typedef struct MediaCodecDecContext {
+
+    AVCodecContext *avctx;
+    atomic_int refcount;
+    atomic_int hw_buffer_count;
+
+    char *codec_name;
+
+    FFAMediaCodec *codec;
+    FFAMediaFormat *format;
+
+    void *surface;
+
+    int started;
+    int draining;
+    int flushing;
+    int eos;
+
+    int width;
+    int height;
+    int stride;
+    int slice_height;
+    int color_format;
+    int crop_top;
+    int crop_bottom;
+    int crop_left;
+    int crop_right;
+    int display_width;
+    int display_height;
+
+    uint64_t output_buffer_count;
+    ssize_t current_input_buffer;
+
+    bool delay_flush;
+    atomic_int serial;
+
+    bool use_ndk_codec;
+} MediaCodecDecContext;
+
+typedef struct MediaCodecBuffer {
+
+    MediaCodecDecContext *ctx;
+    ssize_t index;
+    int64_t pts;
+    atomic_int released;
+    int serial;
+
+} MediaCodecBuffer;
 }
 
 QT_BEGIN_NAMESPACE
 
-Q_GLOBAL_STATIC(QAVAndroidSurfaceTexture, androidSurfaceTexture);
-
 class QAVHWDevice_MediaCodecPrivate
 {
 public:
+    QAVHWDevice_MediaCodecPrivate()
+    {
+        androidSurfaceTexture = std::make_unique<QAVAndroidSurfaceTexture>();
+    }
+
     GLuint texture = 0;
+    std::unique_ptr<QAVAndroidSurfaceTexture> androidSurfaceTexture;
 };
 
 QAVHWDevice_MediaCodec::QAVHWDevice_MediaCodec()
@@ -49,7 +106,7 @@ void QAVHWDevice_MediaCodec::init(AVCodecContext *avctx)
             AVMediaCodecDeviceContext *mediaDeviceContext =
                 reinterpret_cast<AVMediaCodecDeviceContext *>(deviceContext->hwctx);
             if (mediaDeviceContext)
-                mediaDeviceContext->surface = androidSurfaceTexture->surface();
+                mediaDeviceContext->surface = d_ptr->androidSurfaceTexture->surface();
         }
     }
 #else
@@ -83,16 +140,16 @@ public:
 
     QVariant handle(QRhi */*rhi*/) const override
     {
-        if (!androidSurfaceTexture->isValid())
+        if (!m_hw->androidSurfaceTexture->isValid())
             return {};
 
         if (!m_hw->texture) {
-            androidSurfaceTexture->detachFromGLContext();
+            m_hw->androidSurfaceTexture->detachFromGLContext();
             glGenTextures(1, &m_hw->texture);
-            androidSurfaceTexture->attachToGLContext(m_hw->texture);
+            m_hw->androidSurfaceTexture->attachToGLContext(m_hw->texture);
         }
 
-        AVMediaCodecBuffer *buffer = reinterpret_cast<AVMediaCodecBuffer *>(frame().frame()->data[3]);
+        auto buffer = reinterpret_cast<AVMediaCodecBuffer *>(frame().frame()->data[3]);
         if (!buffer) {
             qWarning() << "Received a frame without AVMediaCodecBuffer.";
         } else if (av_mediacodec_release_buffer(buffer, 1) < 0) {
@@ -100,8 +157,19 @@ public:
             return {};
         }
 
-        androidSurfaceTexture->updateTexImage();
+        m_hw->androidSurfaceTexture->updateTexImage();
         return m_hw->texture;
+    }
+
+    QSize size() const override
+    {
+        auto av_frame = frame().frame();
+        auto buffer = reinterpret_cast<AVMediaCodecBuffer *>(av_frame->data[3]);
+        if (!buffer) {
+            return frame().size();
+        }
+        auto ctx = reinterpret_cast<MediaCodecDecContext *>(buffer->ctx);
+        return {ctx->width, ctx->height};
     }
 
     QAVHWDevice_MediaCodecPrivate *m_hw = nullptr;

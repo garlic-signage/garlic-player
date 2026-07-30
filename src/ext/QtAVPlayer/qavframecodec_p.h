@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVFRAMECODEC_P_H
 #define QAVFRAMECODEC_P_H
@@ -21,19 +21,22 @@
 
 #include "qavframe.h"
 #include "qavcodec_p.h"
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 
 QT_BEGIN_NAMESPACE
 
-class QAVFrameCodec : public QAVCodec
+class Q_AVPLAYER_EXPORT QAVFrameCodec : public QAVCodec
 {
 public:
     int write(const QAVPacket &pkt) override;
+    int write(const QAVStreamFrame &frame) override;
     int read(QAVStreamFrame &frame) override;
+    int read(QAVPacket &pkt) override;
 
 protected:
+    using QAVCodec::QAVCodec;
     QAVFrameCodec();
-    QAVFrameCodec(QAVCodecPrivate &d);
+    QAVFrameCodec(QAVCodecPrivate &d, const AVCodec *codec = nullptr);
 };
 
 QT_END_NAMESPACE

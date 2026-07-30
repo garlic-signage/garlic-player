@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVPACKETQUEUE_H
 #define QAVPACKETQUEUE_H
@@ -19,13 +19,12 @@
 // We mean it.
 //
 
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 #include "qavfilter_p.h"
 #include "qavfiltergraph_p.h"
 #include "qavframe.h"
 #include "qavsubtitleframe.h"
 #include "qavstreamframe.h"
-#include "qavdemuxer_p.h"
 #include <QMutex>
 #include <QWaitCondition>
 #include <QList>
@@ -70,6 +69,8 @@ public:
         delay /= speed;
         const double time = av_gettime_relative() / 1000000.0;
         if (shouldSync) {
+            if (pts < prevPts)
+                return true;
             if (time < frameTimer + delay) {
                 double remaining_time = qMin(frameTimer + delay - time, refreshRate);
                 locker.unlock();
@@ -121,9 +122,8 @@ template<class T>
 class QAVPacketQueue
 {
 public:
-    QAVPacketQueue(AVMediaType mediaType, QAVDemuxer &demuxer)
+    QAVPacketQueue(AVMediaType mediaType)
         : m_mediaType(mediaType)
-        , m_demuxer(demuxer)
     {
     }
 
@@ -146,11 +146,12 @@ public:
     void enqueue(const QAVPacket &packet)
     {
         QMutexLocker locker(&m_mutex);
+        if (m_abort)
+            return;
         m_packets.append(packet);
         m_bytes += packet.packet()->size + sizeof(packet);
         m_duration += packet.duration();
         m_consumerWaiter.wakeAll();
-        m_abort = false;
         m_waitingForPackets = false;
     }
 
@@ -158,7 +159,7 @@ public:
     {
         QMutexLocker locker(&m_mutex);
         if (m_decodedFrames.isEmpty())
-            m_demuxer.decode(dequeue(), m_decodedFrames);
+            QAVDemuxer::decode(dequeue(), m_decodedFrames);
         if (m_decodedFrames.isEmpty())
             return false;
         frame = m_decodedFrames.front();
@@ -180,20 +181,25 @@ public:
             m_producerWaiter.wait(&m_mutex);
     }
 
-    void abort()
+    void abort(bool aborted = true)
     {
         QMutexLocker locker(&m_mutex);
-        m_abort = true;
+        m_abort = aborted;
         m_waitingForPackets = true;
         m_consumerWaiter.wakeAll();
         m_producerWaiter.wakeAll();
     }
 
-    bool enough() const
+    int size() const
     {
         QMutexLocker locker(&m_mutex);
-        const int minFrames = 15;
-        return m_packets.size() > minFrames && (!m_duration || m_duration > 1.0);
+        return m_packets.size();
+    }
+
+    double duration() const
+    {
+        QMutexLocker locker(&m_mutex);
+        return m_duration;
     }
 
     int bytes() const
@@ -251,7 +257,6 @@ private:
     }
 
     const AVMediaType m_mediaType = AVMEDIA_TYPE_UNKNOWN;
-    QAVDemuxer &m_demuxer;
     QList<QAVPacket> m_packets;
     // Tracks decoded frames to prevent EOF if not all frames are landed
     QList<T> m_decodedFrames;
@@ -263,7 +268,7 @@ private:
     bool m_wake = false;
 
     int m_bytes = 0;
-    int m_duration = 0;
+    double m_duration = 0;
 
 private:
     Q_DISABLE_COPY(QAVPacketQueue)

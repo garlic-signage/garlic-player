@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVFVIDEORAME_H
 #define QAVFVIDEORAME_H
@@ -25,7 +25,7 @@ class QAVCodec;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 class QRhi;
 #endif
-class QAVVideoFrame : public QAVFrame
+class Q_AVPLAYER_EXPORT QAVVideoFrame : public QAVFrame
 {
 public:
     enum HandleType
@@ -55,6 +55,7 @@ public:
     };
 
     MapData map() const;
+    bool isMapped() const;
     HandleType handleType() const;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QVariant handle(QRhi *rhi = nullptr) const;

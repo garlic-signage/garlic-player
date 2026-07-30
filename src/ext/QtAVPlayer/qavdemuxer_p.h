@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVDEMUXER_H
 #define QAVDEMUXER_H
@@ -19,7 +19,7 @@
 // We mean it.
 //
 
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 #include "qavstream.h"
 #include "qavframe.h"
 #include "qavsubtitleframe.h"
@@ -37,19 +37,20 @@ class QAVVideoCodec;
 class QAVAudioCodec;
 class QAVIODevice;
 struct AVStream;
-struct AVCodecContext;
 struct AVFormatContext;
-class QAVDemuxer
+class Q_AVPLAYER_EXPORT QAVDemuxer
 {
 public:
     QAVDemuxer();
     ~QAVDemuxer();
 
-    void abort(bool stop = true);
+    void abort();
     int load(const QString &url, QAVIODevice *dev = nullptr);
     void unload();
 
     AVMediaType currentCodecType(int index) const;
+
+    QList<QAVStream> availableStreams() const;
 
     QList<QAVStream> availableVideoStreams() const;
     QList<QAVStream> currentVideoStreams() const;
@@ -63,10 +64,15 @@ public:
     QList<QAVStream> currentSubtitleStreams() const;
     bool setSubtitleStreams(const QList<QAVStream> &streams);
 
-    QAVPacket read();
+    AVFormatContext *avctx() const;
+    /**
+     * Reads and returns a packet from AVFormatContext
+     * @return AVERROR
+     */
+    int read(QAVPacket &pkt);
 
-    void decode(const QAVPacket &pkt, QList<QAVFrame> &frames) const;
-    void decode(const QAVPacket &pkt, QList<QAVSubtitleFrame> &frames) const;
+    static void decode(const QAVPacket &pkt, QList<QAVFrame> &frames);
+    static void decode(const QAVPacket &pkt, QList<QAVSubtitleFrame> &frames);
     void flushCodecBuffers();
 
     double duration() const;
@@ -89,8 +95,13 @@ public:
     QMap<QString, QString> inputOptions() const;
     void setInputOptions(const QMap<QString, QString> &opts);
 
+    QMap<QString, QString> videoCodecOptions() const;
+    void setVideoCodecOptions(const QMap<QString, QString> &opts);
+
     void onFrameSent(const QAVStreamFrame &frame);
     QAVStream::Progress progress(const QAVStream &s) const;
+
+    bool isMasterStream(const QAVStream &stream) const;
 
     static QStringList supportedFormats();
     static QStringList supportedVideoCodecs();

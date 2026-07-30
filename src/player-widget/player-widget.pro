@@ -7,7 +7,7 @@ include(../defaults.pri)
 include(../player-common/common.pri)
 
 QT          += core gui sql xml xmlpatterns widgets webenginewidgets
-CONFIG      += warn_on c++11
+CONFIG      += warn_on c++17
 DEFINES     += QT_DEPRECATED_WARNINGS
 TARGET       = garlic-player
 TEMPLATE     = app
@@ -27,10 +27,8 @@ INCLUDEPATH += ../ext/zlib/
 #DEFINES += DEFAULT_CONTENT_URL=indexes.smil-control.com/index.php?site=get_index\&owner_id=12
 
 # possible media backends:
-# support_qtav              currently default but deprecated as QtAV has mem leaks and development abandoned)
 # support_qtmm              Qt Multimedia lib. Slow, laggy and platform dependend
 # support_qtavplayer        replacement for support_qtav
-# support_qffplay           experimental tiny ffmpeg wrapper. currently without sound output
 # support_libvlc            For Raspberry Pi OS only. libvlc has much better hw acceleration than ffmpeg
 
 linux {
@@ -46,7 +44,7 @@ win32 {
 }
 
 macx {
-    CONFIG   += support_qtmm
+    CONFIG   += support_qtavplayer
 }
 
 
@@ -75,67 +73,12 @@ support_qtavplayer {
     macx {
         # because someone is to silly to find ffmpeg includes even in Qt Dir
         # this is only for the build server. Change it to your values
-        INCLUDEPATH += /Users/niko/Deployment/ffmpeg-6.1/include
-        LIBS += -L/Users/niko/Deployment/ffmpeg-6.1/lib
+        INCLUDEPATH += /Users/niko/Deployment/ffmpeg/lib_universal_include
+        LIBS += -L/Users/niko/Deployment/ffmpeg/lib_universal
+        QMAKE_LFLAGS += -Wl,-rpath,/Users/niko/Deployment/ffmpeg/lib_universal
+        LIBS += -ldav1d
     }
 }
-
-support_qffplay {
-    DEFINES += SUPPORT_QFFPLAY
-    HEADERS += \
-        mm_libs/qffpl_decoder.h \
-        mm_libs/qffpl_widget.h \
-        mm_libs/qffplaylib/decoder.h \
-        mm_libs/qffplaylib/mediaplayer.h \
-        mm_libs/qffplaylib/ffmpeg.h \
-        mm_libs/qffplaylib/videoout.h
-    SOURCES += \
-        mm_libs/qffpl_decoder.cpp \
-        mm_libs/qffpl_widget.cpp \
-        mm_libs/qffplaylib/decoder.cpp \
-        mm_libs/qffplaylib/ffmpeg.cpp \
-        mm_libs/qffplaylib/mediaplayer.cpp \
-        mm_libs/qffplaylib/videoout.cpp
-
-    linux {
-       LIBS += -lavformat -lavdevice -lavcodec -lswresample -lswscale -lavutil
-    }
-    macx {
-        # because someone is to silly to find ffmpeg includes in Qt Dir
-        INCLUDEPATH += /Users/niko/Qt/5.12.12/clang_64/include
-        LIBS += -L$$QT.core.libs -lavformat -lavdevice -lavcodec -lswresample -lswscale -lavutil
-    }
-    win32 {
-        LIBS += -L$$QT.core.libs
-    }
-}
-
-support_qtav {
-    DEFINES += SUPPORT_QTAV
-    QT      += avwidgets
-    CONFIG  += avwidgets
-    HEADERS += \
-        mm_libs/qtav_decoder.h \
-        mm_libs/qtav_widget.h
-    SOURCES += \
-        mm_libs/qtav_decoder.cpp \
-        mm_libs/qtav_widget.cpp
-
-    # workaround for >Qt5.11 https://github.com/wang-bin/QtAV/issues/1231
-    linux {
-       LIBS += -L$$QT.core.libs -lQtAV
-    }
-    macx {
-        INCLUDEPATH  += $$QT.core.libs/QtAV.framework/Versions/1/Headers
-        INCLUDEPATH  += $$QT.core.libs/QtAVWidgets.framework/Versions/1/Headers
-        QMAKE_LFLAGS += -F$$QT.core.libs
-        LIBS         += -framework QtAV
-    }
-    win32 {
-        LIBS += -L$$QT.core.libs -lQtAV1
-    }
-}
-
 support_libvlc{
     DEFINES += SUPPORT_LIBVLC
     linux {

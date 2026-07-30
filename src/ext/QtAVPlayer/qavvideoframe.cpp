@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #include "qavvideoframe.h"
 #include "qavvideobuffer_cpu_p.h"
@@ -12,13 +12,17 @@
 #include "qavhwdevice_p.h"
 #include <QSize>
 #ifdef QT_AVPLAYER_MULTIMEDIA
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-#include <QAbstractVideoSurface>
-#else
-#include <QtMultimedia/private/qabstractvideobuffer_p.h>
-#include <QtMultimedia/private/qvideotexturehelper_p.h>
-#endif
-#endif
+    #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+        #include <QAbstractVideoSurface>
+    #else
+        #if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
+            #include <QtMultimedia/private/qabstractvideobuffer_p.h>
+        #else
+            #include <QtMultimedia/private/qhwvideobuffer_p.h>
+        #endif // #if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
+        #include <QtMultimedia/private/qvideotexturehelper_p.h>
+    #endif // #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#endif // #ifdef QT_AVPLAYER_MULTIMEDIA
 #include <QDebug>
 
 extern "C" {
@@ -53,7 +57,7 @@ public:
     }
 
     QAVVideoFrame *q_ptr = nullptr;
-    QScopedPointer<QAVVideoBuffer> buffer;
+    QSharedPointer<QAVVideoBuffer> buffer;
 };
 
 QAVVideoFrame::QAVVideoFrame()
@@ -94,7 +98,7 @@ QAVVideoFrame &QAVVideoFrame::operator=(const QAVVideoFrame &other)
 {
     Q_D(QAVVideoFrame);
     QAVFrame::operator=(other);
-    d->buffer.reset();
+    d->buffer = reinterpret_cast<QAVVideoFramePrivate *>(other.d_ptr.get())->buffer;
     return *this;
 }
 
@@ -108,6 +112,12 @@ QAVVideoFrame::MapData QAVVideoFrame::map() const
 {
     Q_D(const QAVVideoFrame);
     return d->videoBuffer().map();
+}
+
+bool QAVVideoFrame::isMapped() const
+{
+    Q_D(const QAVVideoFrame);
+    return d->videoBuffer().isMapped();
 }
 
 QAVVideoFrame::HandleType QAVVideoFrame::handleType() const
@@ -169,6 +179,7 @@ QAVVideoFrame QAVVideoFrame::convertTo(AVPixelFormat fmt) const
     result.d_ptr->stream = d_ptr->stream;
     sws_scale(ctx, mapData.data, mapData.bytesPerLine, 0, result.size().height(), result.frame()->data, result.frame()->linesize);
     sws_freeContext(ctx);
+    reinterpret_cast<QAVFramePrivate *>(result.d_ptr.get())->frame->pts = reinterpret_cast<QAVFramePrivate *>(d_ptr.get())->frame->pts;
 
     return result;
 }
@@ -189,6 +200,7 @@ public:
     }
 
     MapMode mapMode() const override { return m_mode; }
+    using QAbstractPlanarVideoBuffer::map;
     int map(MapMode mode, int *numBytes, int bytesPerLine[4], uchar *data[4]) override
     {
         if (m_mode != NotMapped || mode == NotMapped)
@@ -216,20 +228,44 @@ private:
     QAVVideoFrame m_frame;
     MapMode m_mode = NotMapped;
 };
+#else // #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
+using AbstractVideoBuffer = QAbstractVideoBuffer;
 #else
-class PlanarVideoBuffer : public QAbstractVideoBuffer
+using AbstractVideoBuffer = QHwVideoBuffer;
+#endif
+
+class PlanarVideoBuffer : public AbstractVideoBuffer
 {
 public:
     PlanarVideoBuffer(const QAVVideoFrame &frame, QVideoFrameFormat::PixelFormat format
-        , QVideoFrame::HandleType type = QVideoFrame::NoHandle)
-        : QAbstractVideoBuffer(type)
+        , QVideoFrame::HandleType type = QVideoFrame::NoHandle, QVideoFrameFormat videoFormat = {})
+        : AbstractVideoBuffer(type)
         , m_frame(frame)
         , m_pixelFormat(format)
+        , m_videoFormat(videoFormat)
     {
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    QVideoFrameFormat format() const override { return m_videoFormat; }
+#endif
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 7, 2)
+    QVideoFrame::MapMode mapMode() const override { return m_mode; }
     quint64 textureHandle(int plane) const override
+#else
+    #if QT_VERSION < QT_VERSION_CHECK(6, 8, 2)
+        quint64 textureHandle(QRhi *, int plane) const override
+    #else
+        quint64 textureHandle(QRhi &, int plane) override
+    #endif // QT_VERSION < QT_VERSION_CHECK(6, 8, 2)
+#endif // #if QT_VERSION < QT_VERSION_CHECK(6, 7, 2)
     {
+        // Don't use video buffer if already mapped
+        if (m_frame.isMapped())
+            return 0;
         if (m_textures.isNull())
             const_cast<PlanarVideoBuffer *>(this)->m_textures = m_frame.handle(m_rhi);
         if (m_textures.canConvert<QList<QVariant>>()) {
@@ -240,7 +276,6 @@ public:
         return m_textures.toULongLong();
     }
 
-    QVideoFrame::MapMode mapMode() const override { return m_mode; }
     MapData map(QVideoFrame::MapMode mode) override
     {
         MapData res;
@@ -250,28 +285,47 @@ public:
         m_mode = mode;
         auto mapData = m_frame.map();
         auto *desc = QVideoTextureHelper::textureDescription(m_pixelFormat);
+#if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
         res.nPlanes = desc->nplanes;
-        for (int i = 0; i < res.nPlanes; ++i) {
+#else
+        res.planeCount = desc->nplanes;
+#endif
+        for (int i = 0; i < desc->nplanes; ++i) {
             if (!mapData.bytesPerLine[i])
                 break;
 
             res.data[i] = mapData.data[i];
             res.bytesPerLine[i] = mapData.bytesPerLine[i];
             // TODO: Reimplement heightForPlane
-            res.size[i] = mapData.bytesPerLine[i] * desc->heightForPlane(m_frame.size().height(), i);
+            auto size = mapData.bytesPerLine[i] * desc->heightForPlane(m_frame.size().height(), i);
+#if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
+            res.size[i] = size;
+#else
+            res.dataSize[i] = size;
+#endif
         }
         return res;
     }
     void unmap() override { m_mode = QVideoFrame::NotMapped; }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
-    std::unique_ptr<QVideoFrameTextures> mapTextures(QRhi *rhi) override
-    {
-        m_rhi = rhi;
-        if (m_textures.isNull())
-            m_textures = m_frame.handle(m_rhi);
-        return nullptr;
-    }
+    #if QT_VERSION < QT_VERSION_CHECK(6, 8, 2)
+        std::unique_ptr<QVideoFrameTextures> mapTextures(QRhi *rhi) override
+        {
+            m_rhi = rhi;
+            if (m_textures.isNull())
+                m_textures = m_frame.handle(m_rhi);
+            return nullptr;
+        }
+    #else
+        QVideoFrameTexturesUPtr mapTextures(QRhi &rhi, QVideoFrameTexturesUPtr &/*oldTextures*/) override
+        {
+            m_rhi = &rhi;
+            if (m_textures.isNull())
+                m_textures = m_frame.handle(m_rhi);
+            return nullptr;
+        }
+    #endif // QT_VERSION < QT_VERSION_CHECK(6, 8, 2)
 
     static QVideoFrameFormat::ColorSpace colorSpace(const AVFrame *frame)
     {
@@ -359,14 +413,15 @@ public:
         }
         return maxNits;
     }
-#endif
+#endif // #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
 
 private:
     QAVVideoFrame m_frame;
     QVideoFrameFormat::PixelFormat m_pixelFormat = QVideoFrameFormat::Format_Invalid;
+    QVideoFrameFormat m_videoFormat;
     QVideoFrame::MapMode m_mode = QVideoFrame::NotMapped;
     QVariant m_textures;
-#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0)
+#if QT_VERSION < QT_VERSION_CHECK(6, 4, 0) || QT_VERSION > QT_VERSION_CHECK(6, 10, 0)
     QRhi *m_rhi = nullptr;
 #endif
 };
@@ -413,7 +468,14 @@ QAVVideoFrame::operator QVideoFrame() const
 #else
             format = QVideoFrameFormat::Format_RGBA8888;
 #endif
+            // If a frame based on one opengl texture is aleady mapped
+            // then forcing to render the mapped data instead.
+            // This will not use any backend texture handles.
+            // See also PlanarVideoBuffer::textureHandle().
+            if (result.isMapped())
+                format = VideoFrame::Format_NV12;
             break;
+        case AV_PIX_FMT_CUDA:
         case AV_PIX_FMT_D3D11:
         case AV_PIX_FMT_VIDEOTOOLBOX:
         case AV_PIX_FMT_NV12:
@@ -460,13 +522,31 @@ QAVVideoFrame::operator QVideoFrame() const
     return QVideoFrame(new PlanarVideoBuffer(result, type), size(), format);
 #else
     QVideoFrameFormat videoFormat(size(), format);
+
+    QRect viewport(
+        static_cast<int>(frame()->crop_left),
+        static_cast<int>(frame()->crop_top),
+        static_cast<int>(frame()->width - frame()->crop_left - frame()->crop_right),
+        static_cast<int>(frame()->height - frame()->crop_top - frame()->crop_bottom)
+    );
+    // Special case when the codec already cropped the frame and need to render only part of the frame
+    auto bufSize = reinterpret_cast<QAVVideoFramePrivate *>(result.d_ptr.get())->videoBuffer().size();
+    if (handleType() == GLTextureHandle && bufSize.height() > size().height() && size().height() == viewport.height()) {
+        auto diff = bufSize.height() - size().height();
+        viewport.setHeight(viewport.height() - diff - 1);
+    }
+    videoFormat.setViewport(viewport);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
     videoFormat.setColorSpace(PlanarVideoBuffer::colorSpace(frame()));
     videoFormat.setColorTransfer(PlanarVideoBuffer::colorTransfer(frame()));
     videoFormat.setColorRange(PlanarVideoBuffer::colorRange(frame()));
     videoFormat.setMaxLuminance(PlanarVideoBuffer::maxNits(frame()));
-#endif
+#endif // #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+#if QT_VERSION < QT_VERSION_CHECK(6, 8, 0)
     return QVideoFrame(new PlanarVideoBuffer(result, format, type), videoFormat);
+#else
+    return QVideoFrame(std::make_unique<PlanarVideoBuffer>(result, format, type, videoFormat));
+#endif
 #endif
 }
 #endif // #ifdef QT_AVPLAYER_MULTIMEDIA

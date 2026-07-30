@@ -1,14 +1,14 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #include "qavvideocodec_p.h"
 #include "qavhwdevice_p.h"
 #include "qavcodec_p_p.h"
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 #include "qavframe.h"
 #include "qavvideoframe.h"
 #include <QDebug>
@@ -35,12 +35,15 @@ static bool isSoftwarePixelFormat(AVPixelFormat from)
     case AV_PIX_FMT_VIDEOTOOLBOX:
     case AV_PIX_FMT_D3D11:
     case AV_PIX_FMT_D3D11VA_VLD:
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(58, 32, 100)
+    case AV_PIX_FMT_D3D12:
+#endif
 #if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(56, 0, 0)
     case AV_PIX_FMT_OPENCL:
 #endif
     case AV_PIX_FMT_CUDA:
     case AV_PIX_FMT_DXVA2_VLD:
-#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(52, 58, 101)
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(52, 58, 101) && LIBAVUTIL_VERSION_INT < AV_VERSION_INT(59, 8, 0)
     case AV_PIX_FMT_XVMC:
 #endif
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 134, 0)
@@ -55,21 +58,25 @@ static bool isSoftwarePixelFormat(AVPixelFormat from)
     }
 }
 
-static AVPixelFormat negotiate_pixel_format(AVCodecContext *c, const AVPixelFormat *f)
+QList<AVHWDeviceType> QAVVideoCodec::supportedHWDevices(const AVCodec *c)
 {
-    auto d = reinterpret_cast<QAVVideoCodecPrivate *>(c->opaque);
-
     QList<AVHWDeviceType> supported;
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 0, 0)
     for (int i = 0;; ++i) {
-        const AVCodecHWConfig *config = avcodec_get_hw_config(c->codec, i);
+        const AVCodecHWConfig *config = avcodec_get_hw_config(c, i);
         if (!config)
             break;
-
         if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX)
             supported.append(config->device_type);
     }
+#endif
+    return supported;
+}
 
+static AVPixelFormat negotiate_pixel_format(AVCodecContext *c, const AVPixelFormat *f)
+{
+    auto d = reinterpret_cast<QAVVideoCodecPrivate *>(c->opaque);
+    auto supported = QAVVideoCodec::supportedHWDevices(c->codec);
     if (!supported.isEmpty()) {
         qDebug() << c->codec->name << ": supported hardware device contexts:";
         for (auto a: supported)
@@ -77,7 +84,6 @@ static AVPixelFormat negotiate_pixel_format(AVCodecContext *c, const AVPixelForm
     } else {
         qWarning() << "None of the hardware accelerations are supported";
     }
-#endif
 
     QList<AVPixelFormat> softwareFormats;
     QList<AVPixelFormat> hardwareFormats;
@@ -122,8 +128,8 @@ static AVPixelFormat negotiate_pixel_format(AVCodecContext *c, const AVPixelForm
     return pf;
 }
 
-QAVVideoCodec::QAVVideoCodec()
-    : QAVFrameCodec(*new QAVVideoCodecPrivate)
+QAVVideoCodec::QAVVideoCodec(const AVCodec *codec)
+    : QAVFrameCodec(*new QAVVideoCodecPrivate, codec)
 {
     d_ptr->avctx->opaque = d_ptr.get();
     d_ptr->avctx->get_format = negotiate_pixel_format;

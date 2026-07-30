@@ -12,7 +12,7 @@
 
 QT_BEGIN_NAMESPACE
 
-class QAVAudioFormat
+class Q_AVPLAYER_EXPORT QAVAudioFormat
 {
 public:
     enum SampleFormat
@@ -32,6 +32,11 @@ public:
 
     int channelCount() const { return m_channelCount; }
     void setChannelCount(int channelCount) { m_channelCount = channelCount; }
+
+    operator bool() const
+    {
+        return m_sampleFormat != SampleFormat::Unknown && m_sampleRate != 0 && m_channelCount != 0;
+    }
 
     friend bool operator==(const QAVAudioFormat &a, const QAVAudioFormat &b)
     {

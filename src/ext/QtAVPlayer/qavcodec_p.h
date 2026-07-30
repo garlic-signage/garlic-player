@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVCODEC_P_H
 #define QAVCODEC_P_H
@@ -19,10 +19,15 @@
 // We mean it.
 //
 
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 #include "qavframe.h"
 #include <QtAVPlayer/qtavplayerglobal.h>
+#include <QSize>
 #include <memory>
+
+extern "C" {
+#include <libavutil/dict.h>
+}
 
 QT_BEGIN_NAMESPACE
 
@@ -30,27 +35,33 @@ struct AVCodec;
 struct AVCodecContext;
 struct AVStream;
 class QAVCodecPrivate;
-class QAVCodec
+class Q_AVPLAYER_EXPORT QAVCodec
 {
 public:
     virtual ~QAVCodec();
 
-    bool open(AVStream *stream);
+    bool open(AVStream *stream, AVDictionary** opts = NULL);
     AVCodecContext *avctx() const;
     void setCodec(const AVCodec *c);
     const AVCodec *codec() const;
+    QSize size() const;
 
     void flushBuffers();
 
     // Sends a packet
     virtual int write(const QAVPacket &pkt) = 0;
+    // Sends a frame
+    virtual int write(const QAVStreamFrame &frame) = 0;
     // Receives a frame
     // NOTE: There could be multiple frames
     virtual int read(QAVStreamFrame &frame) = 0;
+    // Receives a packet
+    virtual int read(QAVPacket &pkt) = 0;
 
 protected:
     QAVCodec();
-    QAVCodec(QAVCodecPrivate &d);
+    QAVCodec(QAVCodecPrivate &d, const AVCodec *codec = nullptr);
+
     std::unique_ptr<QAVCodecPrivate> d_ptr;
     Q_DECLARE_PRIVATE(QAVCodec)
 private:

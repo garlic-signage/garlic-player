@@ -1,11 +1,11 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
-#include "qavpacket_p.h"
+#include "qavpacket.h"
 #include "qavcodec_p.h"
 #include "qavstream.h"
 #include <QSharedPointer>
@@ -96,6 +96,12 @@ void QAVPacket::setStream(const QAVStream &stream)
 {
     Q_D(QAVPacket);
     d->stream = stream;
+}
+
+int QAVPacket::receive()
+{
+    Q_D(QAVPacket);
+    return d->stream ? d->stream.codec()->read(*this) : 0;
 }
 
 int QAVPacket::send() const

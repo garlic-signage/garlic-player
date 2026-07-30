@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVVIDEOCODEC_P_H
 #define QAVVIDEOCODEC_P_H
@@ -21,18 +21,24 @@
 
 #include "qavframecodec_p.h"
 
+extern "C" {
+#include <libavutil/hwcontext.h>
+}
+
 QT_BEGIN_NAMESPACE
 
 class QAVVideoCodecPrivate;
 class QAVHWDevice;
-class QAVVideoCodec : public QAVFrameCodec
+class Q_AVPLAYER_EXPORT QAVVideoCodec : public QAVFrameCodec
 {
 public:
-    QAVVideoCodec();
+    QAVVideoCodec(const AVCodec *codec = nullptr);
     ~QAVVideoCodec();
 
     void setDevice(const QSharedPointer<QAVHWDevice> &d);
     QAVHWDevice *device() const;
+
+    static QList<AVHWDeviceType> supportedHWDevices(const AVCodec *c);
 
 private:
     Q_DISABLE_COPY(QAVVideoCodec)

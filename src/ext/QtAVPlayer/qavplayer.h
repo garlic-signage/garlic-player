@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2026, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #ifndef QAVPLAYER_H
 #define QAVPLAYER_H
@@ -18,9 +18,10 @@
 
 QT_BEGIN_NAMESPACE
 
-class QIODevice;
+struct AVFormatContext;
+class QAVIODevice;
 class QAVPlayerPrivate;
-class QAVPlayer : public QObject
+class Q_AVPLAYER_EXPORT QAVPlayer : public QObject
 {
     Q_OBJECT
     Q_ENUMS(State)
@@ -47,14 +48,27 @@ public:
     {
         NoError,
         ResourceError,
-        FilterError
+        FilterError,
+        BitstreamFilterError,
+        MuxerError
     };
 
     QAVPlayer(QObject *parent = nullptr);
     ~QAVPlayer();
 
-    void setSource(const QString &url, QIODevice *dev = nullptr);
+    void setSource(const QString &url, const QSharedPointer<QAVIODevice> &dev = {});
     QString source() const;
+
+    /**
+     * Writes the original packets to the output filename
+     */
+    void setOutput(const QString &filename);
+    QString output() const;
+
+    /**
+     * Returns all available streams after LoadedMedia
+     */
+    QList<QAVStream> availableStreams() const;
 
     QList<QAVStream> availableVideoStreams() const;
     QList<QAVStream> currentVideoStreams() const;
@@ -70,6 +84,8 @@ public:
     QList<QAVStream> currentSubtitleStreams() const;
     void setSubtitleStream(const QAVStream &stream);
     void setSubtitleStreams(const QList<QAVStream> &streams);
+
+    AVFormatContext *avctx() const;
 
     State state() const;
     MediaStatus mediaStatus() const;
@@ -93,12 +109,21 @@ public:
     QString inputFormat() const;
     void setInputFormat(const QString &format);
 
+    /**
+     * Name of AVCodec to be used for video codec: `ffmpeg -vcodec h264`.
+     * It calls avcodec_find_decoder_by_name() internally.
+     * If `software` is passed, then it forces software decoding,
+     * the same as `QT_AVPLAYER_NO_HWDEVICE` env variable.
+     */
     QString inputVideoCodec() const;
     void setInputVideoCodec(const QString &codec);
     static QStringList supportedVideoCodecs();
 
     QMap<QString, QString> inputOptions() const;
     void setInputOptions(const QMap<QString, QString> &opts);
+
+    QMap<QString, QString> videoCodecOptions() const;
+    void setVideoCodecOptions(const QMap<QString, QString> &opts);
 
     QAVStream::Progress progress(const QAVStream &stream) const;
 
@@ -113,6 +138,7 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     void sourceChanged(const QString &url);
+    void outputChanged(const QString &filename);
     void stateChanged(QAVPlayer::State newState);
     void mediaStatusChanged(QAVPlayer::MediaStatus status);
     void errorOccurred(QAVPlayer::Error, const QString &str);
@@ -134,11 +160,15 @@ Q_SIGNALS:
     void inputFormatChanged(const QString &format);
     void inputVideoCodecChanged(const QString &codec);
     void inputOptionsChanged(const QMap<QString, QString> &opts);
+    void videoCodecOptionsChanged(const QMap<QString, QString> &opts);
 
     void videoFrame(const QAVVideoFrame &frame);
     void audioFrame(const QAVAudioFrame &frame);
     void subtitleFrame(const QAVSubtitleFrame &frame);
 
+public:
+    static void setLogsLevelBackend(int level);
+    
 protected:
     std::unique_ptr<QAVPlayerPrivate> d_ptr;
 
@@ -148,9 +178,9 @@ private:
 };
 
 #ifndef QT_NO_DEBUG_STREAM
-QDebug operator<<(QDebug, QAVPlayer::State);
-QDebug operator<<(QDebug, QAVPlayer::MediaStatus);
-QDebug operator<<(QDebug, QAVPlayer::Error);
+Q_AVPLAYER_EXPORT QDebug operator<<(QDebug, QAVPlayer::State);
+Q_AVPLAYER_EXPORT QDebug operator<<(QDebug, QAVPlayer::MediaStatus);
+Q_AVPLAYER_EXPORT QDebug operator<<(QDebug, QAVPlayer::Error);
 #endif
 
 Q_DECLARE_METATYPE(QAVPlayer::State)
