@@ -71,11 +71,11 @@
     <receiver android:name="com.sagiadinos.garlic.player.java.ConfigReceiver" android:enabled="true"/>
     <!-- For adding service(s) please check: https://wiki.qt.io/AndroidServices -->
   </application>
-  <uses-sdk android:minSdkVersion="25" android:targetSdkVersion="29"/>
+  <uses-sdk android:minSdkVersion="16" android:targetSdkVersion="31"/>
 
-	<uses-permission android:name="android.permission.WAKE_LOCK"/>
-	<uses-permission android:name="android.permission.INTERNET"/>
+        <uses-permission android:name="android.permission.WAKE_LOCK"/>
+        <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+        <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 </manifest>
