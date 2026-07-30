@@ -12,7 +12,7 @@ FULL_SCRIPTDIR=$(pwd)
 
 
 export QT_BASE_PATH=							           	# path to your qt base directory
-export QT_VERSION=5.15.11								    # The Qt Version
+export QT_VERSION=5.15.19								    # The Qt Version
 export CONFIG_DEBUG_RELEASE=release    					    # set if debug or release
 
 ##################################################################
