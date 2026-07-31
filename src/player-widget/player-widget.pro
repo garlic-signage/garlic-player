@@ -47,7 +47,6 @@ macx {
     CONFIG   += support_qtavplayer
 }
 
-
 support_qtavplayer {
     DEFINES += SUPPORT_QTAVPLAYER
     DEFINES+="QT_AVPLAYER_MULTIMEDIA"
@@ -71,8 +70,8 @@ support_qtavplayer {
         LIBS += -L$$QT.core.libs
     }
     macx {
-        # because someone is to silly to find ffmpeg includes even in Qt Dir
-        # this is only for the build server. Change it to your values
+        # because apple needs some extra handling for libs
+        # /Users/niko is only for my build server. Change it to your values
         INCLUDEPATH += /Users/niko/Deployment/ffmpeg/lib_universal_include
         LIBS += -L/Users/niko/Deployment/ffmpeg/lib_universal
         QMAKE_LFLAGS += -Wl,-rpath,/Users/niko/Deployment/ffmpeg/lib_universal
