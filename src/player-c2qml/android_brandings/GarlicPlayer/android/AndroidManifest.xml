@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.sagiadinos.garlic.player" android:versionName="v0.6.0.671" android:versionCode="671" android:installLocation="auto">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.sagiadinos.garlic.player" android:versionName="v1.0.0.671" android:versionCode="671" android:installLocation="auto">
   <!-- The following comment will be replaced upon deployment with default permissions based on the dependencies of the application.
          Remove the comment if you do not require these default permissions. -->
   <!-- %%INSERT_PERMISSIONS -->

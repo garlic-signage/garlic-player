@@ -2,28 +2,50 @@ Changelog
 ===========
 
 
-0.6.0 -> 0.7.0
+# garlic-player 1.0.0 Release Notes
+
+Changes from 0.6.0 -> 1.0.0 
+
 ---------------------
 
-1. New Features
-        * include daily reboot timer via config.xml
-        * select if screen off or deep stand by (depends on hardware) via config.xml
-        * create new testsuite
+Added
+	* Webcam and microphone support in QWebEngine player widget
+	* Reboot timer / scheduler with configurable weekdays
+	* ETag and If-Modified-Since support for caching
+	* Content-url with custom ports
+	* Add support for ports
+	* iOS build (QML player, video playback plugins, local file access)
+	* Multi-ABI Android builds
+	* AppImage build script for Linux x64 and aarch64
+	* Fastlane metadata structure
 
-2. Improvements
-        * Using Qt5.15.14
-		* call widgets index.html via integrated httpd
-		* reboot when index.smil is corrupt and no download in progress
-        * multiabi builds for Android
-        * fix cache file names when there are url params
-        * start to replace QXmlPatterns with XQilla for switching to Qt6
-        * new build scripts
-        * updated AVPlayer
-        * fix Taskscheduler errors
-        * fixes for vlc and Windows
+Changed
+	* Updated QtAvPlayer for FFmpeg 8.1
+	* Updated zlib
+	* Migrated to Qt 5.15 LTS
+	* Minimum Android SDK raised to 21 (Android 5)
+	* Increased threads and small file cache in internal webserver
+	* CI migrated from Jenkins to GitHub Actions, covering x64 / aarch64 Linux, iOS, macOS, and Android
 
+Fixed
+	* White screen error on restart without internet
+	* VLC library ifdef bug
+	* Empty trigger playlist bug
+	* Config.xml not downloading in some cases
+	* Content-length not checked on redirected media
+	* Date not always sent in English format
+	* Screenshot API breakage (#56)
+	* Various Android build and runtime issues
+	* Linux build missing cmath include
+	* macOS/Windows path handling issues
+	* Caching filenames with URL parameters
 
-0.5.0 -> 0.6.0 (current stable)
+Remove
+	* outdated qtav and own ffmpeg API	
+
+Full commit history available via `git log v0.6..v1.0.0`.
+
+0.5.0 -> 0.6.0 
 ---------------------
 1. New Features
    	* integrate httpd server from Stefan Frings (http://stefanfrings.de/qtwebapp/)
