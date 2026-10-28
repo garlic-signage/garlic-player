@@ -54,3 +54,15 @@ TEST_CASE("logTimestamp writes local time with milliseconds")
     TimeZone tz("UTC");
     CHECK(logTimestamp(new_year + 1234ms) == "2026-01-01 00:30:01,234");
 }
+
+TEST_CASE("toLocalTime gives the local wall time")
+{
+    {
+        TimeZone tz("UTC");
+        CHECK(toLocalTime(new_year) == local_days{January / 1 / 2026} + 30min);
+    }
+    {
+        TimeZone tz("EST5"); // UTC-5, the day before
+        CHECK(toLocalTime(new_year) == local_days{December / 31 / 2025} + 19h + 30min);
+    }
+}

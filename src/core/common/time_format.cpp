@@ -71,4 +71,12 @@ namespace garlic::core::common
         return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02},{:03}", local.tm_year + 1900, local.tm_mon + 1,
                            local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec, millis);
     }
+
+    std::chrono::local_seconds toLocalTime(std::chrono::system_clock::time_point time)
+    {
+        using namespace std::chrono;
+        std::tm local = localTm(system_clock::to_time_t(time));
+        return local_days{year{local.tm_year + 1900} / (local.tm_mon + 1) / local.tm_mday} + hours{local.tm_hour} +
+               minutes{local.tm_min} + seconds{local.tm_sec};
+    }
 }

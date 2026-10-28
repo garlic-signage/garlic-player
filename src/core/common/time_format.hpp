@@ -28,6 +28,9 @@ namespace garlic::core::common
 
     /// Local time with milliseconds for text logs: "2026-10-28 03:30:56,123".
     std::string logTimestamp(std::chrono::system_clock::time_point time);
+
+    /// The local wall time of a moment, e.g. for SMIL wallclock values. Uses the C library, not the tz database.
+    std::chrono::local_seconds toLocalTime(std::chrono::system_clock::time_point time);
 }
 
 #endif // GARLIC_CORE_COMMON_TIME_FORMAT_HPP

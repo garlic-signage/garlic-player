@@ -19,8 +19,8 @@ disabled.
 that is missing gets the default values of garlic-lib, unknown elements and attributes are ignored. Element names
 are compared without namespace prefix.
 
-Status: head, media, `seq`, `par`, `excl` and `priorityClass` are done. Wallclock and triggers follow; until then
-such `begin`/`end` values are skipped.
+Status: the parser is complete. `expr` stays text; evaluating it and calculating when a wallclock fires are
+runtime functions and follow before the engine.
 
 ## How the parser works
 
@@ -46,6 +46,7 @@ parse(xml)                         libxml2 reads the text, checks the root eleme
     │   └── parseState             <state><data>: placeholders
     └── parseContainer             <body>, <seq>, <par>, <excl>
         ├── parseTiming            begin end dur repeatCount restart
+        │   └── parseTimeList      begin/end lists, parseTimeCondition per value
         ├── parseEndSync           <par|excl endsync>
         ├── parseChildren          children of body, seq, par, priorityClass
         │   ├── parsePickNumber    <seq><metadata> as first child
@@ -77,6 +78,8 @@ garlic-lib used QDom and `QString`; these small functions replace them:
 | `toNumber()`       | `QString::toFloat`               | the whole value as number, otherwise 0 (time values)      |
 | `relative()`       | `calculatePercentBasedOnRoot`    | `"50%"`, `"960px"`, `"960"` → 0..1                        |
 | `parseClockValue()`| `ClockValue`                     | SMIL time value → milliseconds                            |
+| `parseTimeCondition()` | `EnhancedTimer::parseOneValue` | one `begin`/`end` value → `TimeCondition`             |
+| `parseWallclock()` | `WallClock`, `IsoDate`           | `wallclock(…)` → `Wallclock`                              |
 | `mediaKind()`      | `ElementFactory`                 | which medium an element is                                |
 
 ### Example
@@ -240,8 +243,42 @@ did nothing.
 - In a `seq` only the first value of a list counts. In a list with several values `indefinite` is ignored.
 - `None` and `Indefinite` are different: garlic-lib skipped an image without `dur` and `end`, but showed an image
   with `dur="indefinite"` forever.
-- For now `begin`/`end` know only offsets and `indefinite`. Wallclock, syncbase (`id.begin`), events, accesskey and
-  notify follow with the triggers; until then such values are skipped.
+
+### begin and end values
+
+Each value of a `begin`/`end` list becomes one `TimeCondition` (`std::variant`). The type is found in the same order
+as in garlic-lib; unreadable values are skipped.
+
+| Value                                         | Type         | Fields                                  |
+|-----------------------------------------------|--------------|-----------------------------------------|
+| contains `indefinite`                         | `Indefinite` | only alone, in a list it is ignored     |
+| `wallclock(…)`                                | `Wallclock`  | not in a `seq` (like garlic-lib)        |
+| starts with `+`, `-` or a digit: `5s`, `-2s`  | `Offset`     | `value`                                 |
+| `accesskey(a)+2s`                             | `AccessKey`  | `key` (a-z, 0-9, lower case), `offset`  |
+| `notify(door_open)`                           | `Notify`     | `name`, `offset`                        |
+| `img1.begin`, `img1.end-1s`                   | `SyncBase`   | `id`, `edge`, `offset`                  |
+| `img1.beginEvent`, `.endEvent`, `.activateEvent`, `.click` | `Event` | `id`, `type`, `offset`         |
+
+- The offset (`+2s`, `-500ms`) is looked for only after the symbol or after `)`, so ids and names may contain `-`
+  and `.`: `my-img.v2.end` has the id `my-img.v2`.
+- Who listens to whom is not part of the tree; the engine finds it from the ids.
+
+### Wallclock
+
+`wallclock([R[n]/]date[/period])`
+
+| Part      | Format                                   | `Wallclock`                                            |
+|-----------|------------------------------------------|--------------------------------------------------------|
+| repeats   | `R` endless, `R5` five times, missing    | `repeats` -1, 5, 0                                     |
+| date      | `yyyy-MM-dd`, optional `+wN`/`-wN`       | `start`: the next (`+`, also without sign) or previous (`-`) weekday N after/before the date; 1 = Monday … 7 = Sunday; the same weekday counts as a week later/earlier |
+| time      | `THH`, `THH:mm`, `THH:mm:ss`, missing = 00:00 | added to `start`                                  |
+| time zone | none = local time, `Z`, `+hh:mm`, `-hh:mm` | converted to local time                             |
+| period    | `P1Y2M3W4DT5H6M7S`                       | `period`; weeks become days                            |
+
+- `start` is a `std::chrono::local_seconds`: wall time without zone, no tz database needed (ESP32).
+- Without a period there is no repeat (`repeats` 0, GitHub issue #31).
+- An invalid date becomes 2000-01-01, an invalid time 00:00 like in garlic-lib.
+- When the wallclock fires next is calculated at runtime, not by the parser.
 
 ## Differences to garlic-lib
 
@@ -257,6 +294,10 @@ did nothing.
 - `repeatCount="2.5"` is 2; garlic-lib read 0 (once).
 - `adapi:pickNumber` below 1 or unreadable is 1; garlic-lib picked nothing and the `seq` ended at once.
 - A begin list with one readable value is valid (`5s;garbage`); garlic-lib only looked at the last value.
+- Trigger offsets are split after the symbol; garlic-lib split at the first `+`/`-`, so `my-img.begin` and
+  `notify(door-open)` broke.
+- `wallclock(date/period)` without `R` works; garlic-lib accessed a missing third part and crashed.
+- Wallclock times with a time zone (`Z`, `±hh:mm`) are converted; garlic-lib read them as 00:00.
 - An empty `src=""` is allowed; garlic-lib crashed on the placeholder check.
 - Not taken over: `zoom_factor`/`extra_js` (never set, dead code), `class`, `xml:lang`, `longdesc`, `alt` (never
   used).

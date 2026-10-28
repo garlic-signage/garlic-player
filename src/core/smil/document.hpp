@@ -106,8 +106,70 @@ namespace garlic::core::smil
     {
     };
 
-    /// One value of a begin or end list. Wallclock, syncbase, event, accesskey and notify follow with the triggers.
-    using TimeCondition = std::variant<Offset, Indefinite>;
+    /// P1Y2M3W4DT5H6M7S: interval of a repeating wallclock; weeks are counted as 7 days.
+    struct Period
+    {
+        int                  years  = 0;
+        int                  months = 0;
+        int                  days   = 0;
+        std::chrono::seconds time{0}; // hours, minutes, seconds
+    };
+
+    /**
+     * begin="wallclock(R/2026-01-01T08:00:00/P1D)": at a wall time, optionally repeated.
+     *   [R[n]/]date[/period], date = yyyy-MM-dd[±wN][THH[:mm[:ss]]][Z|±hh:mm]
+     */
+    struct Wallclock
+    {
+        std::chrono::local_seconds start;   // local time; weekday (±wN) and time zone already applied
+        int                        repeats = 0; // R: -1 (endless), Rn: n, without R: 0; 0 without a period
+        Period                     period;
+    };
+
+    /// begin="img1.begin+2s", begin="img1.end": when another element begins or ends
+    struct SyncBase
+    {
+        enum class Edge
+        {
+            Begin,
+            End
+        };
+        std::string               id;
+        Edge                      edge = Edge::Begin;
+        std::chrono::milliseconds offset{0};
+    };
+
+    /// begin="img1.activateEvent": when an event of another element happens
+    struct Event
+    {
+        enum class Type
+        {
+            BeginEvent,
+            EndEvent,
+            ActivateEvent, // touch or mouse click on the element
+            Click
+        };
+        std::string               id;
+        Type                      type = Type::BeginEvent;
+        std::chrono::milliseconds offset{0};
+    };
+
+    /// begin="accesskey(a)": when a key is pressed
+    struct AccessKey
+    {
+        char                      key = 0; // a-z or 0-9, lower case
+        std::chrono::milliseconds offset{0};
+    };
+
+    /// begin="notify(door_open)": when the player is notified from outside
+    struct Notify
+    {
+        std::string               name;
+        std::chrono::milliseconds offset{0};
+    };
+
+    /// One value of a begin or end list.
+    using TimeCondition = std::variant<Offset, Indefinite, Wallclock, SyncBase, Event, AccessKey, Notify>;
 
     enum class Restart
     {

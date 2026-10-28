@@ -17,6 +17,8 @@
 */
 #include "smil/parser.hpp"
 
+#include "common/time_format.hpp"
+
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
@@ -225,6 +227,293 @@ namespace garlic::core::smil
             return {Duration::Type::Clock, std::max(parseClockValue(value), std::chrono::milliseconds(0))};
         }
 
+        // ------------------------------------------------------------------ triggers
+
+        bool isDigit(char c)
+        {
+            return c >= '0' && c <= '9';
+        }
+
+        bool isLetter(char c)
+        {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        }
+
+        /// "" → 0, "+2s" → 2 s, "-1.5s" → -1.5 s; anything else is no offset.
+        std::optional<std::chrono::milliseconds> parseTriggerOffset(std::string_view rest)
+        {
+            rest = trim(rest);
+            if (rest.empty())
+                return std::chrono::milliseconds(0);
+            if (rest.front() != '+' && rest.front() != '-')
+                return std::nullopt;
+            return parseClockValue(rest);
+        }
+
+        /// The text between "name(" and ")" and the offset after it: "accesskey(a)+2s" → "a", 2 s.
+        std::optional<std::pair<std::string_view, std::chrono::milliseconds>> parseCall(std::string_view value,
+                                                                                         std::string_view function)
+        {
+            std::string_view rest = value.substr(function.size() + 1); // after "name("
+            auto             close = rest.find(')');
+            if (close == std::string_view::npos)
+                return std::nullopt;
+            auto offset = parseTriggerOffset(rest.substr(close + 1));
+            if (!offset)
+                return std::nullopt;
+            return std::pair{rest.substr(0, close), *offset};
+        }
+
+        /**
+         * "img1.begin+2s", "img1.end", "img1.activateEvent-1s", garlic-lib: SyncBase and Event.
+         * The id ends at the "." before a known symbol, so ids may contain "-" and ".".
+         */
+        std::optional<TimeCondition> parseSyncBaseOrEvent(std::string_view value)
+        {
+            struct Symbol
+            {
+                std::string_view name;
+                TimeCondition    condition;
+            };
+            static const Symbol symbols[] = {
+                {"beginEvent", Event{{}, Event::Type::BeginEvent, {}}},
+                {"endEvent", Event{{}, Event::Type::EndEvent, {}}},
+                {"activateEvent", Event{{}, Event::Type::ActivateEvent, {}}},
+                {"click", Event{{}, Event::Type::Click, {}}},
+                {"begin", SyncBase{{}, SyncBase::Edge::Begin, {}}},
+                {"end", SyncBase{{}, SyncBase::Edge::End, {}}},
+            };
+
+            for (auto dot = value.find('.'); dot != std::string_view::npos; dot = value.find('.', dot + 1))
+            {
+                std::string_view id    = value.substr(0, dot);
+                std::string_view after = value.substr(dot + 1);
+                for (const Symbol &symbol : symbols)
+                {
+                    if (id.empty() || !after.starts_with(symbol.name))
+                        continue;
+                    auto offset = parseTriggerOffset(after.substr(symbol.name.size()));
+                    if (!offset)
+                        continue;
+
+                    TimeCondition condition = symbol.condition;
+                    std::visit(
+                        [&](auto &c)
+                        {
+                            if constexpr (requires { c.id; })
+                            {
+                                c.id     = std::string(id);
+                                c.offset = *offset;
+                            }
+                        },
+                        condition);
+                    return condition;
+                }
+            }
+            return std::nullopt;
+        }
+
+        /// "P1Y2M3W4DT5H6M7S", garlic-lib: IsoDate::analysePeriods. Reading stops at the first unknown part.
+        Period parsePeriod(std::string_view value)
+        {
+            Period period;
+            if (!value.starts_with('P'))
+                return period;
+            value.remove_prefix(1);
+
+            bool time = false;
+            while (!value.empty())
+            {
+                if (value.front() == 'T')
+                {
+                    time = true;
+                    value.remove_prefix(1);
+                    continue;
+                }
+                int  number = 0;
+                auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), number);
+                if (error != std::errc() || end == value.data() + value.size())
+                    break;
+                char unit = *end;
+                value.remove_prefix(static_cast<std::size_t>(end - value.data()) + 1);
+
+                if (!time && unit == 'Y')
+                    period.years = number;
+                else if (!time && unit == 'M')
+                    period.months = number;
+                else if (!time && unit == 'W')
+                    period.days += number * 7;
+                else if (!time && unit == 'D')
+                    period.days += number;
+                else if (time && unit == 'H')
+                    period.time += std::chrono::hours(number);
+                else if (time && unit == 'M')
+                    period.time += std::chrono::minutes(number);
+                else if (time && unit == 'S')
+                    period.time += std::chrono::seconds(number);
+                else
+                    break;
+            }
+            return period;
+        }
+
+        bool hasPeriod(const Period &period)
+        {
+            return period.years != 0 || period.months != 0 || period.days != 0 || period.time.count() != 0;
+        }
+
+        /// "yyyy-MM-dd"; invalid dates become 2000-01-01 like in garlic-lib.
+        std::chrono::year_month_day parseDate(std::string_view value)
+        {
+            using namespace std::chrono;
+            auto parts = split(value, '-');
+            if (parts.size() == 3 && parts[0].size() == 4 && parts[1].size() == 2 && parts[2].size() == 2)
+            {
+                year_month_day date{year{static_cast<int>(toNumber(parts[0]))},
+                                    month{static_cast<unsigned>(toNumber(parts[1]))},
+                                    day{static_cast<unsigned>(toNumber(parts[2]))}};
+                if (date.ok())
+                    return date;
+            }
+            return year{2000} / January / 1;
+        }
+
+        /**
+         * "2026-01-05+w3": the next Wednesday after the date, "-w3" the one before, garlic-lib: IsoDate.
+         * Weekdays 1 = Monday … 7 = Sunday. "w3" without sign counts as "+w3".
+         */
+        std::chrono::sys_days parseDateWithWeekday(std::string_view value)
+        {
+            using namespace std::chrono;
+            auto w = value.find('w');
+            if (w == std::string_view::npos)
+                return sys_days{parseDate(value)};
+
+            char op      = w > 0 ? value[w - 1] : '+';
+            int  weekday = w + 1 < value.size() ? static_cast<int>(toNumber(value.substr(w + 1, 1))) : 0;
+            auto date    = parseDate(value.substr(0, op == '+' || op == '-' ? w - 1 : w));
+            if (weekday < 1 || weekday > 7)
+                return sys_days{date};
+
+            int diff = weekday - static_cast<int>(std::chrono::weekday{sys_days{date}}.iso_encoding());
+            if (op == '-')
+                diff = diff >= 0 ? diff - 7 : diff;
+            else
+                diff = diff <= 0 ? diff + 7 : diff;
+            return sys_days{date} + days{diff};
+        }
+
+        /// "HH", "HH:mm", "HH:mm:ss"; invalid times become 00:00:00 like in garlic-lib.
+        std::chrono::seconds parseTimeOfDay(std::string_view value)
+        {
+            auto parts = split(value, ':');
+            if (parts.empty() || parts.size() > 3)
+                return std::chrono::seconds(0);
+            int values[3] = {0, 0, 0};
+            for (std::size_t i = 0; i < parts.size(); ++i)
+            {
+                if (parts[i].size() != 2)
+                    return std::chrono::seconds(0);
+                values[i] = static_cast<int>(toNumber(parts[i]));
+            }
+            if (values[0] > 23 || values[1] > 59 || values[2] > 59)
+                return std::chrono::seconds(0);
+            return std::chrono::hours(values[0]) + std::chrono::minutes(values[1]) + std::chrono::seconds(values[2]);
+        }
+
+        /**
+         * "2026-01-05+w3T08:00:00+01:00" → local time. Without zone the time is local time, with "Z" or "±hh:mm"
+         * it is converted to local time.
+         */
+        std::chrono::local_seconds parseWallclockDate(std::string_view value)
+        {
+            using namespace std::chrono;
+            auto             t    = value.find('T');
+            sys_days         date = parseDateWithWeekday(value.substr(0, t));
+            std::string_view time = t == std::string_view::npos ? std::string_view() : value.substr(t + 1);
+
+            std::optional<seconds> zone; // offset east of UTC
+            if (time.ends_with('Z'))
+            {
+                zone = seconds(0);
+                time.remove_suffix(1);
+            }
+            else if (auto sign = time.find_first_of("+-"); sign != std::string_view::npos)
+            {
+                auto parts = split(time.substr(sign + 1), ':');
+                auto zoned = hours(static_cast<int>(toNumber(parts[0]))) +
+                             minutes(parts.size() > 1 ? static_cast<int>(toNumber(parts[1])) : 0);
+                zone       = time[sign] == '-' ? -zoned : zoned;
+                time       = time.substr(0, sign);
+            }
+
+            seconds time_of_day = time.empty() ? seconds(0) : parseTimeOfDay(time);
+            if (!zone)
+                return local_days{date.time_since_epoch()} + time_of_day;
+            return common::toLocalTime(sys_seconds{date + time_of_day - *zone});
+        }
+
+        /// "R/2026-01-01T08:00/P1D", "R5/…", "2026-01-01T08:00", "2026-01-01T08:00/P1D", garlic-lib: WallClock
+        Wallclock parseWallclock(std::string_view value)
+        {
+            Wallclock wallclock;
+            auto      parts = split(trim(value), '/');
+            std::size_t date_index = 0;
+            if (!parts.empty() && parts[0].starts_with('R'))
+            {
+                wallclock.repeats = parts[0].size() == 1 ? -1 : static_cast<int>(toNumber(parts[0].substr(1)));
+                date_index        = 1;
+            }
+            if (date_index < parts.size())
+                wallclock.start = parseWallclockDate(parts[date_index]);
+            if (date_index + 1 < parts.size())
+                wallclock.period = parsePeriod(parts[date_index + 1]);
+            if (!hasPeriod(wallclock.period)) // GitHub issue #31
+                wallclock.repeats = 0;
+            return wallclock;
+        }
+
+        /**
+         * One value of a begin/end list, garlic-lib: EnhancedTimer::parseOneValue. Same order as there:
+         *   indefinite | wallclock(…) | offset | accesskey(…) | notify(…) | id.begin, id.end | id.event
+         * Unreadable values give nullopt.
+         */
+        std::optional<TimeCondition> parseTimeCondition(std::string_view v, ContainerKind parent)
+        {
+            if (v.contains("indefinite"))
+                return Indefinite{};
+            if (v.starts_with("wallclock(") && v.ends_with(')'))
+            {
+                if (parent == ContainerKind::Seq) // children of a seq cannot have wallclocks
+                    return std::nullopt;
+                return parseWallclock(v.substr(10, v.size() - 11));
+            }
+            if (v.front() == '+' || v.front() == '-' || isDigit(v.front()))
+                return Offset{parseClockValue(v)};
+            if (v.starts_with("accesskey("))
+            {
+                auto call = parseCall(v, "accesskey");
+                if (!call || call->first.size() != 1)
+                    return std::nullopt;
+                char key = call->first.front();
+                if (!isDigit(key) && !isLetter(key))
+                    return std::nullopt;
+                if (key >= 'A' && key <= 'Z')
+                    key = static_cast<char>(key - 'A' + 'a');
+                return AccessKey{key, call->second};
+            }
+            if (v.starts_with("notify("))
+            {
+                auto call = parseCall(v, "notify");
+                if (!call || call->first.empty())
+                    return std::nullopt;
+                return Notify{std::string(call->first), call->second};
+            }
+            if (isLetter(v.front()))
+                return parseSyncBaseOrEvent(v);
+            return std::nullopt;
+        }
+
         /**
          * begin/end: list separated by ";", e.g. "0s;10s", garlic-lib: EnhancedTimer::parse.
          * In a seq only the first value counts. In a list with several values "indefinite" is ignored.
@@ -241,14 +530,12 @@ namespace garlic::core::smil
             std::vector<TimeCondition> conditions;
             for (auto v : values)
             {
-                if (v.contains("indefinite"))
-                {
-                    if (values.size() == 1)
-                        conditions.emplace_back(Indefinite{});
-                }
-                else if (v.front() == '+' || v.front() == '-' || (v.front() >= '0' && v.front() <= '9'))
-                    conditions.emplace_back(Offset{parseClockValue(v)});
-                // wallclock(…), accesskey(…), notify(…), id.begin, id.event: follow with the triggers
+                auto condition = parseTimeCondition(v, parent);
+                if (!condition)
+                    continue;
+                if (std::holds_alternative<Indefinite>(*condition) && values.size() > 1)
+                    continue;
+                conditions.push_back(std::move(*condition));
             }
             return conditions;
         }

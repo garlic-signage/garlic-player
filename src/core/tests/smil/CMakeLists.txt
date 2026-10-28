@@ -4,6 +4,7 @@ add_executable(garlic_core_smil_tests
     test_media.cpp
     test_containers.cpp
     test_excl.cpp
+    test_triggers.cpp
 )
 garlic_core_set_options(garlic_core_smil_tests TEST)
 
