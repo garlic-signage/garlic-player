@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Simple SMIL for testing media in body" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen1" top="0" left="0" width="960" height="540" z-index="1" backgroundColor="#f00" />
+			<region regionName="screen2" top="0" left="960" width="960" height="540" z-index="1" backgroundColor="#0f0" />
+			<region regionName="screen3" top="540" left="0" width="960" height="540" z-index="1" backgroundColor="#00f" />
+			<region regionName="screen4" top="540" left="960" width="960" height="540" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+		
+	sequence up left should be 1,2,3,4,6,7,8,9 10 => repeat indefinite
+	sequence down right should be begin,1,2,3,end => 5s black => repeat indefinite
+	
+	-->
+		<par>
+			<seq xml:id="seq1" repeatCount="indefinite">
+				<img region="screen1" xml:id="Aimg0001" src="../../images/0001.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0002" src="../../images/0002.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0003" src="../../images/0003.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0004" src="../../images/0004.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0005" src="../../images/0005.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0006" src="../../images/0006.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0007" src="../../images/0007.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0008" src="../../images/0008.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0009" src="../../images/0009.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0010" src="../../images/0010.jpg" dur="1s" fit="meet" />
+			</seq>
+			<par repeatCount="indefinite">
+				<seq xml:id="seq2" dur="10s">
+					<img region="screen4" xml:id="img_begin" src="../../images/begin.jpg" dur="1s" fit="meet" />
+					<img region="screen4" xml:id="img0001" src="../../images/0001.jpg" dur="1s" fit="meet" />
+					<img region="screen4" xml:id="img0002" src="../../images/0002.jpg" dur="1s" fit="meet" />
+					<img region="screen4" xml:id="img0003" src="../../images/0003.jpg" dur="1s" fit="meet" />
+					<img region="screen4" xml:id="img_end" src="../../images/end.jpg" dur="1s"  fit="meet" />
+				</seq>
+			</par>
+		</par>	
+	</body>
+</smil>

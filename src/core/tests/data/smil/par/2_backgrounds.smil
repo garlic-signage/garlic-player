@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing images in par, multizone with additional background images" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen1" top="0" left="0" width="960" height="540" z-index="1" backgroundColor="#f00" backgroundImage="../../images/bg_0002.jpg" backgroundRepeat="repeatX" />
+			<region regionName="screen2" top="0" left="960" width="960" height="540" z-index="1" backgroundColor="#0f0" />
+			<region regionName="screen3" top="540" left="0" width="960" height="540" z-index="1" backgroundColor="#00f" backgroundImage="../../images/bg_0002.jpg" backgroundRepeat="repeat" />
+			<region regionName="screen4" top="540" left="960" width="960" height="540" z-index="1" backgroundColor="#0ff" backgroundImage="../../images/bg_0002.jpg" backgroundRepeat="noRepeat" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+	
+		sequence should be
+
+		begin on upper left
+		end on lower right
+
+	Background should show
+			multiple images tiles only horizontally in upper right
+			multiple images tiles only vertically in upper left from a internet source
+			multiple images tiles covers the background lower left
+			one images tile in lower right
+	-->
+
+		<img region="screen1" xml:id="img_begin" src="../../images/begin.jpg" dur="2s" fit="meet" />
+		<img region="screen4" xml:id="img_end" src="../../images/end.jpg" dur="2s" fit="meet" />
+	</body>
+</smil>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing seq media with conditional play" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+	
+		sequence should be:
+		begin, 1,2,4 end
+		
+	-->
+	
+		<img xml:id="img_begin" src="../../images/begin.jpg" dur="1s" fit="meetbest" />
+		<img xml:id="img0001" src="../../images/0001.jpg" dur="1s" fit="meet" />
+		<seq xml:id="seq2" expr="adapi-compare(substring-before(adapi-date(), 'T'), '2022-01-01')&gt;=0 and adapi-compare(substring-before(adapi-date(), 'T'), '2022-01-31')&lt;=0">
+			<img xml:id="img0009" src="../../images/0009.jpg" dur="1s" fit="meet" />
+			<img xml:id="img0010" src="../../images/0010.jpg" dur="1s" fit="meet" />
+		</seq>
+		<img xml:id="img0002" src="../../images/0002.jpg" dur="1s" fit="meet" />
+		<img xml:id="img0003" src="../../images/0003.jpg" dur="1s" fit="meet" expr="adapi-compare(substring-before(adapi-date(), 'T'), '2022-01-01')&gt;=0 and adapi-compare(substring-before(adapi-date(), 'T'), '2022-01-31')&lt;=0" />
+		<img xml:id="img0004" src="../../images/0004.jpg" dur="1s" fit="meet" />
+		<img xml:id="img_end" src="../../images/end.jpg" dur="1s" fit="meetbest" />
+	</body>
+</smil>

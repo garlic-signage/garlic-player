@@ -21,6 +21,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -178,6 +179,14 @@ namespace garlic::core::smil
         PriorityClass
     };
 
+    /// par: when the par ends without dur or end.
+    enum class EndSync
+    {
+        Last,   // endsync="last" or missing: when all children have ended
+        First,  // endsync="first": when the first child ends
+        Element // endsync="<id>": when this child ends
+    };
+
     struct Node;
 
     struct Container
@@ -188,6 +197,13 @@ namespace garlic::core::smil
         std::string       expr;
         Timing            timing;
         std::vector<Node> children;
+
+        // seq: <metadata> as first child, pick_number random children per run (at least 1)
+        std::optional<int> pick_number;
+
+        // par
+        EndSync     endsync = EndSync::Last;
+        std::string endsync_id; // only for EndSync::Element
     };
 
     /// An element of the body: a medium or a container with further elements.

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+			<meta http-equiv="refresh" content="30" />
+			<meta name="title" content="Testing repeats in seq" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="100%" height="100%" />
+		</layout>
+	</head>
+	<body>
+
+	<!--
+
+		sequence:
+		begin, 2s wait, 1 for 5s, 2, 3, 3 full repeats of a video, 5 short repeats of a video, end
+
+		Remark for begin value-list in img0001:
+			only first value is valid. the rest will be ignored,
+			children of seq cannot have a value list
+		Remark for begin value-list in img0002:
+			only first value is valid. the rest will be ignored,
+			children of seq iggnore wallclock-Values
+	-->
+		<seq>
+			<img region="screen" xml:id="img_begin" src="../../images/begin.jpg" dur="1s" fit="meet" />
+			<img region="screen" begin="2s;3s;4s;5s;" xml:id="img0001" src="../../images/0001.jpg" dur="1s" fit="meet" repeatCount="5" />
+			<img region="screen" begin="wallclock(R/2021-07-31T00:00:00PT10S)" xml:id="img0002" src="../../images/0002.jpg" dur="1s" fit="meet" />
+			<img region="screen" xml:id="img0003" src="../../images/0003.jpg" dur="1s" fit="meet" />
+			<video src="../../videos/0001.mp4" fit="meetbest" repeatCount="3"/>
+			<video src="../../videos/0002.mkv" fit="meetbest" dur="1s" repeatCount="5"/>
+			<img region="screen4" xml:id="img_end" src="../../images/end.jpg" dur="1s" fit="meet" />
+		</seq>
+	</body>
+</smil>

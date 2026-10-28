@@ -19,7 +19,7 @@ disabled.
 that is missing gets the default values of garlic-lib, unknown elements and attributes are ignored. Element names
 are compared without namespace prefix.
 
-Status: head and media are done. `seq`, `par`, `excl`, wallclock and triggers follow; until then they are skipped.
+Status: head, media, `seq` and `par` are done. `excl`, wallclock and triggers follow; until then they are skipped.
 
 ## How the parser works
 
@@ -43,9 +43,12 @@ parse(xml)                         libxml2 reads the text, checks the root eleme
     │   │   ├── parseRootLayout    <root-layout>
     │   │   └── parseRegion        <region>, one per region
     │   └── parseState             <state><data>: placeholders
-    └── parseContainer             <body>
+    └── parseContainer             <body>, calls itself for every <seq> and <par>
+        ├── parseTiming            begin end dur repeatCount restart
+        ├── parsePickNumber        <seq><metadata> as first child
+        ├── parseEndSync           <par endsync>
         └── parseMedia             <img> <video> … one per medium
-            ├── parseTiming        begin end dur repeatCount restart
+            ├── parseTiming
             └── parseParams        <param name value>
 ```
 
@@ -132,6 +135,27 @@ for (const Node &node : document->body.children)
         ...
 ```
 
+### seq and par
+
+| SMIL                                        | `Container`                 | Default                   |
+|---------------------------------------------|-----------------------------|---------------------------|
+| `<seq>`, `<par>`                            | `kind` `Seq`, `Par`         |                           |
+| `id`, `xml:id`, `title`, `expr`, timing     | like media                  |                           |
+| `<seq><metadata>` as first child            | `pick_number`               | none = all children in order |
+| `<meta name="adapi:pickNumber" content>`    | `pick_number`               | 1 if missing, below 1 → 1 |
+| `<par endsync>`                             | `endsync`, `endsync_id`     | `Last`                    |
+
+- The surrounding container decides the defaults of its children: in a `seq` only the first value of a `begin`/`end`
+  list counts, in a `par` the whole list.
+- `pick_number` means: per run of the `seq` play this many random children (garlic-lib: `TShuffle`). The shuffling
+  is done by the engine. `adapi:pickingAlgorithm` and `adapi:pickingBehavior` are not read; garlic-lib read them but
+  always used "shuffle" and "pickN".
+- `<metadata>` is never a child. Only as first child of a `seq` it switches on the random pick, even when empty.
+- `endsync="first"` → `First`, `"last"` or missing → `Last`, any other value → `Element` with that id. If no child
+  has the id, the `par` behaves like `Last` (garlic-lib compared the id and never matched).
+- The body is played like a `seq`, but its children may have `begin` lists like in garlic-lib (`TBody` was not
+  treated as `TSeq` when parsing).
+
 ### Media
 
 | SMIL                                                       | `MediaKind` |
@@ -191,6 +215,7 @@ did nothing.
 - `dur="500ms"` is 500 ms; garlic-lib read 0, because it checked the unit `s` before `ms`.
 - Durations are `std::chrono::milliseconds`; garlic-lib used an `int` that overflowed at about 24 days.
 - `repeatCount="2.5"` is 2; garlic-lib read 0 (once).
+- `adapi:pickNumber` below 1 or unreadable is 1; garlic-lib picked nothing and the `seq` ended at once.
 - A begin list with one readable value is valid (`5s;garbage`); garlic-lib only looked at the last value.
 - An empty `src=""` is allowed; garlic-lib crashed on the placeholder check.
 - Not taken over: `zoom_factor`/`extra_js` (never set, dead code), `class`, `xml:lang`, `longdesc`, `alt` (never

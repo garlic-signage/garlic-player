@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing seq media with repeats" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+	
+		sequence should be:
+		begin,yellow,1,2,3,4,5,6,7,8,9,10,6,7,8,9,10,green,pink, end
+		
+	-->
+	
+		<img xml:id="img_begin" src="../../images/begin.jpg" dur="1s" fit="meetbest" />
+		<brush color="yellow" dur="1s"/>
+		<seq xml:id="seq1">
+			<img xml:id="img0001" src="../../images/0001.jpg" dur="1s" fit="fill" />
+			<img xml:id="img0002" src="../../images/0002.jpg" dur="1s" fit="fill" />
+			<img xml:id="img0003" src="../../images/0003.jpg" dur="1s" fit="fill" />
+			<img xml:id="img0004" src="../../images/0004.jpg" dur="1s" fit="fill" />
+			<img xml:id="img0005" src="../../images/0005.jpg" dur="1s" fit="fill" />
+		</seq>
+		<seq xml:id="seq2" repeatCount="2">
+			<img xml:id="img0006" src="../../images/0006.jpg" dur="1s" fit="meet" />
+			<img xml:id="img0007" src="../../images/0007.jpg" dur="1s" fit="meet" />
+			<img xml:id="img0008" src="../../images/0008.jpg" dur="1s" fit="meet" />
+			<img xml:id="img0009" src="../../images/0009.jpg" dur="1s" fit="meet" />
+			<img xml:id="img0010" src="../../images/0010.jpg" dur="1s" fit="meet" />
+		</seq>
+		<brush color="green" dur="1s"/>
+		<brush color="#f0f" dur="1s"/>
+		<img xml:id="img_end" src="../../images/end.jpg" dur="1s" fit="meetbest" />
+	</body>
+</smil>

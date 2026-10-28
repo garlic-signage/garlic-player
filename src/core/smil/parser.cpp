@@ -528,8 +528,9 @@ namespace garlic::core::smil
                 }
 
                 /**
-                 * <body>, later also <seq>, <par>, <excl>: the container and its children.
+                 * <body>, <seq>, <par>: the container and its children, nested containers recursively.
                  * parent is the kind of the surrounding container, it decides the defaults of begin.
+                 * garlic-lib: TBody, TSeq, TPar
                  */
                 Container parseContainer(const xmlNode *node, ContainerKind kind, ContainerKind parent,
                                          const Head &head)
@@ -540,16 +541,73 @@ namespace garlic::core::smil
                     container.timing = parseTiming(node, parent);
                     readAttribute(node, "title", container.title);
                     readAttribute(node, "expr", container.expr);
+                    if (kind == ContainerKind::Par)
+                        parseEndSync(node, container);
 
+                    bool first = true;
                     forEachChild(node,
                                  [&](const xmlNode *child)
                                  {
-                                     if (auto media_kind = mediaKind(child))
+                                     std::string_view tag = name(child);
+                                     if (tag == "metadata")
+                                     {
+                                         if (kind == ContainerKind::Seq && first)
+                                             container.pick_number = parsePickNumber(child);
+                                     }
+                                     else if (tag == "seq")
+                                         container.children.emplace_back(
+                                             parseContainer(child, ContainerKind::Seq, kind, head));
+                                     else if (tag == "par")
+                                         container.children.emplace_back(
+                                             parseContainer(child, ContainerKind::Par, kind, head));
+                                     else if (auto media_kind = mediaKind(child))
                                          container.children.emplace_back(
                                              parseMedia(child, *media_kind, kind, head));
-                                     // seq, par, excl: next step
+                                     // excl: next step
+                                     first = false;
                                  });
                     return container;
+                }
+
+                /**
+                 * <par endsync="last|first|<id>">, garlic-lib: TPar::interruptByEndSync.
+                 * Any other value is taken as id; if no child has it, the par behaves like "last".
+                 */
+                static void parseEndSync(const xmlNode *node, Container &container)
+                {
+                    auto endsync = attribute(node, "endsync");
+                    if (!endsync || *endsync == "last")
+                        return;
+                    if (*endsync == "first")
+                        container.endsync = EndSync::First;
+                    else
+                    {
+                        container.endsync    = EndSync::Element;
+                        container.endsync_id = *endsync;
+                    }
+                }
+
+                /**
+                 * <seq>
+                 *     <metadata>                      only as first child
+                 *         <meta name="adapi:pickingAlgorithm" content="shuffle"/>   always shuffle, not read
+                 *         <meta name="adapi:pickingBehavior" content="pickN"/>      always pickN, not read
+                 *         <meta name="adapi:pickNumber" content="2"/>
+                 *     </metadata>
+                 * garlic-lib: TShuffle. Without pickNumber 1, values below 1 become 1.
+                 */
+                static int parsePickNumber(const xmlNode *metadata)
+                {
+                    int pick_number = 1;
+                    forEachChild(metadata,
+                                 [&](const xmlNode *meta)
+                                 {
+                                     auto content = attribute(meta, "content");
+                                     if (name(meta) == "meta" && content &&
+                                         attribute(meta, "name") == "adapi:pickNumber")
+                                         pick_number = toInt(*content);
+                                 });
+                    return std::max(pick_number, 1);
                 }
 
                 /**
