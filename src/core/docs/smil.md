@@ -20,8 +20,8 @@ that is missing gets the default values of garlic-lib, unknown elements and attr
 are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
-plays media, `seq`, `par` and `excl` with `begin`/`end` offsets, `restart` and `expr`; the triggers (wallclock,
-syncbase, events, accesskey, notify) follow.
+plays everything the parser reads: media, `seq`, `par`, `excl`, `begin`/`end` with offsets, wallclock, syncbase,
+events, accesskey and notify, `restart` and `expr`. The integration (index manager, media manager, reports) follows.
 
 ## How the parser works
 
@@ -392,6 +392,9 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 |------------------------|-----------------------------------------------------------------------|
 | `mediaFinished(id)`    | a video or audio ended by itself                                      |
 | `mediaFailed(id)`      | a medium could not be played                                          |
+| `elementActivated(id)` | touch or click on a medium: `id.activateEvent`, `id.click`            |
+| `accessKey(key)`       | a key was pressed: `accesskey(…)`                                     |
+| `notify(name)`         | notification from outside (REST API `/v2/task`): `notify(…)`          |
 
 - `InstanceId` is a running number per start, the basis for transitions later (two instances in one region).
 - `source` is ready to use: local path from the cache, the URL of uncachable media, widgets with their query. A brush
@@ -499,6 +502,12 @@ activated ──► Waiting ──(begin time)──► Active ──(dur / end 
 
 - **expr** is evaluated at every start (`evaluateExpr` with `ExprContext` from the clock and `EngineConfig`); false
   skips the element (100 ms). With later begin times it is checked again then.
+- **Starts now** (`begin="0s"`, a begin in the past) also go through the schedule, in the same `poll()`. So all
+  children of a `par` are activated before the first one starts and none misses its begin trigger
+  (`par/trigger/1_syncbase.smil`: `begin="video0001.begin"`).
+- **end lists**: an end time voids later begin times only if no further end can come - no end time left and no
+  trigger in the end list (standard: `getNextInterval`). `begin="0s;10s" end="5s;20s"` plays 0–5 s and 10–20 s;
+  `end="2s;accesskey(e)"` leaves the end open, so a later begin still starts.
 - **Same time**: an interval that ends at the moment of the next begin ends first (`par/8`: `whenNotActive` with
   begin 6 s and 11 s and a run of 5 s plays three times).
 - An element that can never start (only begin times in the past without rest, no `end`, no trigger) is skipped.
@@ -531,4 +540,30 @@ another plays, the priorityClass of the **playing** one decides: `peers` if the 
 - A priorityClass has no timing; it ends when all its elements have ended. The `excl` ends like a `par` when all
   classes are through (the queue is empty then); `endsync` reacts to the elements, `dur`, `end` and `repeatCount`
   work like for a `par`.
+
+### Triggers (garlic-lib: `ElementsContainer::distributeTriggers`, `BodyParser::fireTrigger`, `EnhancedTimer`)
+
+| Trigger                              | Fired when                                                         |
+|--------------------------------------|--------------------------------------------------------------------|
+| `id.begin`, `id.beginEvent`          | element `id` begins an interval (not at `repeatCount`: standard)   |
+| `id.end`, `id.endEvent`              | an interval of `id` ends, also when it is cut or displaced         |
+| `id.activateEvent`, `id.click`       | `elementActivated(instance)` from the player                       |
+| `accesskey(a)`                       | `accessKey('a')` from the player (upper case counts too)           |
+| `notify(name)`                       | `notify("name")`, e.g. from the REST API                           |
+| `wallclock(…)`                       | the time comes (`wallclockTriggers` with `toLocalTime(clock.now())`) |
+
+- The listeners are collected once when the engine is created. **Every** listener reacts; garlic-lib had only one
+  element per key and notify name (the last one), and a key that began something did not end anything.
+- A trigger is never carried out directly: it plans a begin or end time at now + offset for its listener, handled
+  like every other one (`restart`, `excl` rules, `expr`). So there is no recursion, and calls of the player take
+  effect with the next `poll()`.
+- Only elements that are activated (waiting or playing) in a playing parent react (garlic-lib: "only active
+  elements!").
+- A negative offset (`accesskey(a)-1s`) means "began that long ago": the element starts now for the rest of its
+  `dur`, if there is one (standard; garlic-lib never fired it, a QTimer cannot have a negative time).
+- Containers fire their begin triggers too; garlic-lib did it only for containers with a `dur`.
+- **Wallclock**: the next time is planned when the element is activated and after every time it fires; a past time
+  counts like a negative begin (rest of `dur`). A repeating wallclock keeps begin times coming, so `repeatCount` is
+  ignored (garlic-lib). Every wallclock event remembers the time it stands for, so the next one comes after it even
+  if the event fired a little early compared to the system time. A wallclock in `end` plans only its next time.
 

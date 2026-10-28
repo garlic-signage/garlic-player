@@ -166,6 +166,8 @@ TEST_CASE("all seq and par test files can be parsed")
         for (const auto &entry : std::filesystem::directory_iterator(std::filesystem::path(GARLIC_CORE_TEST_DATA) /
                                                                      directory))
         {
+            if (!entry.is_regular_file())
+                continue;
             CAPTURE(entry.path().string());
             auto document = parse(readFile(entry.path()));
             CHECK(document.has_value());

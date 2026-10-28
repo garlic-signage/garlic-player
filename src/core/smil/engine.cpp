@@ -17,6 +17,9 @@
 */
 #include "smil/engine.hpp"
 
+#include "common/time_format.hpp"
+#include "smil/wallclock.hpp"
+
 #include <algorithm>
 #include <utility>
 
@@ -34,6 +37,8 @@ namespace garlic::core::smil
         nodes.push_back(body);
         for (const Node &child : document.body.children)
             addNode(child, 0);
+        for (std::size_t i = 0; i < nodes.size(); ++i)
+            registerListeners(i);
     }
 
     /// One Runtime per node of the tree, in the order of the tree; children know their parent.
@@ -99,11 +104,16 @@ namespace garlic::core::smil
                     intervalEnded(event.node);
                     break;
                 case EventType::End:
+                    --n.pending_ends;
+                    if (event.wallclock != no_wallclock)
+                        scheduleWallclock(event.node, event.wallclock, true, event.occurrence); // the next one
                     endEvent(event.node);
                     break;
                 case EventType::Begin:
                     --n.pending_begins;
-                    tryStart(event.node, milliseconds(0));
+                    if (event.wallclock != no_wallclock)
+                        scheduleWallclock(event.node, event.wallclock, false, event.occurrence); // the next one
+                    tryStart(event.node, event.elapsed);
                     settle(event.node);
                     break;
             }
@@ -135,13 +145,36 @@ namespace garlic::core::smil
         }
     }
 
+    void Engine::accessKey(char key)
+    {
+        if (key >= 'A' && key <= 'Z')
+            key = static_cast<char>(key - 'A' + 'a');
+        if (auto it = by_accesskey.find(key); it != by_accesskey.end())
+            for (const Listener &listener : it->second)
+                deliver(listener);
+    }
+
+    void Engine::notify(std::string_view name)
+    {
+        if (auto it = by_notify.find(name); it != by_notify.end())
+            for (const Listener &listener : it->second)
+                deliver(listener);
+    }
+
+    void Engine::elementActivated(InstanceId id)
+    {
+        if (auto node = findInstance(id))
+            fire(*node, Listener::Symbol::Activate);
+    }
+
     // ------------------------------------------------------------------ helpers
 
-    void Engine::at(steady_clock::time_point time, std::size_t node, EventType type)
+    void Engine::at(steady_clock::time_point time, std::size_t node, EventType type, std::size_t wallclock,
+                    milliseconds elapsed)
     {
         bool per_activation = type == EventType::Begin || type == EventType::End;
         push(Scheduled{time, next_order++, node, per_activation ? nodes[node].activation : nodes[node].generation,
-                       type});
+                       type, wallclock, elapsed});
     }
 
     void Engine::push(Scheduled event)
@@ -201,6 +234,135 @@ namespace garlic::core::smil
                timing.dur.type == Duration::Type::Indefinite;
     }
 
+    // ------------------------------------------------------------------ triggers
+
+    /**
+     * Registers the triggers an element waits for, garlic-lib: ElementsContainer::distributeTriggers. Every listener
+     * reacts, also several on the same key (garlic-lib: only the last one per key and notify name).
+     */
+    void Engine::registerListeners(std::size_t node)
+    {
+        auto add = [&](const TimeCondition &condition, bool is_end)
+        {
+            if (const auto *sync = std::get_if<SyncBase>(&condition))
+            {
+                auto symbol = sync->edge == SyncBase::Edge::Begin ? Listener::Symbol::Begin : Listener::Symbol::End;
+                by_source[sync->id].push_back({node, is_end, symbol, sync->offset});
+            }
+            else if (const auto *event = std::get_if<Event>(&condition))
+            {
+                auto symbol = event->type == Event::Type::BeginEvent ? Listener::Symbol::Begin
+                              : event->type == Event::Type::EndEvent ? Listener::Symbol::End
+                                                                     : Listener::Symbol::Activate;
+                by_source[event->id].push_back({node, is_end, symbol, event->offset});
+            }
+            else if (const auto *key = std::get_if<AccessKey>(&condition))
+                by_accesskey[key->key].push_back({node, is_end, Listener::Symbol::Begin, key->offset});
+            else if (const auto *notification = std::get_if<Notify>(&condition))
+                by_notify[notification->name].push_back({node, is_end, Listener::Symbol::Begin, notification->offset});
+        };
+        const Timing &timing = timingOf(node);
+        for (const TimeCondition &condition : timing.begin)
+            add(condition, false);
+        for (const TimeCondition &condition : timing.end)
+            add(condition, true);
+    }
+
+    /// The element has begun, ended or was activated: its listeners get a begin or end time.
+    void Engine::fire(std::size_t node, Listener::Symbol symbol)
+    {
+        auto it = by_source.find(idOf(node));
+        if (it == by_source.end())
+            return;
+        for (const Listener &listener : it->second)
+            if (listener.symbol == symbol)
+                deliver(listener);
+    }
+
+    /**
+     * A trigger reaches its listener: a begin or end time at now + offset, handled like every other one (restart,
+     * excl, expr). Only for elements that are activated in a playing parent (garlic-lib: "only active elements!").
+     * A negative offset means "began that long ago": it starts now for the rest of its dur, if there is one.
+     */
+    void Engine::deliver(const Listener &listener)
+    {
+        Runtime &n = nodes[listener.node];
+        if (n.state != State::Waiting && n.state != State::Active)
+            return;
+        if (listener.node != 0 && nodes[n.parent].state != State::Active)
+            return;
+
+        auto now = clock.monotonic();
+        if (listener.is_end)
+        {
+            at(now + std::max(listener.offset, milliseconds(0)), listener.node, EventType::End);
+            ++n.pending_ends;
+        }
+        else if (listener.offset >= milliseconds(0))
+        {
+            at(now + listener.offset, listener.node, EventType::Begin);
+            ++n.pending_begins;
+        }
+        else
+        {
+            const Duration &dur   = timingOf(listener.node).dur;
+            milliseconds    begun = -listener.offset;
+            if (dur.type == Duration::Type::Indefinite || dur.type == Duration::Type::Media ||
+                (dur.type == Duration::Type::Clock && dur.value > begun))
+            {
+                at(now, listener.node, EventType::Begin, no_wallclock, begun);
+                ++n.pending_begins;
+            }
+        }
+    }
+
+    /// Begin triggers of an element fire once per interval (not for repeatCount: no new begin in the standard).
+    void Engine::announceBegin(std::size_t node)
+    {
+        if (nodes[node].announced)
+            return;
+        nodes[node].announced = true;
+        fire(node, Listener::Symbol::Begin);
+    }
+
+    /// End triggers fire at every end of an interval, also when it is cut or displaced (garlic-lib: stopSimpleTimers).
+    void Engine::announceEnd(std::size_t node)
+    {
+        if (!nodes[node].announced)
+            return;
+        nodes[node].announced = false;
+        fire(node, Listener::Symbol::End);
+    }
+
+    /**
+     * Plans the next occurrence of a wallclock in the begin (or end) list, after the one that just fired (after):
+     * if the event came a little early compared to the system time, the same occurrence must not come twice.
+     * False if there is none any more.
+     */
+    bool Engine::scheduleWallclock(std::size_t node, std::size_t index, bool is_end, std::chrono::local_seconds after)
+    {
+        const Timing &timing    = timingOf(node);
+        const auto   &wallclock = std::get<Wallclock>((is_end ? timing.end : timing.begin)[index]);
+        auto          local_now = common::toLocalTime(clock.now());
+        auto          next      = wallclockTriggers(wallclock, std::max(local_now, after)).next;
+        if (!next)
+            return false;
+        push(Scheduled{clock.monotonic() + (*next - local_now), next_order++, node, nodes[node].activation,
+                       is_end ? EventType::End : EventType::Begin, index, milliseconds(0), *next});
+        ++(is_end ? nodes[node].pending_ends : nodes[node].pending_begins);
+        return true;
+    }
+
+    /// How long ago the wallclock fired last, if it did.
+    std::optional<milliseconds> Engine::wallclockBegunAgo(const Wallclock &wallclock) const
+    {
+        auto local_now = common::toLocalTime(clock.now());
+        auto previous  = wallclockTriggers(wallclock, local_now).previous;
+        if (!previous)
+            return std::nullopt;
+        return std::chrono::duration_cast<milliseconds>(local_now - *previous);
+    }
+
     // ------------------------------------------------------------------ lifecycle of every element
 
     /**
@@ -222,29 +384,45 @@ namespace garlic::core::smil
         ++n.generation;
         n.state          = State::Waiting;
         n.pending_begins = 0;
+        n.pending_ends   = 0;
         n.open_begin     = false;
+        n.open_end       = false;
         n.started_once   = false;
+        n.announced      = false;
         auto now         = clock.monotonic();
 
-        bool has_end = false, ended_already = false;
-        for (const TimeCondition &condition : timing.end)
+        bool ended_already = false;
+        for (std::size_t i = 0; i < timing.end.size(); ++i)
         {
+            const TimeCondition &condition = timing.end[i];
             if (const auto *offset = std::get_if<Offset>(&condition))
             {
                 if (offset->value > milliseconds(0))
                 {
                     at(now + offset->value, node, EventType::End);
-                    has_end = true;
+                    ++n.pending_ends;
                 }
                 else
                     ended_already = true;
             }
+            else if (std::holds_alternative<Wallclock>(condition))
+                scheduleWallclock(node, i, true); // only the next end: a past one ended an earlier interval
+            else if (!std::holds_alternative<Indefinite>(condition))
+                n.open_end = true; // a trigger: the end stays open
         }
 
         bool                        begin_now = false;
         std::optional<milliseconds> begun_ago; // the latest begin in the past
-        for (const TimeCondition &condition : timing.begin)
+        auto                        past      = [&](milliseconds ago)
         {
+            if (ago == milliseconds(0))
+                begin_now = true;
+            else if (!begun_ago || ago < *begun_ago)
+                begun_ago = ago;
+        };
+        for (std::size_t i = 0; i < timing.begin.size(); ++i)
+        {
+            const TimeCondition &condition = timing.begin[i];
             if (const auto *offset = std::get_if<Offset>(&condition))
             {
                 if (offset->value > milliseconds(0))
@@ -252,13 +430,18 @@ namespace garlic::core::smil
                     at(now + offset->value, node, EventType::Begin);
                     ++n.pending_begins;
                 }
-                else if (offset->value == milliseconds(0))
-                    begin_now = true;
-                else if (!begun_ago || -offset->value < *begun_ago)
-                    begun_ago = -offset->value;
+                else
+                    past(-offset->value);
+            }
+            else if (const auto *wallclock = std::get_if<Wallclock>(&condition))
+            {
+                // garlic-lib: activateWallClock - the next time is planned, a past one counts like a negative begin
+                if (auto ago = wallclockBegunAgo(*wallclock))
+                    past(*ago);
+                scheduleWallclock(node, i, false);
             }
             else
-                n.open_begin = true; // indefinite; wallclock and triggers follow
+                n.open_begin = true; // indefinite or a trigger
         }
 
         if (ended_already)
@@ -266,10 +449,12 @@ namespace garlic::core::smil
             at(now, node, EventType::End); // ends without being shown
             return;
         }
+        // A start now goes through the schedule as well (same poll): so all siblings of a par are activated first
+        // and none misses the begin trigger of another one (e.g. begin="video.begin").
         if (begin_now)
         {
-            tryStart(node, milliseconds(0));
-            settle(node);
+            at(now, node, EventType::Begin);
+            ++n.pending_begins;
             return;
         }
         if (begun_ago)
@@ -280,12 +465,12 @@ namespace garlic::core::smil
                         (dur.type == Duration::Type::Clock && dur.value > *begun_ago);
             if (rest)
             {
-                tryStart(node, *begun_ago);
-                settle(node);
+                at(now, node, EventType::Begin, no_wallclock, *begun_ago);
+                ++n.pending_begins;
                 return;
             }
         }
-        if (n.pending_begins == 0 && !n.open_begin && !has_end)
+        if (n.pending_begins == 0 && !n.open_begin && n.pending_ends == 0 && !n.open_end)
             skip(node); // can never start: skipped instead of blocking the parent
     }
 
@@ -338,10 +523,22 @@ namespace garlic::core::smil
         at(clock.monotonic() + config.skip_delay, node, EventType::Skipped);
     }
 
-    /// A time of the end attribute: the element ends for this activation, playing or not; later begins are void.
+    /**
+     * A time of the end attribute. If no further end can come (no end time left, no trigger in the end list), the
+     * element ends for this activation and later begins are void: there is no end for them (standard: getNextInterval
+     * fails). Otherwise only the current interval ends.
+     */
     void Engine::endEvent(std::size_t node)
     {
         Runtime &n = nodes[node];
+        if (n.pending_ends > 0 || n.open_end)
+        {
+            if (n.state != State::Active)
+                return; // no interval to end
+            stopNode(node);
+            intervalEnded(node);
+            return;
+        }
         if (n.state == State::Active)
             stopNode(node);
         n.state    = State::Ended;
@@ -356,6 +553,8 @@ namespace garlic::core::smil
     void Engine::intervalEnded(std::size_t node)
     {
         Runtime &n = nodes[node];
+        if (n.container)
+            announceEnd(node);
         ++n.generation;
         if (n.pending_begins > 0 || n.open_begin)
             n.state = State::Waiting;
@@ -391,7 +590,10 @@ namespace garlic::core::smil
             if (n.media)
                 endMedia(node);
             else
+            {
                 stopChildren(node);
+                announceEnd(node);
+            }
         }
         if (n.paused) // its frozen events are void
         {
@@ -438,6 +640,7 @@ namespace garlic::core::smil
         c.state             = State::Active;
         c.skipping          = false;
         c.remaining_repeats = c.container->timing.repeat_count;
+        announceBegin(container); // garlic-lib fired begin triggers of containers only with a dur
         beginRun(container, elapsed);
     }
 
@@ -861,6 +1064,7 @@ namespace garlic::core::smil
         pending.emplace_back(StartMedia{m.instance, &media, std::move(source), regionsOf(media)});
         if (has_clock)
             at(clock.monotonic() + dur.value - elapsed, node, EventType::SimpleEnd);
+        announceBegin(node);
     }
 
     /// The player reports the end (or a failure): only counts if no dur decides, garlic-lib: finishIntrinsicDuration.
@@ -895,6 +1099,7 @@ namespace garlic::core::smil
      */
     void Engine::endMedia(std::size_t node)
     {
+        announceEnd(node);
         Runtime &m      = nodes[node];
         auto     unseen = std::ranges::find_if(pending,
                                                [&](const Command &command)

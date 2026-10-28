@@ -25,6 +25,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <random>
 #include <string>
@@ -122,6 +123,15 @@ namespace garlic::core::smil
             /// The medium could not be played. Like an early end: a dur still decides the end, no play log.
             void mediaFailed(InstanceId id);
 
+            /// A key was pressed: accesskey(…) triggers.
+            void accessKey(char key);
+
+            /// Notification from outside (REST API /v2/task): notify(…) triggers.
+            void notify(std::string_view name);
+
+            /// Touch or click on a medium: id.activateEvent and id.click triggers.
+            void elementActivated(InstanceId id);
+
         private:
             enum class State
             {
@@ -152,8 +162,11 @@ namespace garlic::core::smil
                 std::uint32_t activation = 0; // per activation by the parent: old begin/end events are ignored
                 int           remaining_repeats = 1;
                 int           pending_begins    = 0;     // begin times of this activation still to come
-                bool          open_begin        = false; // begin="indefinite": waits for a trigger
+                int           pending_ends      = 0;     // end times of this activation still to come
+                bool          open_begin        = false; // begin="indefinite" or a trigger: waits for it
+                bool          open_end          = false; // end with a trigger: later begins stay valid (standard)
                 bool          started_once      = false; // for restart="never"
+                bool          announced         = false; // its begin triggers have fired, its end ones are due
 
                 // container
                 std::vector<std::size_t>              run_order;        // seq: the children of this run
@@ -174,6 +187,23 @@ namespace garlic::core::smil
                 std::chrono::system_clock::time_point started_at; // for the play log
             };
 
+            static constexpr std::size_t no_wallclock = static_cast<std::size_t>(-1);
+
+            /// Who waits for a trigger: an element whose begin or end lists it.
+            struct Listener
+            {
+                enum class Symbol
+                {
+                    Begin,   // id.begin, id.beginEvent
+                    End,     // id.end, id.endEvent
+                    Activate // id.activateEvent, id.click
+                };
+                std::size_t               node;
+                bool                      is_end;
+                Symbol                    symbol = Symbol::Begin;
+                std::chrono::milliseconds offset{0};
+            };
+
             /// Same time: ends before begins, so an interval that ends when the next begins makes room for it.
             enum class EventType
             {
@@ -190,6 +220,9 @@ namespace garlic::core::smil
                 std::size_t                           node;
                 std::uint32_t                         generation;
                 EventType                             type;
+                std::size_t                           wallclock = no_wallclock; // index in begin/end: next occurrence
+                std::chrono::milliseconds             elapsed{0};               // begin in the past: rest of dur
+                std::chrono::local_seconds            occurrence{};             // wallclock: the time it stands for
 
                 bool operator>(const Scheduled &other) const
                 {
@@ -223,8 +256,13 @@ namespace garlic::core::smil
             std::mt19937           random;
             bool                   interrupting = false; // excl stop: the end of the stopped element is no normal end
 
+            std::map<std::string, std::vector<Listener>, std::less<>> by_source; // "img1" → listeners of img1.…
+            std::map<char, std::vector<Listener>>                      by_accesskey;
+            std::map<std::string, std::vector<Listener>, std::less<>> by_notify;
+
             void        addNode(const Node &node, std::size_t parent);
-            void        at(std::chrono::steady_clock::time_point time, std::size_t node, EventType type);
+            void        at(std::chrono::steady_clock::time_point time, std::size_t node, EventType type,
+                           std::size_t wallclock = no_wallclock, std::chrono::milliseconds elapsed = {});
             void        push(Scheduled event);
             Scheduled   pop();
             std::optional<std::size_t> findInstance(InstanceId id) const;
@@ -233,6 +271,16 @@ namespace garlic::core::smil
 
             bool hasDur(const Timing &timing) const; // dur with a time or indefinite: the dur decides the end
             const Timing &timingOf(std::size_t node) const;
+
+            // triggers
+            void registerListeners(std::size_t node);
+            void fire(std::size_t node, Listener::Symbol symbol);
+            void deliver(const Listener &listener);
+            void announceBegin(std::size_t node);
+            void announceEnd(std::size_t node);
+            bool scheduleWallclock(std::size_t node, std::size_t index, bool is_end,
+                                   std::chrono::local_seconds after = {});
+            std::optional<std::chrono::milliseconds> wallclockBegunAgo(const Wallclock &wallclock) const;
 
             // lifecycle of every element
             void activate(std::size_t node);

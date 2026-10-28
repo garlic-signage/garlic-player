@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing images in par and multizone" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen1" top="0" left="0" width="960" height="540" z-index="1" backgroundColor="#f00" />
+			<region regionName="screen2" top="0" left="960" width="960" height="540" z-index="1" backgroundColor="#0f0" />
+			<region regionName="screen3" top="540" left="0" width="960" height="540" z-index="1" backgroundColor="#00f" />
+			<region regionName="screen4" top="540" left="960" width="960" height="540" z-index="1" backgroundColor="#0ff" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+	
+		sequence should be parallel:
+		upper left count seconds
+		begin then;
+		on lower left Video lowerright shows an image with video
+		then end image for 2s in screen 2
+
+	-->
+
+		<img region="screen1" xml:id="img_begin" src="../../../images/begin.jpg" dur="1s" fit="meet" />
+		<par xml:id="simple_par">
+			<seq xml:id="seq_clock">
+				<img region="screen1" src="../../../images/0001.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0002.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0003.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0004.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0005.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0006.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0007.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0008.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0009.jpg" dur="1s" fit="meet" />
+				<img region="screen1" src="../../../images/0010.jpg" dur="1s" fit="meet" />
+			</seq>
+
+			<video region="screen3" xml:id="video0001" src="../../../videos/0001.mp4" fit="meet" />
+			<img region="screen4" xml:id="img_video" src="../../../images/video.jpg" begin="video0001.begin" end="video0001.end" fit="meet" />
+			<img region="screen2" xml:id="img_end" src="../../../images/end.jpg" begin="video0001.end" dur="2s" fit="meet" />
+		</par>
+
+
+	</body>
+</smil>
