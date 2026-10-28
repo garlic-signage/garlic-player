@@ -89,8 +89,9 @@ otherwise it shows the error text of the core (invalid URL, port in use). Both c
 the player with their maxima (all from `debugInfo()` of the core, waited for with `post` and a `std::promise`) and the
 media that play now, one line per region with title or src (from the MainWindow; garlic-lib had the code for it but
 did not show it). Buttons: quit the player, close. The clicks and touches for the menu are counted by an event
-filter on the application, so web pages and videos count too; an event handed on to the parent widgets counts once (by
-its timestamp). garlic-lib labelled free and total disk space the wrong way round.
+filter on the application, so web pages and videos count too: also the native windows inside the player window, into
+which QVideoWidget draws its video. An event handed on to the parent widgets counts once (by its timestamp). The menu
+shows the shortcuts right-aligned. garlic-lib labelled free and total disk space the wrong way round.
 
 ## Media
 

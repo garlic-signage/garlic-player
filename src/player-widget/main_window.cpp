@@ -25,6 +25,7 @@
 #include <QDebug>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QWindow>
 #include <QProcess>
 #include <QScreen>
 #include <QWebEngineProfile>
@@ -262,8 +263,7 @@ namespace player
      */
     bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     {
-        auto *widget = qobject_cast<QWidget *>(watched);
-        if (widget == nullptr || widget->window() != this)
+        if (!isInThisWindow(watched))
             return false;
 
         bool press   = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin;
@@ -298,12 +298,38 @@ namespace player
         return false;
     }
 
+    /**
+     * A widget of this window, or a native window inside it: QVideoWidget draws into a window of its own, and the
+     * clicks on a video go to that QWindow, not to a widget. Menus and dialogs are windows of their own and do not count.
+     */
+    bool MainWindow::isInThisWindow(QObject *watched) const
+    {
+        if (auto *widget = qobject_cast<QWidget *>(watched))
+            return widget->window() == this;
+        if (auto *window = qobject_cast<QWindow *>(watched))
+        {
+            while (window->parent() != nullptr)
+                window = window->parent();
+            return window == windowHandle();
+        }
+        return false;
+    }
+
     void MainWindow::openMenu()
     {
-        QMenu    menu(this);
-        QAction *settings = menu.addAction("Settings");
-        QAction *debug    = menu.addAction("Debug infos");
-        QAction *exit     = menu.addAction("Exit");
+        // the shortcuts are shown right-aligned in the menu; they work through keyPressEvent
+        QMenu menu(this);
+        auto  item = [&menu](const QString &text, const QKeySequence &keys)
+        {
+            QAction *action = menu.addAction(text);
+            action->setShortcut(keys);
+            action->setShortcutVisibleInContextMenu(true);
+            action->setShortcutContext(Qt::WidgetShortcut); // only shown, keyPressEvent handles the keys
+            return action;
+        };
+        QAction *settings = item("Settings", QKeySequence("Ctrl+S"));
+        QAction *debug    = item("Debug infos", QKeySequence("Ctrl+D"));
+        QAction *exit     = item("Exit", QKeySequence("Ctrl+Q"));
 
         QCursor hidden = cursor();
         setCursor(Qt::ArrowCursor);
