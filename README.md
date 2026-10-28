@@ -124,12 +124,20 @@ window opens for the video. `QT_QPA_PLATFORM=xcb` does the same.
 The index of the command line wins over the one in a `config.xml`. Positioning on a screen (`-s`, `bigscreen`) needs X11
 too (`--platform xcb`).
 
+## Menu
+
+Ten fast clicks or touches (less than 500 ms apart) or one held for 10 seconds, anywhere on the screen, open a menu:
+ - **Settings**: player name, content URL, HTTP server on/off and port
+ - **Debug infos**: playlist, user agent, disk, memory, threads and the media playing in each region
+ - **Exit**
+
+Holding is meant for interactive content, where fast clicks reach the page too. All players work the same way.
+
 ## HotKeys
  - toggle fullscreen with Ctrl-F
  - bigscreen with Ctrl-B
- - open settings dialog with Ctrl-S: player name, content URL, HTTP server on/off and port
- - open debug infos with Ctrl-D, or with six fast clicks/touches or one held for 10 seconds: playlist, user agent,
-   disk, memory, threads and the media playing in each region
+ - open settings dialog with Ctrl-S
+ - open debug infos with Ctrl-D
  - quit app with Ctrl-Q
  - every other key is an accesskey for the SMIL
 

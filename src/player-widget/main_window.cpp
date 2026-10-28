@@ -24,6 +24,7 @@
 #include <QMouseEvent>
 #include <QDebug>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QProcess>
 #include <QScreen>
 #include <QWebEngineProfile>
@@ -52,6 +53,9 @@ namespace player
         setBackground(*this, "black", {}, {});
         setWindowTitle("garlic-player");
         qApp->installEventFilter(this); // clicks and touches anywhere in the window, also on web pages
+        hold.setSingleShot(true);
+        hold.setInterval(10000);
+        connect(&hold, &QTimer::timeout, this, &MainWindow::openMenu);
     }
 
     MainWindow::~MainWindow()
@@ -235,14 +239,7 @@ namespace player
                     return;
                 case Qt::Key_B: showOverAllScreens(); return;
                 case Qt::Key_D: openDebugDialog(); return;
-                case Qt::Key_S:
-                {
-                    QCursor hidden = cursor();
-                    setCursor(Qt::ArrowCursor);
-                    SettingsDialog(runtime, this).exec(); // the core stores and loads the index again
-                    setCursor(hidden);
-                    return;
-                }
+                case Qt::Key_S: openSettingsDialog(); return;
                 case Qt::Key_Q: QApplication::quit(); return;
                 default: break;
             }
@@ -258,8 +255,10 @@ namespace player
     }
 
     /**
-     * garlic-lib: the debug dialog after six fast clicks or touches (less than 500 ms apart) or one held for 10 s.
-     * The filter sees an event once per widget it is handed to, so a press counts once by its timestamp.
+     * Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s anywhere in the window open the menu
+     * with settings, debug infos and exit; the same in every frontend. Holding is for interactive content, where fast
+     * clicks reach the page too. garlic-lib opened the debug dialog after seven fast clicks or on releasing after
+     * 10 s. The filter sees an event once per widget it is handed to, so an event counts once by its timestamp.
      */
     bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     {
@@ -271,27 +270,60 @@ namespace player
         bool release = event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::TouchEnd;
         if (!press && !release)
             return false;
-        auto timestamp = static_cast<qint64>(static_cast<QInputEvent *>(event)->timestamp());
-        qint64 now     = QDateTime::currentMSecsSinceEpoch();
+        auto  *pointer   = static_cast<QPointerEvent *>(event);
+        auto   timestamp = static_cast<qint64>(pointer->timestamp());
+        qint64 now       = QDateTime::currentMSecsSinceEpoch();
 
         if (press && timestamp != last_press)
         {
             last_press  = timestamp;
-            first_touch = now;
-            count_touch = now - last_touch < 500 ? count_touch + 1 : 0;
-            if (count_touch > 5)
+            fast_clicks = now - released_at < 500 ? fast_clicks + 1 : 1;
+            if (pointer->pointCount() > 0)
+                menu_position = pointer->point(0).globalPosition().toPoint();
+            if (fast_clicks >= 10)
             {
-                count_touch = 0;
-                QMetaObject::invokeMethod(this, &MainWindow::openDebugDialog, Qt::QueuedConnection);
+                fast_clicks = 0;
+                hold.stop();
+                QMetaObject::invokeMethod(this, &MainWindow::openMenu, Qt::QueuedConnection);
             }
+            else
+                hold.start(); // opens the menu while it is still held
         }
-        else if (release && now != last_touch)
+        else if (release && timestamp != last_release)
         {
-            last_touch = now;
-            if (last_touch - first_touch > 10000)
-                QMetaObject::invokeMethod(this, &MainWindow::openDebugDialog, Qt::QueuedConnection);
+            last_release = timestamp;
+            released_at  = now;
+            hold.stop();
         }
         return false;
+    }
+
+    void MainWindow::openMenu()
+    {
+        QMenu    menu(this);
+        QAction *settings = menu.addAction("Settings");
+        QAction *debug    = menu.addAction("Debug infos");
+        QAction *exit     = menu.addAction("Exit");
+
+        QCursor hidden = cursor();
+        setCursor(Qt::ArrowCursor);
+        QAction *chosen = menu.exec(menu_position);
+        setCursor(hidden);
+
+        if (chosen == settings)
+            openSettingsDialog();
+        else if (chosen == debug)
+            openDebugDialog();
+        else if (chosen == exit)
+            QApplication::quit();
+    }
+
+    void MainWindow::openSettingsDialog()
+    {
+        QCursor hidden = cursor();
+        setCursor(Qt::ArrowCursor);
+        SettingsDialog(runtime, this).exec(); // the core stores and loads the index again
+        setCursor(hidden);
     }
 
     void MainWindow::openDebugDialog()

@@ -23,8 +23,11 @@ build/src/player-widget/garlic-player -m fullscreen http://hub/index.smil
 | `-c`, `--config`        | a `config.xml` (e.g. of a launcher), applied by the core at every start before the index; an index on the command line still wins |
 
 Keys: Ctrl+F full screen on/off, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit; other
-keys go to the core as accessKey. The debug infos also open after six fast clicks or touches (less than 500 ms apart)
-or one held for 10 s, anywhere in the window (garlic-lib).
+keys go to the core as accessKey.
+
+Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s, anywhere in the window, open a menu with
+Settings, Debug infos and Exit; it opens while still held. All frontends do the same (needed for the review of the App
+Store). garlic-lib opened the debug dialog directly after seven fast clicks or on releasing after 10 s.
 
 Without an index the settings dialog opens at the start; cancelled, the player ends (garlic-lib).
 
@@ -85,9 +88,9 @@ otherwise it shows the error text of the core (invalid URL, port in use). Both c
 `DebugDialog` refreshes every second: playlist title, user agent, disk and memory of the system, memory and threads of
 the player with their maxima (all from `debugInfo()` of the core, waited for with `post` and a `std::promise`) and the
 media that play now, one line per region with title or src (from the MainWindow; garlic-lib had the code for it but
-did not show it). Buttons: quit the player, close. Clicks and touches are counted by an event filter on the
-application, so web pages and videos count too; an event handed on to the parent widgets counts once (by its
-timestamp). garlic-lib labelled free and total disk space the wrong way round.
+did not show it). Buttons: quit the player, close. The clicks and touches for the menu are counted by an event
+filter on the application, so web pages and videos count too; an event handed on to the parent widgets counts once (by
+its timestamp). garlic-lib labelled free and total disk space the wrong way round.
 
 ## Media
 

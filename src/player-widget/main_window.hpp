@@ -23,6 +23,7 @@
 
 #include "player_runtime/threaded_runtime.hpp"
 
+#include <QTimer>
 #include <QWidget>
 
 #include <map>
@@ -73,9 +74,12 @@ namespace player
             std::vector<Region *>                                   regions; // children of this window, by z-index
             std::map<garlic::core::smil::InstanceId, Instance>      instances;
 
-            // touches for the debug dialog (garlic-lib: MainWindow::event)
-            qint64 first_touch = 0, last_touch = 0, last_press = -1;
-            int    count_touch = 0;
+            // ten fast clicks/touches or one held for 10 s open the menu (also for the review of the App Store)
+            QTimer hold;
+            qint64 last_press = -1, last_release = -1; // timestamps of the events: each is counted once
+            qint64 released_at = 0;                    // ms since epoch
+            int    fast_clicks = 0;
+            QPoint menu_position;
 
             void handle(const garlic::core::CoreEvent &event);
             void newLayout(const garlic::core::NewLayout &next);
@@ -85,6 +89,8 @@ namespace player
             void forEach(garlic::core::smil::InstanceId id, void (Media::*action)());
             void screenshot(const std::string &path);
             void clear();
+            void openMenu();
+            void openSettingsDialog();
             void openDebugDialog();
     };
 }
