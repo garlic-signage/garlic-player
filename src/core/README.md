@@ -5,7 +5,7 @@ HTTP server, SMIL parser, configuration, logger, system information) to the play
 JavaScript/WASM, ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
-[downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
+[logger](docs/logger.md), [downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
 [configuration](docs/configuration.md), [rest_api](docs/rest_api.md).
 
 ## Layout
@@ -18,6 +18,7 @@ src/core/
 ├── cmake/                CMake helpers
 ├── docs/                 documentation
 ├── common/               shared types and interfaces (.hpp and .cpp side by side)
+├── logger/
 ├── downloader/
 ├── database/
 ├── httpd/
@@ -25,6 +26,7 @@ src/core/
 ├── rest_api/
 └── tests/                one test executable per module
     ├── common/
+    ├── logger/
     ├── downloader/
     ├── database/
     ├── httpd/

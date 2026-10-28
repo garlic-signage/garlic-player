@@ -58,3 +58,13 @@ std::string hex = Md5::toHex(md5.finish());
 ```
 
 Own implementation of RFC 1321, because OpenSSL is not available on WASM and ESP32. Not for security purposes.
+
+## Time format
+
+Header: `common/time_format.hpp`
+
+- `isoLocalTime(time)`: local time with offset like Qt::ISODate, `2026-10-28T03:30:56+01:00`, `…Z` at UTC
+- `logTimestamp(time)`: `2026-10-28 03:30:56,123` for text logs
+
+Uses the C library for the time zone, because the time zone database of `std::chrono` is not available on every
+platform (ESP32, older Android).

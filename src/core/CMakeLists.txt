@@ -38,6 +38,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 # Static modules
 add_subdirectory(common)
+add_subdirectory(logger)
 add_subdirectory(downloader)
 add_subdirectory(database)
 add_subdirectory(httpd)
@@ -64,6 +65,7 @@ if(GARLIC_CORE_BUILD_SHARED)
     # WHOLE_ARCHIVE keeps all symbols of the modules, even if the shared library itself does not use them.
     target_link_libraries(garlic_core PUBLIC
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::common>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::logger>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::downloader>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::database>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::httpd>"

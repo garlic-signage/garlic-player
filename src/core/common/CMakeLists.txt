@@ -6,6 +6,7 @@ add_library(garlic_core_common STATIC
     memory_file_system.cpp
     std_file_system.cpp
     system_clock.cpp
+    time_format.cpp
 )
 add_library(garlic::core::common ALIAS garlic_core_common)
 garlic_core_set_options(garlic_core_common)
