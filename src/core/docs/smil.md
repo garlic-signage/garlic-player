@@ -19,7 +19,8 @@ disabled.
 that is missing gets the default values of garlic-lib, unknown elements and attributes are ignored. Element names
 are compared without namespace prefix.
 
-Status: head, media, `seq` and `par` are done. `excl`, wallclock and triggers follow; until then they are skipped.
+Status: head, media, `seq`, `par`, `excl` and `priorityClass` are done. Wallclock and triggers follow; until then
+such `begin`/`end` values are skipped.
 
 ## How the parser works
 
@@ -43,13 +44,17 @@ parse(xml)                         libxml2 reads the text, checks the root eleme
     │   │   ├── parseRootLayout    <root-layout>
     │   │   └── parseRegion        <region>, one per region
     │   └── parseState             <state><data>: placeholders
-    └── parseContainer             <body>, calls itself for every <seq> and <par>
+    └── parseContainer             <body>, <seq>, <par>, <excl>
         ├── parseTiming            begin end dur repeatCount restart
-        ├── parsePickNumber        <seq><metadata> as first child
-        ├── parseEndSync           <par endsync>
-        └── parseMedia             <img> <video> … one per medium
-            ├── parseTiming
-            └── parseParams        <param name value>
+        ├── parseEndSync           <par|excl endsync>
+        ├── parseChildren          children of body, seq, par, priorityClass
+        │   ├── parsePickNumber    <seq><metadata> as first child
+        │   ├── parseContainer     nested <seq> <par> <excl>: recursion
+        │   └── parseMedia         <img> <video> … one per medium
+        │       ├── parseTiming
+        │       └── parseParams    <param name value>
+        └── parsePriorityClasses   children of an excl
+            └── parsePriorityClass <priorityClass>, then parseChildren
 ```
 
 Every function reads one element and fills one struct. Above each function in `parser.cpp` is the SMIL snippet it
@@ -155,6 +160,41 @@ for (const Node &node : document->body.children)
   has the id, the `par` behaves like `Last` (garlic-lib compared the id and never matched).
 - The body is played like a `seq`, but its children may have `begin` lists like in garlic-lib (`TBody` was not
   treated as `TSeq` when parsing).
+
+### excl and priorityClass
+
+The children of an `excl` are always `PriorityClass` containers, so the engine knows only one case. If the SMIL has
+no `<priorityClass>`, all children of the `excl` form one with the defaults and a generated id
+(`priorityClass_<line of the excl>_<number>`).
+
+```
+<excl>                                  excl
+  <priorityClass peers="pause">         ├── priorityClass  peers Pause
+    <img xml:id="a"/>                   │   └── a
+  </priorityClass>                      └── priorityClass  defaults
+  <priorityClass>                           └── b
+    <img xml:id="b"/>
+  </priorityClass>
+</excl>
+```
+
+| Attribute | `Container` | Values        | Default | When the new element comes from … |
+|-----------|-------------|---------------|---------|-----------------------------------|
+| `peers`   | `peers`     | stop, pause, defer, never | stop  | the same priorityClass   |
+| `higher`  | `higher`    | stop, pause   | pause   | a higher priorityClass            |
+| `lower`   | `lower`     | defer, never  | defer   | a lower priorityClass             |
+
+`Interrupt` says what happens with the playing element: `Stop` stops it, `Pause` pauses and resumes it afterwards,
+`Defer` lets it finish and starts the new one afterwards, `Never` ignores the new one.
+
+- The order of the SMIL is the priority: the first `priorityClass` is the highest.
+- Invalid values become the default. A `priorityClass` has no timing, only `id` and `title`.
+- Children of a `priorityClass` start by trigger: without `begin` it is `indefinite`. `begin` lists are allowed.
+- `excl` has timing and `endsync` like `par`.
+- Like garlic-lib: direct children next to `<priorityClass>` elements are ignored (no mixing), a `priorityClass`
+  inside a `priorityClass` or outside an `excl` is ignored. Nested `excl` work recursively.
+- Not read, like in garlic-lib: `pauseDisplay` (its validation was never called), `peer` and `weight` (only in some
+  old test files).
 
 ### Media
 

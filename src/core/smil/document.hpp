@@ -187,6 +187,15 @@ namespace garlic::core::smil
         Element // endsync="<id>": when this child ends
     };
 
+    /// priorityClass: what happens with the playing element when another one of the excl wants to start.
+    enum class Interrupt
+    {
+        Stop,  // stop the playing element, start the new one
+        Pause, // pause the playing element, resume it after the new one
+        Defer, // let the playing element finish, start the new one afterwards
+        Never  // ignore the new one
+    };
+
     struct Node;
 
     struct Container
@@ -201,9 +210,14 @@ namespace garlic::core::smil
         // seq: <metadata> as first child, pick_number random children per run (at least 1)
         std::optional<int> pick_number;
 
-        // par
+        // par, excl
         EndSync     endsync = EndSync::Last;
         std::string endsync_id; // only for EndSync::Element
+
+        // priorityClass: the new element comes from the same, a higher or a lower priorityClass
+        Interrupt peers  = Interrupt::Stop;  // stop, pause, defer, never
+        Interrupt higher = Interrupt::Pause; // stop, pause
+        Interrupt lower  = Interrupt::Defer; // defer, never
     };
 
     /// An element of the body: a medium or a container with further elements.

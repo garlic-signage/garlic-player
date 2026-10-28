@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing images in excl with lower = defer higher = stop" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+
+	<!--
+
+		sequence should be:
+		begin | 1 for 5s, then 2, 3, 4, 5 | 1 for 5s, then 2, 3, 4, 5 | end
+
+		Remarks:
+		Both have the same sequence although the begin times are in vice versa order the second time
+		The reason is that the queued will play in the order from high to lower priority
+
+		peers default is stop, higher set to stop
+	-->
+
+		<img xml:id="img begin" src="../../../images/begin.jpg" fit="meet" dur="1s" />
+
+		<excl xml:id="excl_up">
+ 			<priorityClass xml:id="prio B0" lower="defer" higher="stop">
+				<img xml:id="imgB0001" src="../../../images/0001.jpg" begin="0s" dur="5s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio B1" lower="defer" higher="stop">
+				<img xml:id="imgB0002" src="../../../images/0002.jpg" begin="1s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio B2" lower="defer" higher="stop">
+				<img xml:id="imgB0003" src="../../../images/0003.jpg" begin="2s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio B3" lower="defer" higher="stop">
+				<img xml:id="imgB0004" src="../../../images/0004.jpg" begin="3s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio B4" lower="defer" higher="stop">
+				<img xml:id="imgB0005" src="../../../images/0005.jpg" begin="4s" dur="1s" fit="meet" />
+			</priorityClass>
+		</excl>
+
+		<excl xml:id="excl_reversed">
+ 			<priorityClass xml:id="prio A0" lower="defer" higher="stop">
+				<img xml:id="imgA0001" src="../../../images/0001.jpg" begin="0s" dur="5s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio A1" lower="defer" higher="stop">
+				<img xml:id="imgA0002" src="../../../images/0002.jpg" begin="4s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio A2" lower="defer" higher="stop">
+				<img xml:id="imgA0003" src="../../../images/0003.jpg" begin="3s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio A3" lower="defer" higher="stop">
+				<img xml:id="imgA0004" src="../../../images/0004.jpg" begin="2s" dur="1s" fit="meet" />
+			</priorityClass>
+			<priorityClass xml:id="prio A4" lower="defer" higher="stop">
+				<img xml:id="imgA0005" src="../../../images/0005.jpg" begin="1s" dur="1s" fit="meet" />
+			</priorityClass>
+		</excl>
+
+		<img xml:id="img_end" src="../../../images/end.jpg" fit="meet" dur="1s" />
+	</body>
+</smil>

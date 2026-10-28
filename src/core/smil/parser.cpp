@@ -259,9 +259,9 @@ namespace garlic::core::smil
             Timing timing;
             if (auto begin = attribute(node, "begin"))
                 timing.begin = parseTimeList(*begin, parent);
-            if (timing.begin.empty()) // missing or not readable
+            if (timing.begin.empty()) // missing or not readable; in an excl only a trigger starts an element
             {
-                if (parent == ContainerKind::Excl)
+                if (parent == ContainerKind::Excl || parent == ContainerKind::PriorityClass)
                     timing.begin.emplace_back(Indefinite{});
                 else
                     timing.begin.emplace_back(Offset{});
@@ -394,7 +394,12 @@ namespace garlic::core::smil
                         return takeString(xml_id);
                     if (auto id = attribute(node, "id"); id && !id->empty())
                         return *id;
-                    return std::string(name(node)) + "_" + std::to_string(xmlGetLineNo(node)) + "_" +
+                    return generateId(name(node), node);
+                }
+
+                std::string generateId(std::string_view tag, const xmlNode *node)
+                {
+                    return std::string(tag) + "_" + std::to_string(xmlGetLineNo(node)) + "_" +
                            std::to_string(++generated_ids);
                 }
 
@@ -528,9 +533,9 @@ namespace garlic::core::smil
                 }
 
                 /**
-                 * <body>, <seq>, <par>: the container and its children, nested containers recursively.
+                 * <body>, <seq>, <par>, <excl>: the container and its children, nested containers recursively.
                  * parent is the kind of the surrounding container, it decides the defaults of begin.
-                 * garlic-lib: TBody, TSeq, TPar
+                 * garlic-lib: TBody, TSeq, TPar, TExcl
                  */
                 Container parseContainer(const xmlNode *node, ContainerKind kind, ContainerKind parent,
                                          const Head &head)
@@ -541,14 +546,25 @@ namespace garlic::core::smil
                     container.timing = parseTiming(node, parent);
                     readAttribute(node, "title", container.title);
                     readAttribute(node, "expr", container.expr);
-                    if (kind == ContainerKind::Par)
+                    if (kind == ContainerKind::Par || kind == ContainerKind::Excl)
                         parseEndSync(node, container);
 
+                    if (kind == ContainerKind::Excl)
+                        parsePriorityClasses(node, container, head);
+                    else
+                        parseChildren(node, container, head);
+                    return container;
+                }
+
+                /// The children of node into container: media and nested containers.
+                void parseChildren(const xmlNode *node, Container &container, const Head &head)
+                {
                     bool first = true;
                     forEachChild(node,
                                  [&](const xmlNode *child)
                                  {
-                                     std::string_view tag = name(child);
+                                     std::string_view tag  = name(child);
+                                     ContainerKind    kind = container.kind; // parent of the child
                                      if (tag == "metadata")
                                      {
                                          if (kind == ContainerKind::Seq && first)
@@ -560,17 +576,84 @@ namespace garlic::core::smil
                                      else if (tag == "par")
                                          container.children.emplace_back(
                                              parseContainer(child, ContainerKind::Par, kind, head));
+                                     else if (tag == "excl")
+                                         container.children.emplace_back(
+                                             parseContainer(child, ContainerKind::Excl, kind, head));
                                      else if (auto media_kind = mediaKind(child))
                                          container.children.emplace_back(
                                              parseMedia(child, *media_kind, kind, head));
-                                     // excl: next step
+                                     // anything else, also a priorityClass outside of an excl, is ignored
                                      first = false;
                                  });
-                    return container;
                 }
 
                 /**
-                 * <par endsync="last|first|<id>">, garlic-lib: TPar::interruptByEndSync.
+                 * The children of an excl are always priorityClasses, the first one has the highest priority:
+                 *
+                 *   <excl>                              <excl>
+                 *     <priorityClass peers="pause">       <img …/>     no priorityClass: all children form
+                 *       <img …/>                          <seq …/>     one priorityClass with the defaults
+                 *     </priorityClass>                  </excl>
+                 *     <img …/>      ignored: mixed with priorityClasses
+                 *   </excl>
+                 *
+                 * garlic-lib: TExcl::traverseChilds
+                 */
+                void parsePriorityClasses(const xmlNode *excl, Container &container, const Head &head)
+                {
+                    std::vector<const xmlNode *> classes;
+                    forEachChild(excl,
+                                 [&](const xmlNode *child)
+                                 {
+                                     if (name(child) == "priorityClass")
+                                         classes.push_back(child);
+                                 });
+
+                    if (classes.empty())
+                    {
+                        Container priority_class;
+                        priority_class.kind = ContainerKind::PriorityClass;
+                        priority_class.id   = generateId("priorityClass", excl);
+                        parseChildren(excl, priority_class, head);
+                        container.children.emplace_back(std::move(priority_class));
+                        return;
+                    }
+                    for (const xmlNode *element : classes)
+                        container.children.emplace_back(parsePriorityClass(element, head));
+                }
+
+                /**
+                 * <priorityClass peers="stop" higher="pause" lower="defer">, garlic-lib: TPriorityClass.
+                 * No timing; invalid values become the default. A priorityClass inside a priorityClass is ignored.
+                 */
+                Container parsePriorityClass(const xmlNode *node, const Head &head)
+                {
+                    Container priority_class;
+                    priority_class.kind = ContainerKind::PriorityClass;
+                    priority_class.id   = parseId(node);
+                    readAttribute(node, "title", priority_class.title);
+
+                    auto value = [&](const char *attribute_name) { return attribute(node, attribute_name).value_or(""); };
+
+                    std::string peers = value("peers");
+                    if (peers == "pause")
+                        priority_class.peers = Interrupt::Pause;
+                    else if (peers == "defer")
+                        priority_class.peers = Interrupt::Defer;
+                    else if (peers == "never")
+                        priority_class.peers = Interrupt::Never;
+
+                    if (value("higher") == "stop")
+                        priority_class.higher = Interrupt::Stop;
+                    if (value("lower") == "never")
+                        priority_class.lower = Interrupt::Never;
+
+                    parseChildren(node, priority_class, head);
+                    return priority_class;
+                }
+
+                /**
+                 * <par|excl endsync="last|first|<id>">, garlic-lib: TPar/TExcl::interruptByEndSync.
                  * Any other value is taken as id; if no child has it, the par behaves like "last".
                  */
                 static void parseEndSync(const xmlNode *node, Container &container)

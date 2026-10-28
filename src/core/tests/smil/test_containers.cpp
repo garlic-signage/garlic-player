@@ -15,71 +15,11 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <doctest/doctest.h>
-
-#include "smil/parser.hpp"
-
-#include <filesystem>
-#include <fstream>
-#include <sstream>
+#include "helpers.hpp"
 
 using namespace garlic::core::smil;
+using namespace garlic::core::tests;
 using namespace std::chrono_literals;
-
-namespace
-{
-    std::string readFile(const std::filesystem::path &path)
-    {
-        std::ifstream      in(path, std::ios::binary);
-        std::ostringstream content;
-        content << in.rdbuf();
-        return content.str();
-    }
-
-    Document parseFile(const std::string &name)
-    {
-        auto document = parse(readFile(std::filesystem::path(GARLIC_CORE_TEST_DATA) / name));
-        REQUIRE(document.has_value());
-        return *document;
-    }
-
-    Container parseBody(std::string_view body)
-    {
-        auto document = parse("<smil><body>" + std::string(body) + "</body></smil>");
-        REQUIRE(document.has_value());
-        return document->body;
-    }
-
-    /// The tree as text: containers as "id(children)", media as "id".
-    std::string outline(const Node &node);
-
-    std::string outline(const Container &container)
-    {
-        std::string text = container.id + "(";
-        for (std::size_t i = 0; i < container.children.size(); ++i)
-            text += (i > 0 ? " " : "") + outline(container.children[i]);
-        return text + ")";
-    }
-
-    std::string outline(const Node &node)
-    {
-        if (const auto *media = std::get_if<Media>(&node))
-            return media->id;
-        return outline(std::get<Container>(node));
-    }
-
-    const Container &container(const Node &node)
-    {
-        REQUIRE(std::holds_alternative<Container>(node));
-        return std::get<Container>(node);
-    }
-
-    std::chrono::milliseconds offset(const TimeCondition &condition)
-    {
-        REQUIRE(std::holds_alternative<Offset>(condition));
-        return std::get<Offset>(condition).value;
-    }
-}
 
 TEST_CASE("nested seq and par")
 {

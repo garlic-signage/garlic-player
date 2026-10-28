@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Double WallClock Trigger" />
+		<layout>
+            <root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="0" background-color="transparent" mediaAlign="center"/>
+		</layout>
+	</head>
+	<body>
+	<!--
+        Trigger should played every 10s
+
+        First time blue for 1s
+        Second time vide for 2s and then blue for 3s
+    -->
+
+		<excl repeatCount="indefinite">
+			<priorityClass id="first">
+                <img id="video_trigger" begin="wallclock(R/2022-07-08T23:24:00/PT10S)" src="../../../images/video.jpg" dur="2s" fit="meet" />
+			</priorityClass>
+
+			<priorityClass id="second" higher="pause">
+                <brush id="image_trigger" begin="wallclock(R/2022-07-08T23:24:59/PT10S)" color="blue" dur="4s" />
+			</priorityClass>
+
+			<priorityClass id="playlist">
+				<seq repeatCount="indefinite" begin="0">
+					<img xml:id="imgA0001" src="../../../images/0001.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0002" src="../../../images/0002.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0003" src="../../../images/0003.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0004" src="../../../images/0004.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0005" src="../../../images/0005.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0006" src="../../../images/0006.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0007" src="../../../images/0007.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0008" src="../../../images/0008.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0009" src="../../../images/0009.jpg" dur="1s" fit="meet" />
+                    <img xml:id="imgA0010" src="../../../images/0010.jpg" dur="1s" fit="meet" />
+				</seq>
+			</priorityClass>
+		</excl>
+	</body>
+</smil>
+

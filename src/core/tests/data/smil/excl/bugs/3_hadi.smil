@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<smil>
+<head>
+    <meta http-equiv="Refresh" content="10"/>
+    <layout>
+        <root-layout xml:id="display:0" width="1920" height="1080" />
+        <region xml:id="screen1" width="480px" height="540px" left="0px" top="0px" fit="meet" mediaAlign="center" backgroundColor="#f00" z-index="0"/>
+        <region xml:id="screen2" width="480px" height="540px" left="480px" top="0px" fit="meet" mediaAlign="center" backgroundColor="#0f0" z-index="0"/>
+        <region xml:id="screen3" width="480px" height="540px" left="960px" top="0px" fit="meet" mediaAlign="center" backgroundColor="#00f" z-index="0"/>
+        <region xml:id="screen4" width="480px" height="540px" left="1440px" top="0px" fit="meet" mediaAlign="center" backgroundColor="#ff0" z-index="0"/>
+
+        <region xml:id="screen5" width="480px" height="540px" left="0px" top="540px" fit="meet" mediaAlign="center" backgroundColor="#f0f" z-index="1"/>
+        <region xml:id="screen6" width="480px" height="540px" left="480px" top="540px" fit="meet" mediaAlign="center" backgroundColor="#0ff" z-index="1"/>
+        <region xml:id="screen7" width="480px" height="540px" left="960px" top="540px" fit="meet" mediaAlign="center" backgroundColor="#000" z-index="1"/>
+        <region xml:id="screen8" width="480px" height="540px" left="1440px" top="540px" fit="meet" mediaAlign="center" backgroundColor="#fff" z-index="1"/>
+    </layout>
+</head>
+<body>
+    <par>
+        <seq xml:id="seq1" repeatCount="indefinite">
+            <img region="screen1" begin="wallclock(R/00:00:00/PT10S)" dur="1s" src="../../../images/0001.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:01/PT10S)" dur="1s" src="../../../images/0002.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:02/PT10S)" dur="1s" src="../../../images/0003.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:03/PT10S)" dur="1s" src="../../../images/0004.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:04/PT10S)" dur="1s" src="../../../images/0005.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:05/PT10S)" dur="1s" src="../../../images/0006.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:06/PT10S)" dur="1s" src="../../../images/0007.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:07/PT10S)" dur="1s" src="../../../images/0008.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:08/PT10S)" dur="1s" src="../../../images/0009.jpg" fit="fill" />
+            <img region="screen1" begin="wallclock(R/00:00:09/PT10S)" dur="1s" src="../../../images/0010.jpg" fit="fill" />
+        </seq>
+
+        <!-- displays each video in order, same as expectation. no problem here -->
+        <excl xml:id="excl2" restart="whenNotActive">
+            <img region="screen2" begin="0s"  dur="10" src="../../../images/begin.jpg" fit="fill"></img>
+            <img region="screen2" begin="10s" dur="10" src="../../../images/0001.jpg" fit="fill"></img>
+            <img region="screen2" begin="20s" dur="10" src="../../../images/video.jpg" fit="fill"></img>
+            <img region="screen2" begin="30s" dur="10" src="../../../images/0002.jpg" fit="fill"></img>
+            <img region="screen2" begin="40s" dur="10" src="../../../images/image.jpg" fit="fill"></img>
+            <img region="screen2" begin="50s" dur="10" src="../../../images/0003.jpg" fit="fill"></img>
+            <img region="screen2" begin="60s" dur="10" src="../../../images/stand-by.jpg" fit="fill"></img>
+            <img region="screen2" begin="70s" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+            <img region="screen2" begin="80s" dur="10" src="../../../images/0005.jpg" fit="fill"></img>
+            <img region="screen2" begin="90s" dur="10" src="../../../images/end.jpg" fit="fill"></img>
+        </excl>
+
+        <!--
+            i copied everything from excl2 and changed 'begin' value to wallclock, expecting that videos will display at their defined time.
+            however from what i tested on my phone, only the last item is being displayed once when the smil updates.
+
+            i tried changing the order of the videos by placing a video that is supposed to play earlier as the last item,
+            and that video (in this case, the commented quesadillas video) ended up being played.
+            it seems that the last item in the group will be played, regardless of their 'begin' time.
+
+            Niko: This cannot work due to wallclock need complete ISO date.
+        -->
+        <excl xml:id="excl3" restart="whenNotActive">
+            <video region="screen3" begin="wallclock(17:21:00)" dur="10" soundLevel="60%" src="media/beach.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:21:10)" dur="10" soundLevel="60%" src="media/cyclist.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:21:20)" dur="10" soundLevel="60%" src="media/cheeseballs.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:21:30)" dur="10" soundLevel="60%" src="media/dog.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:21:40)" dur="10" soundLevel="60%" src="media/shop.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:21:50)" dur="10" soundLevel="60%" src="media/sandwich.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:22:00)" dur="10" soundLevel="60%" src="media/tractor.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:22:10)" dur="10" soundLevel="60%" src="media/quesadillas.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:22:20)" dur="10" soundLevel="60%" src="media/physics.mp4" fit="fill"></video>
+            <video region="screen3" begin="wallclock(17:22:30)" dur="10" soundLevel="60%" src="media/shop.mp4" fit="fill"></video>
+            <!-- <video region="screen3" begin="wallclock(17:22:10)" dur="10" soundLevel="60%" src="media/quesadillas.mp4" fit="fill"></video> -->
+        </excl>
+
+        <!--
+            let's try adding date value in addition of time to wallclock.
+            somewhat an improvement here. the first item showed up at the defined time but the rest didn't display.
+            maybe i can try split each video into their own excl
+        -->
+        <excl xml:id="excl4" restart="whenNotActive">
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:00)" dur="10" src="../../../images/begin.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:10)" dur="10" src="../../../images/0001.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:20)" dur="10" src="../../../images/video.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:30)" dur="10" src="../../../images/0002.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:40)" dur="10" src="../../../images/image.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:05:50)" dur="10" src="../../../images/0003.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:06:00)" dur="10" src="../../../images/stand-by.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:06:10)" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:06:20)" dur="10" src="../../../images/0005.jpg" fit="fill"></img>
+            <img region="screen4" begin="wallclock(2022-07-08T01:06:10)" dur="10" src="../../../images/end.jpg" fit="fill"></img>
+        </excl>
+
+
+        <!-- the split result didn't go as expected. only the first item is being displayed just like excl4 -->
+        <excl xml:id="excl5-1" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:00)" dur="10" src="../../../images/begin.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-2" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:10)" dur="10" src="../../../images/0001.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-3" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:20)" dur="10" src="../../../images/video.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-4" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:30)" dur="10" src="../../../images/0002.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-5" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:40)" dur="10" src="../../../images/image.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-6" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:11:50)" dur="10" src="../../../images/0003.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-7" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:12:00)" dur="10" src="../../../images/stand-by.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-8" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:12:10)" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+        </excl>
+        <excl xml:id="excl5-9" restart="whenNotActive">
+            <img region="screen5" begin="wallclock(2022-07-08T01:12:20)" dur="10" src="../../../images/end.jpg" fit="fill"></img>
+        </excl>
+
+
+        <!--
+            this is the only version that worked so far. for some unknown reason, the entire player seems to become laggy when excl6 started.
+            other than the videos played in screen6 was laggy, screen1's number ticker also got affected.
+            besides the laggy issue, videos transition to the next video is not that smooth either (compared to excl2)
+            last but not least, the last video is stuck there on the screen, instead of disappearing and show background like other screens
+        -->
+        <excl xml:id="excl6" restart="whenNotActive">
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:00)" dur="10" src="../../../images/begin.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:10)" dur="10" src="../../../images/0001.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:20)" dur="10" src="../../../images/video.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:30)" dur="10" src="../../../images/0002.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:40)" dur="10" src="../../../images/image.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:11:50)" dur="10" src="../../../images/0003.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:12:00)" dur="10" src="../../../images/stand-by.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:12:10)" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:12:10)" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+            </priorityClass>
+            <priorityClass higher="stop">
+				<img region="screen6" begin="wallclock(2022-07-08T01:12:20)" dur="10" src="../../../images/end.jpg" fit="fill"></img>
+            </priorityClass>
+        </excl>
+
+
+        <!-- i copied everything from excl6 and deleted the date value from wallclock, but nothing shows up
+
+			Niko: As in ID= excl3 this cannot work because wallclock need an explicite date to work.
+        -->
+        <excl xml:id="excl7" restart="whenNotActive">
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:22:30)" dur="10" soundLevel="60%" src="media/shop.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:22:20)" dur="10" soundLevel="60%" src="media/physics.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:22:10)" dur="10" soundLevel="60%" src="media/quesadillas.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:22:00)" dur="10" soundLevel="60%" src="media/tractor.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:50)" dur="10" soundLevel="60%" src="media/sandwich.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:40)" dur="10" soundLevel="60%" src="media/shop.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:30)" dur="10" soundLevel="60%" src="media/dog.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:20)" dur="10" soundLevel="60%" src="media/cheeseballs.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:10)" dur="10" soundLevel="60%" src="media/cyclist.mp4" fit="fill"></video>
+            </priorityClass>
+            <priorityClass higher="stop">
+                <video region="screen7" begin="wallclock(17:21:00)" dur="10" soundLevel="60%" src="media/beach.mp4" fit="fill"></video>
+            </priorityClass>
+        </excl>
+
+        <!--
+            this group shows somewhat weirder behavior for me.
+            It just randomly display one of the video once in a while then displays nothing. And the loop goes on.
+        -->
+        <excl xml:id="excl8" restart="whenNotActive">
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:00/PT100S)" dur="10" src="../../../images/begin.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:10/PT100S)" dur="10" src="../../../images/0001.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:20/PT100S)" dur="10" src="../../../images/video.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:30/PT100S)" dur="10" src="../../../images/0002.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:40/PT100S)" dur="10" src="../../../images/image.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:05:50/PT100S)" dur="10" src="../../../images/0003.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:06:00/PT100S)" dur="10" src="../../../images/stand-by.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:06:10/PT100S)" dur="10" src="../../../images/0004.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:06:20/PT100S)" dur="10" src="../../../images/0005.jpg" fit="fill"></img>
+            <img region="screen8" begin="wallclock(R/2022-07-08T01:06:10/PT100S)" dur="10" src="../../../images/end.jpg" fit="fill"></img>
+        </excl>
+    </par>
+</body>
+</smil>
