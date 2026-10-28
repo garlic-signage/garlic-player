@@ -23,8 +23,10 @@
 #include <algorithm>
 #include <charconv>
 #include <climits>
+#include <cmath>
 #include <memory>
 #include <optional>
+#include <ranges>
 
 namespace garlic::core::smil
 {
@@ -86,6 +88,15 @@ namespace garlic::core::smil
             return s.substr(first, s.find_last_not_of(" \t\r\n") - first + 1);
         }
 
+        std::string toUpper(std::string_view s)
+        {
+            std::string out(s);
+            for (char &c : out)
+                if (c >= 'a' && c <= 'z')
+                    c = static_cast<char>(c - 'a' + 'A');
+            return out;
+        }
+
         /// Leading number of a value, so "1920px" is 1920; 0 if there is none (like QString::toInt).
         int toInt(std::string_view s)
         {
@@ -101,6 +112,14 @@ namespace garlic::core::smil
             double value = 0;
             std::from_chars(s.data(), s.data() + s.size(), value);
             return value;
+        }
+
+        /// The whole value as number, 0 otherwise (like QString::toFloat). For time values, so "30d" is not 30 s.
+        double toNumber(std::string_view s)
+        {
+            double value = 0;
+            auto [end, error] = std::from_chars(s.data(), s.data() + s.size(), value);
+            return error == std::errc() && end == s.data() + s.size() ? value : 0;
         }
 
         /// "50%" → 0.5, "960px" or "960" → 960 / root. Empty values keep the default.
@@ -142,9 +161,209 @@ namespace garlic::core::smil
             return found;
         }
 
+        std::vector<std::string_view> split(std::string_view s, char separator)
+        {
+            std::vector<std::string_view> parts;
+            for (auto part : std::views::split(s, separator))
+                parts.emplace_back(part.begin(), part.end());
+            return parts;
+        }
+
+        // ------------------------------------------------------------------ timing values
+
+        /**
+         * SMIL clock value in milliseconds, garlic-lib: ClockValue.
+         *
+         *   "01:30:00.5"  full clock      h:m:s
+         *   "1:30"        partial clock   m:s
+         *   "2h" "1.5min" "90s" "500ms"   timecount
+         *   "90"          no unit = seconds
+         *   "+5s" "-2s"   with sign (offsets of begin/end)
+         */
+        std::chrono::milliseconds parseClockValue(std::string_view value)
+        {
+            value         = trim(value);
+            bool negative = false;
+            if (value.starts_with('+') || value.starts_with('-'))
+            {
+                negative = value.front() == '-';
+                value.remove_prefix(1);
+            }
+
+            double ms = 0;
+            if (value.contains(':'))
+            {
+                auto parts = split(value, ':');
+                if (parts.size() == 3)
+                    ms = toNumber(parts[0]) * 3600000.0 + toNumber(parts[1]) * 60000.0 + toNumber(parts[2]) * 1000;
+                else if (parts.size() == 2)
+                    ms = toNumber(parts[0]) * 60000.0 + toNumber(parts[1]) * 1000;
+            }
+            else if (value.ends_with("ms")) // before "s", garlic-lib read "500ms" as 0
+                ms = toNumber(value.substr(0, value.size() - 2));
+            else if (value.ends_with("min"))
+                ms = toNumber(value.substr(0, value.size() - 3)) * 60000;
+            else if (value.ends_with('h'))
+                ms = toNumber(value.substr(0, value.size() - 1)) * 3600000;
+            else if (value.ends_with('s'))
+                ms = toNumber(value.substr(0, value.size() - 1)) * 1000;
+            else
+                ms = toNumber(value) * 1000;
+
+            std::chrono::milliseconds result(std::llround(ms));
+            return negative ? -result : result;
+        }
+
+        /// dur="10s" | "indefinite" | "" | "media"
+        Duration parseDuration(std::string_view value)
+        {
+            value = trim(value);
+            if (value.empty() || value == "indefinite")
+                return {Duration::Type::Indefinite, {}};
+            if (value == "media")
+                return {Duration::Type::Media, {}};
+            return {Duration::Type::Clock, std::max(parseClockValue(value), std::chrono::milliseconds(0))};
+        }
+
+        /**
+         * begin/end: list separated by ";", e.g. "0s;10s", garlic-lib: EnhancedTimer::parse.
+         * In a seq only the first value counts. In a list with several values "indefinite" is ignored.
+         */
+        std::vector<TimeCondition> parseTimeList(std::string_view value, ContainerKind parent)
+        {
+            std::vector<std::string_view> values;
+            for (auto part : split(value, ';'))
+                if (auto v = trim(part); !v.empty())
+                    values.push_back(v);
+            if (parent == ContainerKind::Seq && values.size() > 1)
+                values.resize(1);
+
+            std::vector<TimeCondition> conditions;
+            for (auto v : values)
+            {
+                if (v.contains("indefinite"))
+                {
+                    if (values.size() == 1)
+                        conditions.emplace_back(Indefinite{});
+                }
+                else if (v.front() == '+' || v.front() == '-' || (v.front() >= '0' && v.front() <= '9'))
+                    conditions.emplace_back(Offset{parseClockValue(v)});
+                // wallclock(…), accesskey(…), notify(…), id.begin, id.event: follow with the triggers
+            }
+            return conditions;
+        }
+
+        /// <… begin end dur repeatCount restart>, garlic-lib: BaseTimings::parseTimingAttributes
+        Timing parseTiming(const xmlNode *node, ContainerKind parent)
+        {
+            Timing timing;
+            if (auto begin = attribute(node, "begin"))
+                timing.begin = parseTimeList(*begin, parent);
+            if (timing.begin.empty()) // missing or not readable
+            {
+                if (parent == ContainerKind::Excl)
+                    timing.begin.emplace_back(Indefinite{});
+                else
+                    timing.begin.emplace_back(Offset{});
+            }
+
+            if (auto end = attribute(node, "end"))
+                timing.end = parseTimeList(*end, parent);
+            if (auto dur = attribute(node, "dur"))
+                timing.dur = parseDuration(*dur);
+
+            if (auto repeat = attribute(node, "repeatCount"))
+            {
+                if (trim(*repeat) == "indefinite")
+                    timing.repeat_indefinite = true;
+                else
+                    timing.repeat_count = std::max(toInt(*repeat), 1); // "2.5" → 2
+            }
+
+            if (auto restart = attribute(node, "restart"))
+            {
+                if (*restart == "always")
+                    timing.restart = Restart::Always;
+                else if (*restart == "never")
+                    timing.restart = Restart::Never;
+                else
+                    timing.restart = Restart::WhenNotActive;
+            }
+            return timing;
+        }
+
+        // ------------------------------------------------------------------ media
+
+        /**
+         * Which medium an element is, garlic-lib: ElementFactory. Unknown elements are not part of the tree.
+         *
+         *   <img> <video> <audio> <brush> <prefetch>  as named
+         *   <text>                                    Web
+         *   <ref type="image/…|video/…|audio/…|text/…|application/widget">
+         *   <ref src="adapi:…"> without type          Command
+         */
+        std::optional<MediaKind> mediaKind(const xmlNode *node)
+        {
+            std::string_view tag = name(node);
+            if (tag == "img")
+                return MediaKind::Image;
+            if (tag == "video")
+                return MediaKind::Video;
+            if (tag == "audio")
+                return MediaKind::Audio;
+            if (tag == "text")
+                return MediaKind::Web;
+            if (tag == "brush")
+                return MediaKind::Brush;
+            if (tag == "prefetch")
+                return MediaKind::Prefetch;
+            if (tag != "ref")
+                return std::nullopt;
+
+            if (auto type = attribute(node, "type"))
+            {
+                if (type->contains("image"))
+                    return MediaKind::Image;
+                if (type->contains("video"))
+                    return MediaKind::Video;
+                if (type->contains("audio"))
+                    return MediaKind::Audio;
+                if (type->contains("text"))
+                    return MediaKind::Web;
+                if (type->contains("application/widget"))
+                    return MediaKind::Widget;
+                return std::nullopt;
+            }
+            if (attribute(node, "src").value_or("").contains("adapi:"))
+                return MediaKind::Command;
+            return std::nullopt;
+        }
+
+        /// Like QUrl::toPercentEncoding: everything except A-Z a-z 0-9 - . _ ~ becomes %XX.
+        std::string percentEncode(std::string_view text)
+        {
+            constexpr char hex[] = "0123456789ABCDEF";
+            std::string    out;
+            for (char ch : text)
+            {
+                auto c = static_cast<unsigned char>(ch);
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' ||
+                    c == '.' || c == '_' || c == '~')
+                    out.push_back(static_cast<char>(c));
+                else
+                {
+                    out.push_back('%');
+                    out.push_back(hex[c >> 4]);
+                    out.push_back(hex[c & 0x0F]);
+                }
+            }
+            return out;
+        }
+
         class Parser
         {
             public:
+                /// <smil><head>…</head><body>…</body></smil>; the head first, the body needs its placeholders
                 Document parse(const xmlNode *smil)
                 {
                     Document document;
@@ -153,6 +372,13 @@ namespace garlic::core::smil
                                  {
                                      if (name(child) == "head")
                                          parseHead(child, document.head);
+                                 });
+                    forEachChild(smil,
+                                 [&](const xmlNode *child)
+                                 {
+                                     if (name(child) == "body")
+                                         document.body = parseContainer(child, ContainerKind::Body,
+                                                                        ContainerKind::Body, document.head);
                                  });
                     return document;
                 }
@@ -298,6 +524,101 @@ namespace garlic::core::smil
                                                           head.placeholders["{" + std::string(name(entry)) + "}"] =
                                                               std::move(path);
                                                   });
+                                 });
+                }
+
+                /**
+                 * <body>, later also <seq>, <par>, <excl>: the container and its children.
+                 * parent is the kind of the surrounding container, it decides the defaults of begin.
+                 */
+                Container parseContainer(const xmlNode *node, ContainerKind kind, ContainerKind parent,
+                                         const Head &head)
+                {
+                    Container container;
+                    container.kind   = kind;
+                    container.id     = parseId(node);
+                    container.timing = parseTiming(node, parent);
+                    readAttribute(node, "title", container.title);
+                    readAttribute(node, "expr", container.expr);
+
+                    forEachChild(node,
+                                 [&](const xmlNode *child)
+                                 {
+                                     if (auto media_kind = mediaKind(child))
+                                         container.children.emplace_back(
+                                             parseMedia(child, *media_kind, kind, head));
+                                     // seq, par, excl: next step
+                                 });
+                    return container;
+                }
+
+                /**
+                 * <img src="a.jpg" region="screen" dur="10s" fit="meet">
+                 *     <param name="logContentId" value="123"/>
+                 * </img>
+                 * garlic-lib: BaseMedia and its subclasses TImage, TVideo, TAudio, TWeb, TWidget, TBrush, …
+                 */
+                Media parseMedia(const xmlNode *node, MediaKind kind, ContainerKind parent, const Head &head)
+                {
+                    Media media;
+                    media.kind   = kind;
+                    media.id     = parseId(node);
+                    media.timing = parseTiming(node, parent);
+                    readAttribute(node, "title", media.title);
+                    readAttribute(node, "expr", media.expr);
+                    readAttribute(node, "region", media.region);
+                    readAttribute(node, "fit", media.fit);
+                    readAttribute(node, "mediaAlign", media.media_align);
+
+                    if (kind == MediaKind::Brush)
+                        readAttribute(node, "color", media.color);
+                    else
+                        media.src = resolvePlaceholder(attribute(node, "src").value_or(""), head);
+                    if (kind == MediaKind::Audio || kind == MediaKind::Video)
+                        readAttribute(node, "soundLevel", media.sound_level);
+
+                    parseParams(node, media);
+                    return media;
+                }
+
+                /// src="{logo}" → path from <state><data><logo>; unknown placeholders become "" like in garlic-lib
+                static std::string resolvePlaceholder(std::string src, const Head &head)
+                {
+                    if (!src.starts_with('{') || !src.ends_with('}'))
+                        return src;
+                    auto found = head.placeholders.find(src);
+                    return found == head.placeholders.end() ? std::string() : found->second;
+                }
+
+                /**
+                 * <param name="cacheControl" value="onlyIfCached"/>
+                 * <param name="filename"     value="…"/>
+                 * <param name="logContentId" value="…"/>
+                 * every other param of a widget is appended to its URL: ?name=value&…
+                 */
+                static void parseParams(const xmlNode *node, Media &media)
+                {
+                    forEachChild(node,
+                                 [&](const xmlNode *param)
+                                 {
+                                     if (name(param) != "param")
+                                         return;
+                                     auto param_name = attribute(param, "name");
+                                     auto value      = attribute(param, "value");
+                                     if (!param_name || !value)
+                                         return;
+
+                                     if (*param_name == "cacheControl")
+                                         media.cache_control = toUpper(*value) == "ONLYIFCACHED"
+                                                                   ? CacheControl::OnlyIfCached
+                                                                   : CacheControl::UseCache;
+                                     else if (*param_name == "filename")
+                                         media.filename = *value;
+                                     else if (*param_name == "logContentId")
+                                         media.log_content_id = *value;
+                                     else if (media.kind == MediaKind::Widget)
+                                         media.query += (media.query.empty() ? "?" : "&") + *param_name + "=" +
+                                                        percentEncode(*value);
                                  });
                 }
         };

@@ -1,6 +1,7 @@
 add_executable(garlic_core_smil_tests
     main.cpp
     test_head.cpp
+    test_media.cpp
 )
 garlic_core_set_options(garlic_core_smil_tests TEST)
 

@@ -22,6 +22,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace garlic::core::smil
@@ -77,9 +78,128 @@ namespace garlic::core::smil
         std::map<std::string, std::string, std::less<>> placeholders; // <state><data>: "{name}" → path
     };
 
+    // ------------------------------------------------------------------ timing
+
+    /// dur attribute.
+    struct Duration
+    {
+        enum class Type
+        {
+            None,       // no dur attribute
+            Clock,      // dur="10s"
+            Indefinite, // dur="indefinite" or dur=""
+            Media       // dur="media": as long as the medium plays
+        };
+        Type                      type = Type::None;
+        std::chrono::milliseconds value{0}; // only for Clock
+    };
+
+    /// begin="5s", begin="-2s", begin="00:01:30"
+    struct Offset
+    {
+        std::chrono::milliseconds value{0};
+    };
+
+    /// begin="indefinite": starts only by a trigger
+    struct Indefinite
+    {
+    };
+
+    /// One value of a begin or end list. Wallclock, syncbase, event, accesskey and notify follow with the triggers.
+    using TimeCondition = std::variant<Offset, Indefinite>;
+
+    enum class Restart
+    {
+        Always,
+        WhenNotActive,
+        Never
+    };
+
+    struct Timing
+    {
+        std::vector<TimeCondition> begin; // set by the parser: 0s if missing, indefinite in excl
+        std::vector<TimeCondition> end;   // empty = no end
+        Duration                   dur;
+        int                        repeat_count      = 1;
+        bool                       repeat_indefinite = false;
+        Restart                    restart           = Restart::Always;
+    };
+
+    // ------------------------------------------------------------------ media
+
+    enum class MediaKind
+    {
+        Image,    // <img>, <ref type="image/…">
+        Video,    // <video>, <ref type="video/…">
+        Audio,    // <audio>, <ref type="audio/…">
+        Web,      // <text>, <ref type="text/…">
+        Widget,   // <ref type="application/widget">
+        Command,  // <ref src="adapi:…">
+        Brush,    // <brush color="…">
+        Prefetch  // <prefetch>: only download, not played
+    };
+
+    enum class CacheControl
+    {
+        UseCache,
+        OnlyIfCached // <param name="cacheControl" value="onlyIfCached">
+    };
+
+    struct Media
+    {
+        MediaKind   kind = MediaKind::Image;
+        std::string id;    // like regions: xml:id, id or generated
+        std::string title; // debug display only
+        std::string expr;  // condition, evaluated with the triggers
+        Timing      timing;
+
+        std::string src;         // placeholder "{name}" already replaced
+        std::string region;      // region attribute, name or id of a region
+        std::string fit;         // empty = default of the region
+        std::string media_align; // empty = default of the region
+        std::string sound_level; // audio, video
+        std::string color;       // brush
+
+        // from <param name="…" value="…">
+        std::string  log_content_id; // logContentId: contentId in the play log
+        std::string  filename;
+        CacheControl cache_control = CacheControl::UseCache;
+        std::string  query; // widget: the other params as "?a=1&b=2", percent-encoded, empty if none
+    };
+
+    // ------------------------------------------------------------------ tree
+
+    enum class ContainerKind
+    {
+        Body,
+        Seq,
+        Par,
+        Excl,
+        PriorityClass
+    };
+
+    struct Node;
+
+    struct Container
+    {
+        ContainerKind     kind = ContainerKind::Body;
+        std::string       id;
+        std::string       title;
+        std::string       expr;
+        Timing            timing;
+        std::vector<Node> children;
+    };
+
+    /// An element of the body: a medium or a container with further elements.
+    struct Node : std::variant<Media, Container>
+    {
+        using variant::variant;
+    };
+
     struct Document
     {
-        Head head;
+        Head      head;
+        Container body;
     };
 }
 
