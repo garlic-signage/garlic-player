@@ -7,8 +7,8 @@ garlic-lib and the old frontend are in `../../legacy` for reference.
 Qt 6.5 or newer, Widgets and WebEngine. The executable is called `garlic-player`.
 
 ```
-cmake -S src -B build && cmake --build build        # core and player-widget together (src/CMakeLists.txt)
-build/player-widget/garlic-player -m fullscreen http://hub/index.smil
+cmake -S . -B build && cmake --build build            # in the repository: core and player-widget together
+build/src/player-widget/garlic-player -m fullscreen http://hub/index.smil
 ```
 
 ## Command line
