@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Complex SMIL header for testing" />
+		<meta http-equiv="Refresh" content="2" />
+		<metadata>
+			<x-server xmlns="http://schemas.adfotain.org/adapi-1.0">
+				<subscriptionList>
+					<subscription>
+						<type>TaskSchedule</type>
+						<action></action>
+						<method>get</method> 
+					</subscription>
+					<subscription>
+						<type>InventoryReport</type>
+						<action>http://logs</action>
+						<method>put</method> 
+					</subscription>
+					<subscription>
+						<type>PlaylogCollection</type>
+						<action>http://logs</action>
+						<method>put</method> 
+					</subscription>
+					<subscription>
+						<type>EventlogCollection</type>
+						<action>http://logs</action>
+						<method>put</method> 
+					</subscription>
+					<subscription>
+						<type>SystemReport</type>
+						<action>http://logs</action>
+						<method>put</method> 
+					</subscription>
+				</subscriptionList>
+	    	</x-server>
+		</metadata>
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" backgroundColor="#000" />
+			<region regionName="screen1" top="0" left="0" width="100%" height="100%" z-index="0" backgroundColor="red"/>
+			<region regionName="screen2" top="0" left="50%" width="25%" height="25%" z-index="1" backgroundColor="green"/>
+			<region regionName="screen3" top="50%" left="0" width="50%" height="50%" z-index="1" backgroundColor="blue"/>
+			<region regionName="screen4" top="50%" left="50%" width="25%" height="50%" z-index="1" backgroundColor="orange"/>
+			<region regionName="screen5" top="50%" left="75%" width="25%" height="50%" z-index="1" backgroundColor="transparent"/>
+		</layout>
+		<transition id="crossfade" type="fade" subtype="crossfade" dur="5s" />
+		<transition id="ltr" type="barWipe" subtype="leftToRight" dur="2s" />
+	    <transition id="ttb" type="barWipe" subtype="topToBottom" dur="1s" />
+		</head>
+	<body>
+	</body>
+</smil>

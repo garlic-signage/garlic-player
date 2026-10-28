@@ -18,7 +18,8 @@
       "name": "libmicrohttpd",
       "platform": "!emscripten"
     },
-    "nlohmann-json"
+    "nlohmann-json",
+    "libxml2"
   ],
   "features": {
     "tests": {

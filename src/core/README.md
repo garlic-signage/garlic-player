@@ -6,7 +6,7 @@ JavaScript/WASM, ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
 [logger](docs/logger.md), [downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
-[configuration](docs/configuration.md), [rest_api](docs/rest_api.md).
+[configuration](docs/configuration.md), [rest_api](docs/rest_api.md), [smil](docs/smil.md).
 
 ## Layout
 
@@ -24,6 +24,7 @@ src/core/
 ├── httpd/
 ├── configuration/
 ├── rest_api/
+├── smil/                SMIL parser
 └── tests/                one test executable per module
     ├── common/
     ├── logger/
@@ -32,6 +33,8 @@ src/core/
     ├── httpd/
     ├── configuration/
     ├── rest_api/
+    ├── smil/
+    ├── data/             test files (SMIL)
     └── support/          fakes shared by the tests
 ```
 

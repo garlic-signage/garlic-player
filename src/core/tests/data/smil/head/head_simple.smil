@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Simple SMIL header for testing" />
+		<meta http-equiv="Refresh" content="60" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="test_screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+	</body>
+</smil>
