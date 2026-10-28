@@ -74,5 +74,5 @@ are escaped.
 ## SystemInfo
 
 Disk, memory and network depend on the platform (ESP32 is very different from Linux), so the host gives them as a
-`SystemInfo` function. Unknown values stay empty. The module for system information will provide it for the native
-platforms.
+`SystemInfo` function. Unknown values stay empty. On the native platforms `system::collectSystemInfo()` fills it
+([system](system.md)); on WASM and ESP32 the host does.
