@@ -5,7 +5,7 @@ add_executable(garlic_core_common_tests
     test_md5.cpp
     test_version.cpp
 )
-garlic_core_set_options(garlic_core_common_tests)
+garlic_core_set_options(garlic_core_common_tests TEST)
 
 target_include_directories(garlic_core_common_tests PRIVATE ../support)
 

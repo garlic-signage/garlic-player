@@ -44,9 +44,22 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug
 ```
 
+### Tests
+
+The tests use [doctest](https://github.com/doctest/doctest). It is taken from vcpkg or the system if available,
+otherwise CMake downloads it (FetchContent). So the tests also run without vcpkg:
+
+```sh
+cmake -S . -B build -G Ninja
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The libraries are built without exceptions, the test executables with exceptions (doctest needs them for `REQUIRE`).
+
 ### Options
 
 | Option                    | Default                     | Meaning                                       |
 |---------------------------|-----------------------------|-----------------------------------------------|
 | `GARLIC_CORE_BUILD_SHARED`| `ON` (`OFF` on WASM/ESP32)  | build the shared library `core`               |
-| `GARLIC_CORE_BUILD_TESTS` | `ON` if top-level project   | build the unit tests (needs doctest)          |
+| `GARLIC_CORE_BUILD_TESTS` | `ON` if top-level project   | build the unit tests                          |
