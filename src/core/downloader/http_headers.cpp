@@ -15,7 +15,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "garlic/core/downloader/http_transport.hpp"
+#include "downloader/http_transport.hpp"
 
 #include <algorithm>
 

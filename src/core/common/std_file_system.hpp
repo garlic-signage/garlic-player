@@ -15,28 +15,17 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef GARLIC_CORE_COMMON_MEMORY_FILE_SYSTEM_HPP
-#define GARLIC_CORE_COMMON_MEMORY_FILE_SYSTEM_HPP
+#ifndef GARLIC_CORE_COMMON_STD_FILE_SYSTEM_HPP
+#define GARLIC_CORE_COMMON_STD_FILE_SYSTEM_HPP
 
-#include "garlic/core/common/clock.hpp"
-#include "garlic/core/common/file_system.hpp"
-
-#include <functional>
-#include <map>
-#include <optional>
-#include <vector>
+#include "common/file_system.hpp"
 
 namespace garlic::core::common
 {
-    /**
-     * FileSystem that keeps all files in RAM. For tests and the preview in garlic-hub, where nothing has to be stored
-     * persistently. Directories are not modelled: every path is a file.
-     */
-    class MemoryFileSystem final : public FileSystem
+    /// FileSystem based on std::filesystem and stdio (Linux, Windows, macOS, Android, iOS).
+    class StdFileSystem final : public FileSystem
     {
         public:
-            explicit MemoryFileSystem(const Clock &c) : clock(c) {}
-
             bool exists(std::string_view path) const override;
             FileSystemResult<std::uint64_t> fileSize(std::string_view path) const override;
             FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const override;
@@ -44,23 +33,7 @@ namespace garlic::core::common
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override;
             FileSystemResult<void> remove(std::string_view path) override;
             FileSystemResult<void> createDirectories(std::string_view path) override;
-
-            /// Content of a file as string, std::nullopt if it does not exist.
-            std::optional<std::string> content(std::string_view path) const;
-
-            /// Number of files.
-            std::size_t fileCount() const noexcept { return files.size(); }
-
-            struct Node
-            {
-                std::vector<std::byte>                data;
-                std::chrono::system_clock::time_point modified;
-            };
-
-        private:
-            const Clock                                                &clock;
-            std::map<std::string, std::shared_ptr<Node>, std::less<>> files;
     };
 }
 
-#endif // GARLIC_CORE_COMMON_MEMORY_FILE_SYSTEM_HPP
+#endif // GARLIC_CORE_COMMON_STD_FILE_SYSTEM_HPP

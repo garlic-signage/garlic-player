@@ -18,7 +18,7 @@
 #ifndef GARLIC_CORE_TESTS_FAKE_CLOCK_HPP
 #define GARLIC_CORE_TESTS_FAKE_CLOCK_HPP
 
-#include "garlic/core/common/clock.hpp"
+#include "common/clock.hpp"
 
 namespace garlic::core::tests
 {

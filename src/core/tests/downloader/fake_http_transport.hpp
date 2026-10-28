@@ -18,7 +18,7 @@
 #ifndef GARLIC_CORE_TESTS_FAKE_HTTP_TRANSPORT_HPP
 #define GARLIC_CORE_TESTS_FAKE_HTTP_TRANSPORT_HPP
 
-#include "garlic/core/downloader/http_transport.hpp"
+#include "downloader/http_transport.hpp"
 
 #include <algorithm>
 #include <map>

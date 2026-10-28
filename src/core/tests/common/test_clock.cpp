@@ -18,7 +18,7 @@
 #include <doctest/doctest.h>
 
 #include "fake_clock.hpp"
-#include "garlic/core/common/clock.hpp"
+#include "common/clock.hpp"
 
 using garlic::core::common::SystemClock;
 using garlic::core::tests::FakeClock;

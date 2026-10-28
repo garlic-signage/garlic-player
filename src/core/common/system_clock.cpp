@@ -15,7 +15,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "garlic/core/common/clock.hpp"
+#include "common/clock.hpp"
 
 namespace garlic::core::common
 {

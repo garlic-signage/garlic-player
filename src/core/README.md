@@ -11,27 +11,23 @@ See [docs/architecture.md](docs/architecture.md) for the design decisions. Modul
 
 ```
 src/core/
-├── CMakeLists.txt        top level: options, modules, tests, shared library 'core'
+├── CMakeLists.txt        options, modules, tests, shared library 'core'
 ├── CMakePresets.json     build presets per platform
 ├── vcpkg.json            dependencies (vcpkg manifest mode)
-├── cmake/                common CMake helpers
+├── cmake/                CMake helpers
 ├── docs/                 documentation
-├── common/               static module: shared types, interfaces, version
-│   ├── include/garlic/core/common/
-│   └── src/
-├── downloader/           static module
-│   ├── include/garlic/core/downloader/
-│   └── src/
+├── common/               shared types and interfaces (.hpp and .cpp side by side)
+├── downloader/
 └── tests/                one test executable per module
     ├── common/
-    └── downloader/
+    ├── downloader/
+    └── support/          fakes shared by the tests
 ```
 
-Every module is a static library `garlic_core_<module>` (alias `garlic::core::<module>`, namespace
-`garlic::core::<module>`). The tests mirror the module structure under `tests/<module>`; each module has its own test
-executable, so it can be built and tested separately. At the end all modules are linked into the shared library `core`
-(`libcore.so`, `core.dll`, `libcore.dylib`). On WASM and ESP32 no shared library is built; the static modules are
-linked directly.
+Every module is a flat directory and a static library `garlic_core_<module>` in the namespace
+`garlic::core::<module>`. Includes are relative to `src/core`, e.g. `#include "downloader/http_transport.hpp"`.
+At the end all modules are linked into the shared library `core`. On WASM and ESP32 no shared library is built;
+the static modules are linked directly.
 
 ## Build
 

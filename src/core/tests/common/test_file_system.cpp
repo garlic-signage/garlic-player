@@ -18,8 +18,8 @@
 #include <doctest/doctest.h>
 
 #include "fake_clock.hpp"
-#include "garlic/core/common/memory_file_system.hpp"
-#include "garlic/core/common/std_file_system.hpp"
+#include "common/memory_file_system.hpp"
+#include "common/std_file_system.hpp"
 
 #include <filesystem>
 #include <fstream>

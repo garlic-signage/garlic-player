@@ -17,7 +17,7 @@
 */
 #include <doctest/doctest.h>
 
-#include "garlic/core/common/version.hpp"
+#include "common/version.hpp"
 
 TEST_CASE("version matches the project version")
 {

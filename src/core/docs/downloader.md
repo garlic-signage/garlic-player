@@ -15,7 +15,7 @@ transport.
 
 ## HttpTransport
 
-Header: `garlic/core/downloader/http_transport.hpp`
+Header: `downloader/http_transport.hpp`
 
 ```cpp
 auto id = transport.start({HttpMethod::Head, url, headers}, handler); // never calls the handler directly

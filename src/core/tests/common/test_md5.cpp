@@ -17,7 +17,7 @@
 */
 #include <doctest/doctest.h>
 
-#include "garlic/core/common/md5.hpp"
+#include "common/md5.hpp"
 
 #include <string>
 

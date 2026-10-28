@@ -4,7 +4,7 @@ Shared types and interfaces used by all other modules. Namespace `garlic::core::
 
 ## Clock
 
-Header: `garlic/core/common/clock.hpp`
+Header: `common/clock.hpp`
 
 | Method        | Use                                                                    |
 |---------------|------------------------------------------------------------------------|
@@ -16,7 +16,7 @@ moves when the test calls `advance()`. This makes timeouts and SMIL timings test
 
 ## FileSystem
 
-Header: `garlic/core/common/file_system.hpp`
+Header: `common/file_system.hpp`
 
 Paths are UTF-8 strings with `/` as separator. All methods return `std::expected`, errors are
 `FileSystemError{code, message}` with the codes `NotFound`, `PermissionDenied`, `NoSpace`, `IoError`.
@@ -47,7 +47,7 @@ The tests in `tests/common/test_file_system.cpp` run identically against every i
 
 ## Md5
 
-Header: `garlic/core/common/md5.hpp`
+Header: `common/md5.hpp`
 
 ```cpp
 std::string name = Md5::hex(url);     // cache file names
