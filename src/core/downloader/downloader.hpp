@@ -88,6 +88,7 @@ namespace garlic::core::downloader
             Downloader &operator=(const Downloader &) = delete;
 
             /// Starts a job. file_name: fixed name in the cache (e.g. "index.smil"), empty = MD5 of the URL + extension.
+            /// A file with a fixed name is a system file and taken with any content type; media are checked.
             /// on_finished is called exactly once, always from inside a poll(). Returns false if a job is running.
             bool start(std::string url, std::string file_name, FinishedCallback on_finished);
 
@@ -136,6 +137,7 @@ namespace garlic::core::downloader
             std::string                           url;         // original URL
             std::string                           current_url; // after redirects
             std::string                           file_name;   // fixed or determined after HEAD
+            bool                                  fixed_name = false; // a system file: any content type
             std::optional<InventoryEntry>         known;       // inventory entry from before this job
             InventoryEntry                        remote;      // what the server reports now
             HttpResponseHead                      head;        // of the current request

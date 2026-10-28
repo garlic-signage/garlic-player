@@ -10,7 +10,7 @@ Header: `configuration/configuration.hpp`
 Configuration config{fs, clock, ini_path};    // path given by the frontend
 config.setCacheDir(cache_dir);                // platform paths, given by the frontend
 config.setLogDir(log_dir);
-config.setVersion(version);
+config.setVersion(version);     // version() returns it, e.g. to check a firmware update
 if (auto loaded = config.load(); !loaded)
     log(loaded.error());
 

@@ -89,7 +89,8 @@ namespace garlic::core::configuration
             httpd::HttpdSettings httpd() const;
 
             // --- given by the frontend, not stored
-            void               setVersion(std::string v) { version = std::move(v); }
+            void               setVersion(std::string v) { app_version = std::move(v); }
+            const std::string &version() const noexcept { return app_version; }
             void               setCacheDir(std::string dir) { cache_dir = std::move(dir); }
             void               setLogDir(std::string dir) { log_dir = std::move(dir); }
             const std::string &cacheDir() const noexcept { return cache_dir; }
@@ -113,7 +114,7 @@ namespace garlic::core::configuration
             const common::Clock &clock;
             std::string          ini_path;
             IniFile              ini;
-            std::string          version;
+            std::string          app_version;
             std::string          cache_dir;
             std::string          log_dir;
             std::string          last_error;

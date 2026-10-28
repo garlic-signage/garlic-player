@@ -230,7 +230,7 @@ namespace garlic::core::configuration
 
     std::string Configuration::userAgent() const
     {
-        return "GAPI/1.0 (UUID:" + uuid() + "; NAME:" + playerName() + ") garlic-" + std::string(os()) + "/" + version +
+        return "GAPI/1.0 (UUID:" + uuid() + "; NAME:" + playerName() + ") garlic-" + std::string(os()) + "/" + app_version +
                " (MODEL:Garlic)";
     }
 

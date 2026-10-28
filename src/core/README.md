@@ -7,7 +7,7 @@ JavaScript/WASM, ESP32).
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
 [logger](docs/logger.md), [downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
 [configuration](docs/configuration.md), [rest_api](docs/rest_api.md), [smil](docs/smil.md),
-[content](docs/content.md), [reports](docs/reports.md).
+[content](docs/content.md), [reports](docs/reports.md), [tasks](docs/tasks.md).
 
 ## Layout
 
@@ -28,6 +28,7 @@ src/core/
 ├── smil/                SMIL parser and engine
 ├── content/             index and media manager, widgets
 ├── reports/             play/event logs, inventory and system report to the hub
+├── tasks/               task scheduler: settings, firmware, restart, commands
 └── tests/                one test executable per module
     ├── common/
     ├── logger/
@@ -39,6 +40,7 @@ src/core/
     ├── smil/
     ├── content/
     ├── reports/
+    ├── tasks/
     ├── data/             test files (SMIL)
     └── support/          fakes shared by the tests
 ```

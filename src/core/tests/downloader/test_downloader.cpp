@@ -496,6 +496,20 @@ TEST_CASE("unknown content type fails, except for .wgt and .smil")
     CHECK(f.download("http://example.com/app.wgt").status == DownloadStatus::Downloaded);
 }
 
+TEST_CASE("a file with a fixed name (system file) is taken with any content type")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, "http://example.com/fw", response(200, "application/octet-stream", "bin"));
+    f.transport.respond(HttpMethod::Get, "http://example.com/fw", response(200, "application/octet-stream", "bin"));
+    auto firmware = f.download("http://example.com/fw", "garlic-player.tar.xz");
+    CHECK(firmware.status == DownloadStatus::Downloaded);
+    CHECK(firmware.local_path == "cache/garlic-player.tar.xz");
+
+    f.transport.respond(HttpMethod::Head, "http://example.com/cfg", response(200, "text/html", "<x/>"));
+    f.transport.respond(HttpMethod::Get, "http://example.com/cfg", response(200, "text/html", "<x/>"));
+    CHECK(f.download("http://example.com/cfg", "configuration.xml").status == DownloadStatus::Downloaded);
+}
+
 // ------------------------------------------------------------------ resume
 
 TEST_CASE("aborted download is resumed with Range and If-Range")

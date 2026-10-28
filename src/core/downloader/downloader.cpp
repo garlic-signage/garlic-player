@@ -197,6 +197,7 @@ namespace garlic::core::downloader
         url         = std::move(job_url);
         current_url = url;
         file_name   = std::move(job_file_name);
+        fixed_name  = !file_name.empty();
         on_finished = std::move(callback);
         known       = inventory.find(url);
         remote      = {};
@@ -398,14 +399,16 @@ namespace garlic::core::downloader
             return;
         }
 
+        // a file with a fixed name (index, task list, configuration, firmware) is taken whatever its type is; the
+        // checks are for media: a firmware comes as application/octet-stream, application/x-xz …
         std::string type    = mediaType(head.headers.find("Content-Type").value_or(""));
         std::string url_ext = urlExtension(url);
-        if (isWebPage(type))
+        if (!fixed_name && isWebPage(type))
         {
             finish(DownloadStatus::NotCacheable);
             return;
         }
-        if (!isSupportedType(type) && !isSupportedExtension(url_ext))
+        if (!fixed_name && !isSupportedType(type) && !isSupportedExtension(url_ext))
         {
             finish(DownloadStatus::Failed, "unsupported content type: " + type);
             return;

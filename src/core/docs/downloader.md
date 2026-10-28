@@ -75,7 +75,9 @@ One job at a time. `on_finished` is called exactly once, always from inside a `p
 1. HEAD, conditional (`If-None-Match`, `If-Modified-Since`) if the cached file exists
 2. 3xx: follow `Location` (absolute or relative), at most `max_redirects`
 3. 304, or the same ETag (or Last-Modified + size without ETag): `NotModified`
-4. `text/html`: `NotCacheable`; unknown content type: `Failed` (except `.wgt` and `.smil`)
+4. `text/html`: `NotCacheable`; unknown content type: `Failed` (except `.wgt` and `.smil`). These checks are for
+   media: a file with a fixed name (index, task list, configuration, firmware) is a system file and taken with any
+   content type, e.g. a firmware as `application/octet-stream`.
 5. `make_space(bytes)`, inventory state `Transfer`
 6. GET into `<name>.part`; resume with `Range` + `If-Range` if the server still has the same version
 7. check: not empty, size matches `Content-Length`
