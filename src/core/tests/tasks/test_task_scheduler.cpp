@@ -124,7 +124,7 @@ TEST_CASE("updateSettings: configuration.xml applied with the ini keys of garlic
     REQUIRE(f.actions.size() == 1);
     CHECK(std::holds_alternative<ApplyConfiguration>(f.actions[0]));
     CHECK(f.taskLog().find("<task id=\"s1\">") != std::string::npos);
-    CHECK(f.taskLog().find("<state>COMPLETED</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>completed</state>") != std::string::npos);
     CHECK(f.config.value("update_settings_task_id") == "s1");
 
     f.newIndex(); // the same list again: done
@@ -141,7 +141,7 @@ TEST_CASE("checksum: right is applied, wrong fails and is tried again with the n
     f.newIndex();
     CHECK(f.actions.empty());
     CHECK(f.config.playerName() != "Lobby");
-    CHECK(f.taskLog().find("<state>FAILED</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>aborted</state>") != std::string::npos);
     CHECK(f.events().find("CHECKSUM_ERROR") != std::string::npos);
 
     f.serveList(R"(<updateSettings id="s1"><sourceURI>http://hub/config.xml</sourceURI>
@@ -163,7 +163,7 @@ TEST_CASE("checksum with an unknown method cannot be checked: fails")
     CHECK(f.events().find("CHECKSUM_UNKNOWN_METHOD") != std::string::npos);
 }
 
-TEST_CASE("firmwareUpdate: any content type, InstallSoftware, PENDING; the next start checks the version")
+TEST_CASE("firmwareUpdate: any content type, InstallSoftware, pending; the next start checks the version")
 {
     Fixture f;
     f.serve("http://hub/fw", "binary", "v1", "application/octet-stream");
@@ -176,26 +176,26 @@ TEST_CASE("firmwareUpdate: any content type, InstallSoftware, PENDING; the next 
     CHECK(install.task_id == "f1");
     CHECK(install.path.starts_with("cache/garlic-player."));
     CHECK(f.fs.content(install.path) == "binary");
-    CHECK(f.taskLog().find("<state>PENDING</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>pending</state>") != std::string::npos);
 
     // restart with the new version
     f.config.setVersion("2.0");
     f.tasks.checkPending();
-    CHECK(f.taskLog().find("<state>COMPLETED</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>completed</state>") != std::string::npos);
     CHECK(f.config.value("tasks/pending_id").empty());
 }
 
-TEST_CASE("firmwareUpdate: still the old version after the restart is FAILED")
+TEST_CASE("firmwareUpdate: still the old version after the restart is aborted")
 {
     Fixture f;
     f.serve("http://hub/fw", "binary", "v1", "application/octet-stream");
     f.serveList(R"(<firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI><version>2.0</version></firmwareUpdate>)");
     f.newIndex();
     f.tasks.checkPending(); // version is still 1.0
-    CHECK(f.taskLog().find("<state>FAILED</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>aborted</state>") != std::string::npos);
 }
 
-TEST_CASE("shutdownPlayer: Reboot once, COMPLETED after the restart")
+TEST_CASE("shutdownPlayer: Reboot once, completed after the restart")
 {
     Fixture f;
     f.serveList(R"(<shutdownPlayer id="r1"/>)");
@@ -205,7 +205,7 @@ TEST_CASE("shutdownPlayer: Reboot once, COMPLETED after the restart")
     CHECK(f.config.value("shutdown_player_task_id") == "r1"); // done before: no endless restarts
 
     f.tasks.checkPending();
-    CHECK(f.taskLog().find("<state>COMPLETED</state>") != std::string::npos);
+    CHECK(f.taskLog().find("<state>completed</state>") != std::string::npos);
     f.newIndex();
     CHECK(f.actions.size() == 1);
 }

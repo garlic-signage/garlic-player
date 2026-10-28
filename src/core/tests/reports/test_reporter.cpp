@@ -182,6 +182,45 @@ TEST_CASE("a failed log upload keeps the file and sends it first next time, new 
     CHECK_FALSE(f.fs.exists("logs/event_log.xml.sending"));
 }
 
+TEST_CASE("task execution report: the last state of every task from all task logs, the log is kept")
+{
+    Fixture f;
+    f.logger.taskState("reboot-1", "pending");
+    f.logger.taskState("settings-1", "aborted");
+    f.logger.rotate(logger::LogFile::TaskExecution); // an older file
+    f.clock.advance(60s);
+    f.logger.taskState("reboot-1", "completed");
+    f.logger.taskState("a&b", "completed");
+
+    f.reporter.subscribe({subscription("TaskExecutionReport", "http://hub/task_execution-uuid.xml", 60)});
+    f.run();
+    REQUIRE(f.puts() == std::vector<std::string>{"http://hub/task_execution-uuid.xml"});
+
+    const std::string &body = f.transport.requests[0].body;
+    auto task = [&](std::string_view id) { return body.find("<task id=\"" + std::string(id) + "\">"); };
+    CHECK(body.find("<player id=\"" + f.config.uuid() + "\"><taskState><task id=\"reboot-1\">") != std::string::npos);
+    CHECK(task("reboot-1") < task("settings-1")); // order of the first state
+    CHECK(task("settings-1") < task("a&amp;b"));
+    CHECK(body.find("<state>pending</state>") == std::string::npos); // replaced by completed
+    CHECK(body.find("<state>aborted</state>") != std::string::npos);
+    CHECK(body.find("</task></taskState></player>") != std::string::npos);
+    CHECK(f.fs.exists("logs/task_execution_log.xml"));
+    CHECK(f.fs.exists("logs/task_execution_log.xml.1"));
+
+    f.wait(60s); // the same states again
+    REQUIRE(f.puts().size() == 2);
+    CHECK(f.transport.requests[1].body.find("<task id=\"settings-1\">") != std::string::npos);
+}
+
+TEST_CASE("task execution report without task log: an empty taskState")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("TaskExecutionReport", "http://hub/task_execution-uuid.xml")});
+    f.run();
+    REQUIRE(f.puts().size() == 1);
+    CHECK(f.transport.requests[0].body.find("<taskState></taskState>") != std::string::npos);
+}
+
 TEST_CASE("inventory report: TRANSFER and COMPLETE with the bytes in the cache")
 {
     Fixture f;

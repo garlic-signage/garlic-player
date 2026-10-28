@@ -85,7 +85,7 @@ namespace garlic::core::tasks
             return;
         std::string version = config.value("tasks/pending_version");
         bool        ok      = version.empty() || version == config.version();
-        logger.taskState(id, ok ? "COMPLETED" : "FAILED");
+        logger.taskState(id, ok ? "completed" : "aborted");
         config.setValue("tasks/pending_id", "");
         config.setValue("tasks/pending_version", "");
     }
@@ -94,7 +94,7 @@ namespace garlic::core::tasks
     {
         config.setValue("tasks/pending_id", task.id);
         config.setValue("tasks/pending_version", task.kind == Task::Kind::FirmwareUpdate ? task.version : "");
-        logger.taskState(task.id, "PENDING");
+        logger.taskState(task.id, "pending");
     }
 
     // ------------------------------------------------------------------ task list
@@ -189,7 +189,7 @@ namespace garlic::core::tasks
         auto        data = path.empty() ? std::nullopt : readChecked(task, path);
         if (!data)
         {
-            logger.taskState(task.id, "FAILED"); // not done: tried again with the next index
+            logger.taskState(task.id, "aborted"); // not done: tried again with the next index
             return;
         }
 
@@ -197,11 +197,11 @@ namespace garlic::core::tasks
         {
             if (!applySettings(*data, path))
             {
-                logger.taskState(task.id, "FAILED");
+                logger.taskState(task.id, "aborted");
                 return;
             }
             markDone(task);
-            logger.taskState(task.id, "COMPLETED");
+            logger.taskState(task.id, "completed");
             on_action(ApplyConfiguration{});
             return;
         }

@@ -59,13 +59,13 @@ namespace garlic::core::tasks
      * The tasks of the subscription TaskSchedule, garlic-lib: TaskScheduler, XMLConfiguration, FirmwareDownloader.
      * The task list is loaded with every new index. A task runs once: its id is stored as done after success.
      *
-     *   updateSettings  configuration.xml loaded, checked, applied           → ApplyConfiguration, COMPLETED
-     *   firmwareUpdate  software loaded and checked                          → InstallSoftware, PENDING
-     *   shutdownPlayer                                                       → Reboot, PENDING
-     *   applyCommand    clear_all_caches, clear_playercache/clear_cache, clear_webcache → ClearCaches, PENDING
+     *   updateSettings  configuration.xml loaded, checked, applied           → ApplyConfiguration, completed
+     *   firmwareUpdate  software loaded and checked                          → InstallSoftware, pending
+     *   shutdownPlayer                                                       → Reboot, pending
+     *   applyCommand    clear_all_caches, clear_playercache/clear_cache, clear_webcache → ClearCaches, pending
      *
-     * PENDING becomes COMPLETED at the next start (checkPending()): the player has restarted, and after a firmware
-     * update it runs the version of the task (otherwise FAILED). The states go to task_execution_log.xml.
+     * pending becomes completed at the next start (checkPending()): the player has restarted, and after a firmware
+     * update it runs the version of the task (otherwise aborted). The states go to task_execution_log.xml.
      */
     class TaskScheduler
     {

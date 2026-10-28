@@ -41,7 +41,7 @@ namespace garlic::core::reports
     };
 
     /**
-     * The four reports in the format of garlic-lib (reports/create), so the hub reads them as before:
+     * The reports in the format of garlic-lib (reports/create), so the hub reads them as before:
      *   <?xml version="1.0" encoding="UTF-8"?>
      *   <report xmlns="http://schemas.garlic-player.com/gapi-1.0"><date>UTC</date><version>1.0</version>
      *     <player id="uuid"> … </player></report>
@@ -49,6 +49,9 @@ namespace garlic::core::reports
      */
     std::string playLogReport(std::string_view uuid, std::chrono::system_clock::time_point now, std::string_view lines);
     std::string eventLogReport(std::string_view uuid, std::chrono::system_clock::time_point now, std::string_view lines);
+    /// tasks: <task id="…"> elements of the task log, one per task; garlic-lib had no such report.
+    std::string taskExecutionReport(std::string_view uuid, std::chrono::system_clock::time_point now,
+                                    std::string_view tasks);
     std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now, const SystemInfo &system,
                                 const std::vector<InventoryObject> &objects);
     std::string systemReport(std::chrono::system_clock::time_point now, const SystemInfo &system,

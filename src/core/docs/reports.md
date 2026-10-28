@@ -11,7 +11,7 @@ reporter.subscribe(document.head.subscriptions);   // with every new index
 
 | File                  | Content                                                                 |
 |-----------------------|-------------------------------------------------------------------------|
-| `report_xml.hpp/.cpp` | the four XML formats as pure functions: data in, text out              |
+| `report_xml.hpp/.cpp` | the XML formats as pure functions: data in, text out                   |
 | `reporter.hpp/.cpp`   | `Reporter`: schedules and uploads, one upload at a time per subscription |
 | `system_info.hpp`     | `SystemInfo`, `PlayerInfo`: what the system report tells                |
 
@@ -25,6 +25,7 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 | `EventlogCollection` | `event_log.xml*`, oldest first            | `<action>/event-<id>.xml`           | file deleted, next one |
 | `InventoryReport`    | the inventory table: files in the cache   | `<action>`                          | –                      |
 | `SystemReport`       | the device: disk, memory, network, config | `<action>`                          | –                      |
+| `TaskExecutionReport`| last state of every task, `task_execution_log.xml*` | `<action>`                | – (log kept)           |
 
 `<id>` is a new random UUID with the end of the player UUID, so every log upload has its own name (garlic-lib:
 `createUuid().mid(0,23) + uuid.mid(23)`). Other types (`TaskSchedule`) are not reports.
@@ -34,6 +35,11 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 - **Without `refreshInterval`** (0): only once. garlic-lib started a timer of 0 ms, which fires all the time.
 - **After a failure** (transport error, HTTP status not 2xx): the next try after `retryInterval` seconds, without it
   after `refreshInterval`. garlic-lib read `retryInterval` but did not use it.
+- **Task states** (`TaskExecutionReport`, new; garlic-lib wrote the log but sent nothing): the hub gives one fixed
+  file per player (`task_execution-<uuid>.xml`) and overwrites it with every upload. So the report holds the last
+  state of every task (`pending`, `completed`, `aborted`), taken from the rotated task logs (oldest first) and the
+  current one, in the order the tasks first appear. The log is not deleted. A task whose log file was rotated away is
+  no longer reported.
 - **Logs**: the current log is rotated first (`Logger::rotate`), then the oldest rotated file is renamed to
   `<log>.sending` and uploaded. So a rotation of the logger while uploading cannot move it. It is deleted only after
   a successful upload; after a failure it stays and is sent first at the next try. New entries meanwhile go to the
@@ -51,6 +57,7 @@ are escaped.
   <player id="<uuid>">
     play log:   <contentPlayLog> lines of play_log.xml </contentPlayLog>
     event log:  <playerEventLog> lines of event_log.xml </playerEventLog>
+    tasks:      <taskState><task id="…"><lastUpdateTime>local ISO</lastUpdateTime><state>…</state></task> …</taskState>
     inventory:  <systemInfo>…</systemInfo>
                 <contentDirectory><objectInfo>
                   <object id="<file name up to the first dot>" persistent="false">

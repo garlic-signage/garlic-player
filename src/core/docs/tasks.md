@@ -22,10 +22,10 @@ index. In `<timedTaskList>` every task has an `id` and runs once.
 
 | Task             | The core does                                                   | Action for the host       | Task log    |
 |------------------|-----------------------------------------------------------------|---------------------------|-------------|
-| `updateSettings` | loads `sourceURI` as `configuration.xml`, checks, applies the props | `ApplyConfiguration` (load the index again) | `COMPLETED` |
-| `firmwareUpdate` | loads `sourceURI` as `garlic-player.apk/.exe/.dmg/.tar.xz/.zip` (by OS), checks | `InstallSoftware{path}` | `PENDING` |
-| `shutdownPlayer` | –                                                               | `Reboot`                  | `PENDING`   |
-| `applyCommand`   | `clear_all_caches`, `clear_playercache`/`clear_cache`, `clear_webcache` | `ClearCaches{player, web}`, then restart | `PENDING` |
+| `updateSettings` | loads `sourceURI` as `configuration.xml`, checks, applies the props | `ApplyConfiguration` (load the index again) | `completed` |
+| `firmwareUpdate` | loads `sourceURI` as `garlic-player.apk/.exe/.dmg/.tar.xz/.zip` (by OS), checks | `InstallSoftware{path}` | `pending` |
+| `shutdownPlayer` | –                                                               | `Reboot`                  | `pending`   |
+| `applyCommand`   | `clear_all_caches`, `clear_playercache`/`clear_cache`, `clear_webcache` | `ClearCaches{player, web}`, then restart | `pending` |
 
 The core restarts no device and installs nothing; the host (launcher, daemon) does it.
 
@@ -34,13 +34,15 @@ The core restarts no device and installs nothing; the host (launcher, daemon) do
   `shutdown_player_task_id`, `apply_command_task_id`), which is still honoured. So an update of the software runs no
   task twice. Restarts and commands count as done when they are handed over, otherwise they would restart the
   player again and again.
-- **Failed** (download, checksum, XML): not done, tried again with the next index; `FAILED` in the task log.
+- **Failed** (download, checksum, XML): not done, tried again with the next index; `aborted` in the task log.
 - **Checksum**: `contentChecksum` with `checksumMethod` MD5 (also without method, any case). A wrong checksum or an
   unknown method counts as failed (events `CHECKSUM_ERROR`, `CHECKSUM_UNKNOWN_METHOD`). garlic-lib never checked.
-- **PENDING**: before handing a restart or an installation over, the id (and the firmware version) is stored as
-  pending. At the next start `checkPending()` writes `COMPLETED` - the player runs again - or, after a firmware update
-  with another version than the task's, `FAILED`. A restart that never happens stays `PENDING`.
-- The states go to `task_execution_log.xml`. Sending it to the hub follows later, the same way as the other logs.
+- **pending**: before handing a restart or an installation over, the id (and the firmware version) is stored as
+  pending. At the next start `checkPending()` writes `completed` - the player runs again - or, after a firmware update
+  with another version than the task's, `aborted`. A restart that never happens stays `pending`.
+- The states go to `task_execution_log.xml` with the values of the standard: `pending`, `completed`, `aborted`
+  (garlic-lib: `completed`, sending commented out). The subscription `TaskExecutionReport` sends them to the hub
+  ([reports](reports.md)).
 - Events like in garlic-lib: `TASK_SCHEDULER_LOADED`, `TASK_SCHEDULER_XML_ERROR`, `TASK_SCHEDULER_OPEN_ERROR`,
   `CONFIGURATION_LOADED`, `CONFIGURATION_XML_ERROR`, `CONFIGURATION_OPEN_ERROR`.
 - `applyConfigurationFile(path)` applies a local `configuration.xml`, e.g. from the launcher (garlic-lib:

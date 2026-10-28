@@ -125,6 +125,12 @@ namespace garlic::core::reports
         return begin(uuid, now) + "<playerEventLog>" + std::string(lines) + "</playerEventLog>" + end();
     }
 
+    std::string taskExecutionReport(std::string_view uuid, std::chrono::system_clock::time_point now,
+                                    std::string_view tasks)
+    {
+        return begin(uuid, now) + "<taskState>" + std::string(tasks) + "</taskState>" + end();
+    }
+
     std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now, const SystemInfo &system,
                                 const std::vector<InventoryObject> &objects)
     {

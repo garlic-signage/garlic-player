@@ -11,7 +11,7 @@ Logger logger{fs, clock, cfg};
 logger.warning("Database", "inventory could not be opened");
 logger.event(Severity::Warning, "ContentManager", "MEDIA_UNSUPPORTED", {{"resourceURI", url}});
 logger.played(content_id, start_time);
-logger.taskState(task_id, "COMPLETED");
+logger.taskState(task_id, "completed");
 ```
 
 No singleton: the logger is passed to the modules like everything else. Each entry is appended and the file is

@@ -19,6 +19,8 @@
 
 #include "reports/report_xml.hpp"
 
+#include <algorithm>
+
 namespace garlic::core::reports
 {
     /// One subscription: its schedule and its running upload.
@@ -55,6 +57,8 @@ namespace garlic::core::reports
                 return 2;
             if (type == "SystemReport")
                 return 3;
+            if (type == "TaskExecutionReport")
+                return 4;
             return std::nullopt; // e.g. TaskSchedule: not a report
         }
 
@@ -68,6 +72,27 @@ namespace garlic::core::reports
         std::string objectId(std::string_view file_name)
         {
             return std::string(file_name.substr(0, file_name.find('.')));
+        }
+
+        /// Replaces the <task> element of the same id or appends it; the lines are written by Logger::taskState.
+        void addTaskStates(std::string_view lines, std::vector<std::pair<std::string, std::string>> &tasks)
+        {
+            static constexpr std::string_view open = "<task id=\"", close = "</task>";
+            for (std::size_t start = lines.find(open); start != std::string_view::npos; start = lines.find(open, start))
+            {
+                std::size_t id_end = lines.find('"', start + open.size());
+                std::size_t end    = lines.find(close, start);
+                if (id_end == std::string_view::npos || end == std::string_view::npos)
+                    return;
+                std::string id(lines.substr(start + open.size(), id_end - start - open.size()));
+                std::string element(lines.substr(start, end + close.size() - start));
+                auto        same_id = std::ranges::find(tasks, id, &std::pair<std::string, std::string>::first);
+                if (same_id != tasks.end())
+                    same_id->second = std::move(element);
+                else
+                    tasks.emplace_back(std::move(id), std::move(element));
+                start = end + close.size();
+            }
         }
     }
 
@@ -235,12 +260,33 @@ namespace garlic::core::reports
                 }
                 return inventoryReport(config.uuid(), now, system_info ? system_info() : SystemInfo{}, objects);
             }
+            case Kind::TaskExecution:
+                return taskExecutionReport(config.uuid(), now, taskStates());
             case Kind::System:
                 return systemReport(now, system_info ? system_info() : SystemInfo{},
                                     {config.uuid(), "garlic-player", std::string(configuration::Configuration::os()),
                                      config.playerName(), config.indexUri()});
         }
         return {};
+    }
+
+    /// The last state of every task: the rotated task logs, oldest first, then the current one.
+    std::string Reporter::taskStates()
+    {
+        std::string base   = logger.path(logger::LogFile::TaskExecution);
+        int         oldest = 0;
+        while (fs.exists(base + "." + std::to_string(oldest + 1)))
+            ++oldest;
+
+        std::vector<std::pair<std::string, std::string>> tasks;
+        for (int n = oldest; n >= 1; --n)
+            addTaskStates(fs.readFile(base + "." + std::to_string(n)).value_or(""), tasks);
+        addTaskStates(fs.readFile(base).value_or(""), tasks);
+
+        std::string text;
+        for (const auto &task : tasks)
+            text += task.second;
+        return text;
     }
 
     /// Logs get a new name per upload (garlic-lib: random UUID start + player UUID end), reports overwrite.

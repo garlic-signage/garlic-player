@@ -51,6 +51,12 @@ TEST_CASE("play and event log: the lines of the log in the report")
     CHECK(eventLogReport("uuid-1", now, "<event/>") == head + "<playerEventLog><event/></playerEventLog></player></report>");
 }
 
+TEST_CASE("task execution report: the tasks in one taskState")
+{
+    std::string tasks = "<task id=\"a\"><state>completed</state></task><task id=\"b\"><state>pending</state></task>";
+    CHECK(taskExecutionReport("uuid-1", now, tasks) == head + "<taskState>" + tasks + "</taskState></player></report>");
+}
+
 TEST_CASE("inventory report: system info and one object per file, values escaped")
 {
     std::vector<InventoryObject> objects{{"abc", "http://hub/a.jpg?x=1&y=2", "COMPLETE", "image/jpeg", 100,

@@ -44,6 +44,8 @@ namespace garlic::core::reports
      *   EventlogCollection  the same with event logs to <action>/event-<id>.xml
      *   InventoryReport     the files in the cache to <action>
      *   SystemReport        the device to <action>
+     *   TaskExecutionReport the last state of every task in task_execution_log.xml to <action>; the log is kept,
+     *                       because the hub overwrites its file with every upload (garlic-lib sent no task states)
      *
      * Sent at once when a subscription is new or changed, then every refreshInterval seconds (0: only once). After a
      * failed upload the next try comes after retryInterval seconds (garlic-lib ignored it and waited for the next
@@ -77,7 +79,8 @@ namespace garlic::core::reports
                 PlayLog,
                 EventLog,
                 Inventory,
-                System
+                System,
+                TaskExecution
             };
 
             struct Job;
@@ -96,6 +99,7 @@ namespace garlic::core::reports
             void        finished(Job &job, bool ok);
             void        schedule(Job &job, int seconds);
             std::string nextLogFile(Kind kind);
+            std::string taskStates();
             std::string body(Job &job);
             std::string url(const Job &job) const;
     };
