@@ -61,6 +61,15 @@ namespace garlic::core::common
 #endif
         }
 
+        std::FILE *openForRead(const fs::path &path)
+        {
+#ifdef _WIN32
+            return _wfopen(path.c_str(), L"rb");
+#else
+            return std::fopen(path.c_str(), "rb");
+#endif
+        }
+
         class StdWritableFile final : public WritableFile
         {
             public:
@@ -126,6 +135,26 @@ namespace garlic::core::common
             return std::unexpected(toError(ec, path));
 
         return std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::file_clock::to_sys(time));
+    }
+
+    FileSystemResult<std::string> StdFileSystem::readFile(std::string_view path) const
+    {
+        std::FILE *file = openForRead(toPath(path));
+        if (file == nullptr)
+            return std::unexpected(errnoError(path));
+
+        std::string content;
+        char        buffer[4096];
+        std::size_t n;
+        while ((n = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
+            content.append(buffer, n);
+
+        bool failed = std::ferror(file) != 0;
+        std::fclose(file);
+        if (failed)
+            return std::unexpected(FileSystemError{FileSystemErrorCode::IoError, std::string(path) + ": read error"});
+
+        return content;
     }
 
     FileSystemResult<std::unique_ptr<WritableFile>> StdFileSystem::openForWrite(std::string_view path, WriteMode mode)

@@ -79,6 +79,14 @@ namespace garlic::core::common
         return it->second->modified;
     }
 
+    FileSystemResult<std::string> MemoryFileSystem::readFile(std::string_view path) const
+    {
+        auto text = content(path);
+        if (!text)
+            return std::unexpected(notFound(path));
+        return *text;
+    }
+
     FileSystemResult<std::unique_ptr<WritableFile>> MemoryFileSystem::openForWrite(std::string_view path,
                                                                                    WriteMode        mode)
     {

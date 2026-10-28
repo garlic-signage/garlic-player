@@ -110,6 +110,16 @@ TEST_CASE_TEMPLATE("FileSystem writes, truncates and appends", Fixture, MemoryFi
     CHECK(f.read(file) == "New");
 }
 
+TEST_CASE_TEMPLATE("FileSystem reads a complete file", Fixture, MemoryFixture, StdFixture)
+{
+    Fixture     f;
+    std::string big(10'000, 'x'); // more than one read buffer
+    writeFile(f, f.path("big"), big, WriteMode::Truncate);
+
+    CHECK(f.fs.readFile(f.path("big")) == big);
+    CHECK(f.fs.readFile(f.path("missing")).error().code == FileSystemErrorCode::NotFound);
+}
+
 TEST_CASE_TEMPLATE("FileSystem writes in several chunks", Fixture, MemoryFixture, StdFixture)
 {
     Fixture f;

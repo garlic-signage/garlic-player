@@ -27,6 +27,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(common)
 add_subdirectory(downloader)
 add_subdirectory(database)
+add_subdirectory(configuration)
 
 if(GARLIC_CORE_BUILD_TESTS)
     enable_testing()
@@ -50,6 +51,7 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::common>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::downloader>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::database>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::configuration>"
     )
 
     set_target_properties(garlic_core PROPERTIES

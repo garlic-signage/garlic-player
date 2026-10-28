@@ -79,6 +79,9 @@ namespace garlic::core::common
 
             virtual FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const = 0;
 
+            /// Complete content of a file. For small files like the configuration or SMIL indexes.
+            virtual FileSystemResult<std::string> readFile(std::string_view path) const = 0;
+
             virtual FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) = 0;
 
             /// Renames a file. An existing target is replaced.

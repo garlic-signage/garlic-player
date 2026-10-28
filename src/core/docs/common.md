@@ -26,6 +26,7 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 | `exists(path)`               |                                                              |
 | `fileSize(path)`             |                                                              |
 | `lastModified(path)`         | as `system_clock::time_point`                                |
+| `readFile(path)`             | complete content, for small files (configuration, SMIL)      |
 | `openForWrite(path, mode)`   | `Truncate` or `Append` (resume); returns a `WritableFile`    |
 | `rename(from, to)`           | replaces an existing target                                  |
 | `remove(path)`               | `NotFound` if missing                                        |
@@ -33,7 +34,6 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 
 `WritableFile::write()` takes data in chunks; `close()` flushes and reports whether everything was stored.
 
-The interface only contains what the downloader needs so far. Reading is added with the SMIL parser.
 
 ### Implementations
 
