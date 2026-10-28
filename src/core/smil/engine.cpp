@@ -69,16 +69,16 @@ namespace garlic::core::smil
         body.state    = State::Ended;
         ++body.activation;
         ++body.generation;
-        schedule = {};
+        schedule.clear();
+        frozen.clear();
     }
 
     std::vector<Command> Engine::poll()
     {
         auto now = clock.monotonic();
-        while (!schedule.empty() && schedule.top().time <= now)
+        while (!schedule.empty() && schedule.front().time <= now)
         {
-            Scheduled event = schedule.top();
-            schedule.pop();
+            Scheduled event = pop();
             Runtime &n         = nodes[event.node];
             bool     per_activation = event.type == EventType::Begin || event.type == EventType::End;
             if (event.generation != (per_activation ? n.activation : n.generation))
@@ -104,14 +104,7 @@ namespace garlic::core::smil
                 case EventType::Begin:
                     --n.pending_begins;
                     tryStart(event.node, milliseconds(0));
-                    if (n.state == State::Waiting && n.pending_begins == 0 && !n.open_begin)
-                    {
-                        // the last begin was ignored (restart): nothing will come any more
-                        n.state = State::Ended;
-                        ++n.activation;
-                        if (event.node != 0)
-                            childEnded(n.parent, event.node);
-                    }
+                    settle(event.node);
                     break;
             }
         }
@@ -124,7 +117,7 @@ namespace garlic::core::smil
             return clock.monotonic();
         if (schedule.empty())
             return std::nullopt;
-        return schedule.top().time;
+        return schedule.front().time;
     }
 
     void Engine::mediaFinished(InstanceId id)
@@ -147,8 +140,22 @@ namespace garlic::core::smil
     void Engine::at(steady_clock::time_point time, std::size_t node, EventType type)
     {
         bool per_activation = type == EventType::Begin || type == EventType::End;
-        schedule.push(Scheduled{time, next_order++, node,
-                                per_activation ? nodes[node].activation : nodes[node].generation, type});
+        push(Scheduled{time, next_order++, node, per_activation ? nodes[node].activation : nodes[node].generation,
+                       type});
+    }
+
+    void Engine::push(Scheduled event)
+    {
+        schedule.push_back(event);
+        std::push_heap(schedule.begin(), schedule.end(), std::greater<>{});
+    }
+
+    Engine::Scheduled Engine::pop()
+    {
+        std::pop_heap(schedule.begin(), schedule.end(), std::greater<>{});
+        Scheduled event = schedule.back();
+        schedule.pop_back();
+        return event;
     }
 
     const std::string &Engine::idOf(std::size_t node) const
@@ -262,6 +269,7 @@ namespace garlic::core::smil
         if (begin_now)
         {
             tryStart(node, milliseconds(0));
+            settle(node);
             return;
         }
         if (begun_ago)
@@ -273,6 +281,7 @@ namespace garlic::core::smil
             if (rest)
             {
                 tryStart(node, *begun_ago);
+                settle(node);
                 return;
             }
         }
@@ -285,7 +294,7 @@ namespace garlic::core::smil
      *   restart="always"         a playing element starts a new interval (new instance)
      *   restart="whenNotActive"  a playing element ignores it
      *   restart="never"          only the first start of this activation
-     * expr is checked at every start; false skips the element.
+     * expr is checked at every start; false skips the element. In an excl the priority rules may defer or ignore it.
      */
     void Engine::tryStart(std::size_t node, milliseconds elapsed)
     {
@@ -307,11 +316,12 @@ namespace garlic::core::smil
             return;
         }
 
-        n.started_once = true;
         if (n.media)
             startMedia(node, elapsed);
         else
             startContainer(node, elapsed);
+        if (n.state == State::Active && !n.skipping)
+            n.started_once = true;
     }
 
     /**
@@ -334,7 +344,8 @@ namespace garlic::core::smil
         Runtime &n = nodes[node];
         if (n.state == State::Active)
             stopNode(node);
-        n.state = State::Ended;
+        n.state    = State::Ended;
+        n.deferred = false; // a queued entry is void
         ++n.activation;
         ++n.generation;
         if (node != 0)
@@ -357,6 +368,18 @@ namespace garlic::core::smil
             childEnded(n.parent, node);
     }
 
+    /// After an ignored begin (restart, excl never): if nothing will come any more, the element has ended.
+    void Engine::settle(std::size_t node)
+    {
+        Runtime &n = nodes[node];
+        if (n.state != State::Waiting || n.deferred || n.pending_begins > 0 || n.open_begin)
+            return;
+        n.state = State::Ended;
+        ++n.activation;
+        if (node != 0)
+            childEnded(n.parent, node);
+    }
+
     /// Stops the current interval without telling anybody: stop command for media, children of containers.
     void Engine::stopNode(std::size_t node)
     {
@@ -369,6 +392,11 @@ namespace garlic::core::smil
                 endMedia(node);
             else
                 stopChildren(node);
+        }
+        if (n.paused) // its frozen events are void
+        {
+            std::erase_if(frozen, [&](const auto &entry) { return entry.first == node; });
+            n.paused = false;
         }
         ++n.generation;
     }
@@ -387,19 +415,25 @@ namespace garlic::core::smil
 
     /**
      * Starts a container, garlic-lib: TSeq/TPar::prepareDurationTimers. Skipped if dur is 0 or "media", or if it has
-     * no children and no dur. An empty container with dur is a pause of that length.
+     * no children and no dur - unless it has an end. An empty container with dur or end is a pause of that length.
      */
     void Engine::startContainer(std::size_t container, milliseconds elapsed)
     {
         Runtime        &c       = nodes[container];
         const Duration &dur     = c.container->timing.dur;
+        bool            has_end = !c.container->timing.end.empty();
         bool            no_time = dur.type == Duration::Type::Media ||
                        (dur.type == Duration::Type::Clock && dur.value.count() <= 0);
-        if (no_time || (c.children.empty() && !hasDur(c.container->timing)))
+        bool            empty   = c.children.empty();
+        if (c.container->kind == ContainerKind::Excl) // its children are priorityClasses: empty means no elements
+            empty = std::ranges::all_of(c.children, [&](std::size_t pc) { return nodes[pc].children.empty(); });
+        if ((no_time && !has_end) || (empty && !hasDur(c.container->timing) && !has_end))
         {
             skip(container);
             return;
         }
+        if (!admit(container))
+            return;
 
         c.state             = State::Active;
         c.skipping          = false;
@@ -431,9 +465,15 @@ namespace garlic::core::smil
                     childrenDone(container);
                 break;
             case ContainerKind::Excl:
-            case ContainerKind::PriorityClass:
-                childrenDone(container); // next step
+                c.playing.reset();
+                c.queue.clear();
+                for (std::size_t priority_class : c.children)
+                    startPriorityClass(priority_class);
+                if (std::ranges::all_of(c.children, [&](std::size_t pc) { return nodes[pc].state == State::Ended; }))
+                    childrenDone(container); // no elements: a pause with dur or end
                 break;
+            case ContainerKind::PriorityClass:
+                break; // started by its excl
         }
     }
 
@@ -511,9 +551,44 @@ namespace garlic::core::smil
                 childrenDone(container);
                 break;
             }
-            case ContainerKind::Excl:
             case ContainerKind::PriorityClass:
-                break; // next step
+            {
+                std::size_t excl = c.parent;
+                Runtime    &e    = nodes[excl];
+                if (e.state != State::Active)
+                    return;
+
+                // endsync of the excl reacts to the elements, garlic-lib: TExcl::next
+                const Container &x = *e.container;
+                bool by_endsync    = x.endsync == EndSync::First ||
+                                  (x.endsync == EndSync::Element && idOf(child) == x.endsync_id);
+                if (by_endsync && !hasDur(x.timing) && !interrupting)
+                {
+                    stopChildren(excl);
+                    containerSimpleEnd(excl);
+                    return;
+                }
+
+                if (e.playing == child)
+                {
+                    e.playing.reset();
+                    playFromQueue(excl);
+                }
+
+                for (std::size_t other : c.children)
+                    if (nodes[other].state != State::Ended)
+                        return;
+                c.state = State::Ended; // all elements of the class are through
+                ++c.generation;
+                childEnded(excl, container);
+                break;
+            }
+            case ContainerKind::Excl:
+                for (std::size_t other : c.children)
+                    if (nodes[other].state != State::Ended)
+                        return;
+                childrenDone(container); // all classes are through, the queue is empty
+                break;
         }
     }
 
@@ -547,10 +622,188 @@ namespace garlic::core::smil
             if (n.state != State::Active && n.state != State::Waiting)
                 continue;
             stopNode(child);
-            n.state = State::Ended;
+            n.state    = State::Ended;
+            n.deferred = false;
             ++n.activation; // begin and end times of the child are void
             ++n.generation;
         }
+        nodes[container].playing.reset();
+        nodes[container].queue.clear();
+    }
+
+    // ------------------------------------------------------------------ excl
+
+    /// A priorityClass has no timing: it activates all its elements at once and ends when all have ended.
+    void Engine::startPriorityClass(std::size_t priority_class)
+    {
+        Runtime &pc = nodes[priority_class];
+        ++pc.activation;
+        ++pc.generation;
+        pc.skipping = false;
+        if (pc.children.empty())
+        {
+            pc.state = State::Ended;
+            return;
+        }
+        pc.state = State::Active;
+        for (std::size_t child : pc.children)
+            activate(child);
+    }
+
+    std::size_t Engine::classIndex(std::size_t priority_class) const
+    {
+        const auto &classes = nodes[nodes[priority_class].parent].children;
+        return static_cast<std::size_t>(std::ranges::find(classes, priority_class) - classes.begin());
+    }
+
+    /**
+     * An element of an excl wants to start, garlic-lib: TExcl::determineContinue. Only one plays; the priorityClass of
+     * the playing one decides with peers (same class), higher (new one from a higher class) or lower:
+     *   stop   the playing one is stopped, the new one starts
+     *   pause  the playing one is frozen and queued, the new one starts
+     *   defer  the new one is queued and starts when it is its turn
+     *   never  the new one is ignored like a begin ignored by restart
+     * Returns whether the element may start now.
+     */
+    bool Engine::admit(std::size_t node)
+    {
+        std::size_t pc = nodes[node].parent;
+        if (node == 0 || nodes[pc].media || nodes[pc].container->kind != ContainerKind::PriorityClass)
+            return true;
+        std::size_t excl = nodes[pc].parent;
+        Runtime    &e    = nodes[excl];
+        if (!e.playing || *e.playing == node)
+        {
+            e.playing = node;
+            return true;
+        }
+
+        std::size_t      current     = *e.playing;
+        std::size_t      current_pc  = nodes[current].parent;
+        const Container &rules       = *nodes[current_pc].container;
+        std::size_t      new_index   = classIndex(pc);
+        std::size_t      cur_index   = classIndex(current_pc);
+        Interrupt        rule        = new_index == cur_index ? rules.peers
+                                     : new_index < cur_index ? rules.higher
+                                                             : rules.lower;
+        switch (rule)
+        {
+            case Interrupt::Stop:
+                // no normal end: it must not start the queue or trigger endsync (garlic-lib: "not to jump to next")
+                e.playing    = node;
+                interrupting = true;
+                stopNode(current);
+                intervalEnded(current);
+                interrupting = false;
+                return true;
+            case Interrupt::Pause:
+                e.playing = node;
+                pauseNode(current);
+                e.queue.push_back({current, cur_index, true});
+                return true;
+            case Interrupt::Defer:
+                if (!nodes[node].deferred)
+                {
+                    nodes[node].deferred = true;
+                    e.queue.push_back({node, new_index, false});
+                }
+                return false;
+            case Interrupt::Never:
+                return false;
+        }
+        return false;
+    }
+
+    /// The playing element has ended: the next from the queue, highest class first, in a class the last queued.
+    void Engine::playFromQueue(std::size_t excl)
+    {
+        Runtime &e = nodes[excl];
+        while (!e.queue.empty() && !e.playing)
+        {
+            auto best = e.queue.end() - 1;
+            for (auto it = e.queue.end() - 1; it != e.queue.begin();)
+            {
+                --it;
+                if (it->priority_class < best->priority_class)
+                    best = it;
+            }
+            Queued next = *best;
+            e.queue.erase(best);
+
+            Runtime &n = nodes[next.node];
+            if (next.paused && n.paused)
+            {
+                e.playing = next.node;
+                resumeNode(next.node);
+            }
+            else if (!next.paused && n.deferred)
+            {
+                n.deferred = false;
+                tryStart(next.node, milliseconds(0)); // starts anew, expr is checked again
+                settle(next.node);
+            }
+            // otherwise the entry is stale: the element was stopped or restarted meanwhile
+        }
+    }
+
+    void Engine::subtree(std::size_t node, std::vector<std::size_t> &out) const
+    {
+        out.push_back(node);
+        for (std::size_t child : nodes[node].children)
+            subtree(child, out);
+    }
+
+    /**
+     * Freezes an element with everything in it, garlic-lib: pauseAllTimers. Its media are paused, its dur times stop
+     * and keep their rest. begin and end times go on counting ("pause in enhancedTimer do not stop counting"), but
+     * fire only when the element is resumed, at once if they are due by then.
+     */
+    void Engine::pauseNode(std::size_t node)
+    {
+        std::vector<std::size_t> members;
+        subtree(node, members);
+        auto now = clock.monotonic();
+
+        std::vector<Frozen> events;
+        std::erase_if(schedule,
+                      [&](const Scheduled &event)
+                      {
+                          if (std::ranges::find(members, event.node) == members.end())
+                              return false;
+                          events.push_back({event.time - now, event});
+                          return true;
+                      });
+        std::make_heap(schedule.begin(), schedule.end(), std::greater<>{});
+        frozen.emplace_back(node, std::move(events));
+
+        for (std::size_t member : members)
+            if (nodes[member].media && nodes[member].state == State::Active && !nodes[member].skipping)
+                pending.emplace_back(PauseMedia{nodes[member].instance});
+        nodes[node].paused = true;
+    }
+
+    /// Thaws a paused element: its media resume, dur goes on with its rest, due begin and end times fire now.
+    void Engine::resumeNode(std::size_t node)
+    {
+        auto entry = std::ranges::find_if(frozen, [&](const auto &f) { return f.first == node; });
+        if (entry != frozen.end())
+        {
+            auto now = clock.monotonic();
+            for (Frozen &f : entry->second)
+            {
+                bool fixed   = f.event.type == EventType::Begin || f.event.type == EventType::End;
+                f.event.time = fixed ? std::max(f.event.time, now) : now + f.remaining;
+                push(f.event);
+            }
+            frozen.erase(entry);
+        }
+
+        std::vector<std::size_t> members;
+        subtree(node, members);
+        for (std::size_t member : members)
+            if (nodes[member].media && nodes[member].state == State::Active && !nodes[member].skipping)
+                pending.emplace_back(ResumeMedia{nodes[member].instance});
+        nodes[node].paused = false;
     }
 
     // ------------------------------------------------------------------ media
@@ -558,7 +811,7 @@ namespace garlic::core::smil
     /**
      * Starts a medium, garlic-lib: TImage/TVideo/…::prepareDurationTimers. Skipped (skip_delay) if
      *   - it is a prefetch: only downloaded,
-     *   - an image, text, widget, brush or command has no dur that ends it (missing, 0, "media"),
+     *   - an image, text, widget, brush or command has neither a dur that ends it (missing, 0, "media") nor an end,
      *   - the MediaSource does not have it.
      * Video and audio without dur play until the player reports the end. elapsed shortens the first dur (begin -2s).
      */
@@ -576,7 +829,7 @@ namespace garlic::core::smil
         const Duration &dur       = media.timing.dur;
         bool            has_clock = dur.type == Duration::Type::Clock && dur.value.count() > 0;
         bool            intrinsic = media.kind == MediaKind::Video || media.kind == MediaKind::Audio;
-        if (!intrinsic && !has_clock && dur.type != Duration::Type::Indefinite)
+        if (!intrinsic && !has_clock && dur.type != Duration::Type::Indefinite && media.timing.end.empty())
         {
             skip(node);
             return;
@@ -595,6 +848,8 @@ namespace garlic::core::smil
             if (media.kind == MediaKind::Widget)
                 source += media.query;
         }
+        if (!admit(node))
+            return;
 
         m.state             = State::Active;
         m.skipping          = false;
@@ -634,10 +889,37 @@ namespace garlic::core::smil
         intervalEnded(node);
     }
 
-    /// Stop command and play log of the current instance.
+    /**
+     * Stop command and play log of the current instance. If its start has not been handed to the player yet (it ends in
+     * the same poll() it began, e.g. displaced at once in an excl), both are dropped: it was never visible.
+     */
     void Engine::endMedia(std::size_t node)
     {
-        Runtime &m = nodes[node];
+        Runtime &m      = nodes[node];
+        auto     unseen = std::ranges::find_if(pending,
+                                               [&](const Command &command)
+                                               {
+                                                   const auto *start = std::get_if<StartMedia>(&command);
+                                                   return start && start->id == m.instance;
+                                               });
+        if (unseen != pending.end())
+        {
+            pending.erase(unseen);
+            std::erase_if(pending,
+                          [&](const Command &command)
+                          {
+                              return std::visit([&](const auto &c) { return c.id == m.instance; }, command);
+                          });
+            return;
+        }
+        std::erase_if(pending,
+                      [&](const Command &command)
+                      {
+                          // paused or resumed in this poll() and stopped at once: only the stop counts
+                          const auto *resume = std::get_if<ResumeMedia>(&command);
+                          const auto *pause  = std::get_if<PauseMedia>(&command);
+                          return (resume && resume->id == m.instance) || (pause && pause->id == m.instance);
+                      });
         pending.emplace_back(StopMedia{m.instance});
         if (!m.failed && !m.media->log_content_id.empty())
             logger.played(m.media->log_content_id, m.started_at);

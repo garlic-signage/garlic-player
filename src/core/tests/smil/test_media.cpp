@@ -168,6 +168,8 @@ TEST_CASE("dur: clock values")
     CHECK(dur("30d").value == 0ms); // unknown unit
     CHECK(dur("-5s").value == 0ms); // negative durations are 0
     CHECK(dur("720h").value == 720h); // 30 days, garlic-lib overflowed at about 24 days
+    CHECK(dur("´1s").value == 1s);    // like garlic-lib: one leading character that is no digit is dropped
+    CHECK(dur(".5s").value == 500ms);
 }
 
 TEST_CASE("dur: missing, indefinite, media")

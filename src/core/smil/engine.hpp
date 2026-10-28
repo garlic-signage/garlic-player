@@ -26,7 +26,6 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
-#include <queue>
 #include <random>
 #include <string>
 #include <variant>
@@ -132,6 +131,14 @@ namespace garlic::core::smil
                 Ended    // no further begin in this activation
             };
 
+            /// An excl child that waits to play: paused (resumed with its rest) or deferred (started anew).
+            struct Queued
+            {
+                std::size_t node;
+                std::size_t priority_class; // index in the excl, 0 = highest
+                bool        paused;
+            };
+
             /// Runtime state of one node of the tree; the tree itself stays unchanged.
             struct Runtime
             {
@@ -158,6 +165,12 @@ namespace garlic::core::smil
                 InstanceId                            instance = 0;
                 bool                                  failed   = false;
                 bool                                  skipping = false; // skipped, ends after skip_delay
+                bool                                  deferred = false; // excl: waits in the queue to start
+                bool                                  paused   = false; // excl: frozen in the queue
+
+                // excl
+                std::optional<std::size_t> playing;   // the one child that plays
+                std::vector<Queued>        queue;     // paused or deferred children
                 std::chrono::system_clock::time_point started_at; // for the play log
             };
 
@@ -188,6 +201,13 @@ namespace garlic::core::smil
                 }
             };
 
+            /// Events of a paused subtree: dur keeps its remaining time, begin and end their fixed time.
+            struct Frozen
+            {
+                std::chrono::steady_clock::duration remaining;
+                Scheduled                           event;
+            };
+
             const Document        &document;
             const common::Clock   &clock;
             MediaSource           &media_source;
@@ -195,14 +215,18 @@ namespace garlic::core::smil
             EngineConfig           config;
 
             std::vector<Runtime>   nodes; // [0] is the body
-            std::priority_queue<Scheduled, std::vector<Scheduled>, std::greater<>> schedule;
+            std::vector<Scheduled> schedule; // min-heap (std::push_heap with std::greater): the next event first
+            std::vector<std::pair<std::size_t, std::vector<Frozen>>> frozen; // paused node → its events
             std::uint64_t          next_order    = 0;
             InstanceId             next_instance = 0;
             std::vector<Command>   pending;
             std::mt19937           random;
+            bool                   interrupting = false; // excl stop: the end of the stopped element is no normal end
 
             void        addNode(const Node &node, std::size_t parent);
             void        at(std::chrono::steady_clock::time_point time, std::size_t node, EventType type);
+            void        push(Scheduled event);
+            Scheduled   pop();
             std::optional<std::size_t> findInstance(InstanceId id) const;
             const std::string         &idOf(std::size_t node) const;
             std::vector<std::size_t>   regionsOf(const Media &media) const;
@@ -216,6 +240,7 @@ namespace garlic::core::smil
             void skip(std::size_t node);
             void endEvent(std::size_t node);
             void intervalEnded(std::size_t node);
+            void settle(std::size_t node);
             void stopNode(std::size_t node);
             bool mayRepeat(std::size_t node) const;
 
@@ -228,6 +253,15 @@ namespace garlic::core::smil
             void childrenDone(std::size_t container);
             void containerSimpleEnd(std::size_t container);
             void stopChildren(std::size_t container);
+
+            // excl
+            void startPriorityClass(std::size_t priority_class);
+            bool admit(std::size_t node);
+            void playFromQueue(std::size_t excl);
+            void pauseNode(std::size_t node);
+            void resumeNode(std::size_t node);
+            void subtree(std::size_t node, std::vector<std::size_t> &nodes_out) const;
+            std::size_t classIndex(std::size_t priority_class) const;
 
             // media
             void startMedia(std::size_t node, std::chrono::milliseconds elapsed);

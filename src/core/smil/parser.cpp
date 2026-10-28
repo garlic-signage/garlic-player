@@ -90,6 +90,11 @@ namespace garlic::core::smil
             return s.substr(first, s.find_last_not_of(" \t\r\n") - first + 1);
         }
 
+        bool isDigit(char c)
+        {
+            return c >= '0' && c <= '9';
+        }
+
         std::string toUpper(std::string_view s)
         {
             std::string out(s);
@@ -191,6 +196,15 @@ namespace garlic::core::smil
                 negative = value.front() == '-';
                 value.remove_prefix(1);
             }
+            else if (!value.empty() && !isDigit(value.front()) && value.front() != '.')
+            {
+                // like garlic-lib (ClockValue::separateSign): one leading character that is no digit is dropped,
+                // e.g. a typo like dur="´1s"; a UTF-8 character can have several bytes
+                std::size_t length = 1;
+                while (length < value.size() && (static_cast<unsigned char>(value[length]) & 0xC0) == 0x80)
+                    ++length;
+                value.remove_prefix(length);
+            }
 
             double ms = 0;
             if (value.contains(':'))
@@ -228,11 +242,6 @@ namespace garlic::core::smil
         }
 
         // ------------------------------------------------------------------ triggers
-
-        bool isDigit(char c)
-        {
-            return c >= '0' && c <= '9';
-        }
 
         bool isLetter(char c)
         {

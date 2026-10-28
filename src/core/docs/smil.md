@@ -20,8 +20,8 @@ that is missing gets the default values of garlic-lib, unknown elements and attr
 are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
-plays media, `seq` and `par` with `begin`/`end` offsets, `restart` and `expr`; `excl` and triggers (wallclock,
-syncbase, events, accesskey, notify) follow step by step.
+plays media, `seq`, `par` and `excl` with `begin`/`end` offsets, `restart` and `expr`; the triggers (wallclock,
+syncbase, events, accesskey, notify) follow.
 
 ## How the parser works
 
@@ -245,7 +245,8 @@ created a `TUnknown` that was skipped like a missing medium (100 ms in a `seq`, 
 | `restart`     | `restart`             | `Always` if missing; `always`, `never`, anything else `WhenNotActive` |
 
 - Time values: `01:30:00.5`, `1:30`, `2h`, `1.5min`, `90s`, `500ms`, `90` (seconds). Offsets in `begin`/`end`
-  may have a sign (`-2s`). Negative durations become 0. An unknown unit (`30d`) is 0 like in garlic-lib.
+  may have a sign (`-2s`). Negative durations become 0. An unknown unit (`30d`) is 0 like in garlic-lib. Like
+  garlic-lib one leading character that is no digit (and no `.`) is dropped, so a typo like `dur="´1s"` is 1 s.
 - In a `seq` only the first value of a list counts. In a list with several values `indefinite` is ignored.
 - `None` and `Indefinite` are different: garlic-lib skipped an image without `dur` and `end`, but showed an image
   with `dur="indefinite"` forever.
@@ -385,7 +386,7 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 | `StartMedia`    | show instance `id`: `media` (kind, fit, soundLevel …), `source`, `regions`   |
 | `StopMedia`     | remove instance `id`                                                         |
 | `RepeatMedia`   | `repeatCount`: play instance `id` again from the beginning (video, audio); an image just stays |
-| `PauseMedia`, `ResumeMedia` | for `excl` (follows)                                              |
+| `PauseMedia`, `ResumeMedia` | `excl`: an element is paused by another one and resumed later     |
 
 | Player → engine        | When                                                                  |
 |------------------------|-----------------------------------------------------------------------|
@@ -400,6 +401,9 @@ manager parses it first and swaps document and engine only if it is valid; a bro
   took the alphabetically first id.
 - The play log is written by the engine: one entry per instance with `logContentId`, from start to stop. Failed
   media get none.
+- An instance that starts and stops within the same `poll()` (e.g. displaced at once in an `excl`) is never handed
+  to the player: both commands are dropped and there is no play log entry. A pause or resume followed by a stop in
+  the same `poll()` is dropped in favour of the stop.
 
 ### MediaSource
 
@@ -425,8 +429,8 @@ Schedule: [ 10 s: v SimpleEnd ] …
 
 ### Rules for media (garlic-lib: `prepareDurationTimers`, `finishIntrinsicDuration`, `finishedSimpleDuration`)
 
-- Image, text, widget, brush, command: need `dur` with a time or `indefinite`; without (`dur` missing, `0s`,
-  `media`) they are skipped.
+- Image, text, widget, brush, command: need `dur` with a time or `indefinite`, or an `end`; without (`dur`
+  missing, `0s`, `media` and no `end`) they are skipped. With only an `end` they play until it.
 - Video and audio: without `dur` until the player reports the end; with `dur` the `dur` decides, an earlier end is
   ignored (and a later one too).
 - `mediaFailed` is like an early end: with `dur` the time still runs ("4s nothing" in `body/simple.smil`), without
@@ -452,7 +456,9 @@ Then `repeatCount` decides: a new run or the end.
 - `par` with `endsync`: `last` when all children have ended, `first` when the first ends (the others are stopped),
   `<id>` when this child ends. Ignored if the `par` has a `dur`.
 - A skipped child ends after 100 ms like any other, so it can trigger `endsync="first"` (like garlic-lib).
-- Skipped: `dur="0s"`, `dur="media"`, empty without `dur`. An empty container with `dur` is a pause of that length.
+- Skipped: `dur="0s"`, `dur="media"`, empty without `dur` - unless the container has an `end`. An empty container
+  with `dur` or `end` is a pause of that length. An `excl` is empty if its priorityClasses have no elements
+  (garlic-lib waited forever for an empty `excl`).
 - A container cut by its `dur` stops everything in it before the next run starts clean. garlic-lib started the next
   run while the old children kept playing.
 - `pickNumber` N: the children are shuffled once per engine (garlic-lib: once when parsing, the engine is new for every
@@ -497,4 +503,32 @@ activated ──► Waiting ──(begin time)──► Active ──(dur / end 
   begin 6 s and 11 s and a run of 5 s plays three times).
 - An element that can never start (only begin times in the past without rest, no `end`, no trigger) is skipped.
   garlic-lib left it waiting forever, so a `seq` behind it stopped.
+
+### excl and priorityClass (garlic-lib: `TExcl`, `determineContinue`, `PriorityQueue`)
+
+An `excl` activates the elements of all its priorityClasses at once like a `par`, but only **one** plays. Its
+elements start by their `begin` (without `begin` it is `indefinite`: a trigger). When an element wants to start while
+another plays, the priorityClass of the **playing** one decides: `peers` if the new one is in the same class,
+`higher` if it is in a higher class (further up in the SMIL), `lower` if in a lower one.
+
+| Value   | Playing element                          | New element                                    |
+|---------|------------------------------------------|------------------------------------------------|
+| `stop`  | is stopped                               | starts                                         |
+| `pause` | is frozen and queued                     | starts                                         |
+| `defer` | plays on                                 | is queued                                      |
+| `never` | plays on                                 | is ignored like a begin ignored by `restart`   |
+
+- When the playing element ends, the next comes from the queue: the highest class first, within a class the last
+  queued (a stack). A paused element resumes with its rest, a deferred one starts anew with its full `dur` (and its
+  `expr` is checked again).
+- Pausing freezes the element with everything in it: its media get `PauseMedia`, its `dur` times stop and keep
+  their rest. Its `begin` and `end` times go on counting like in garlic-lib ("pause in enhancedTimer do not stop
+  counting"), but fire only at the resume, at once if they are due by then. So a paused image whose `end` passed is
+  never shown again (`excl/peers/2_pause.smil`: "5" only).
+- A stopped element ended by a priority rule is no normal end: it neither starts the queue nor triggers `endsync`
+  (garlic-lib: "not to jump to next").
+- Skipped elements (missing medium, `expr` false) displace nobody: the checks come before the priority rules.
+- A priorityClass has no timing; it ends when all its elements have ended. The `excl` ends like a `par` when all
+  classes are through (the queue is empty then); `endsync` reacts to the elements, `dur`, `end` and `repeatCount`
+  work like for a `par`.
 
