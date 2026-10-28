@@ -17,6 +17,7 @@ else()
 endif()
 
 option(GARLIC_CORE_BUILD_SHARED "Build the shared library 'core' from all static modules" ${_garlic_core_shared_default})
+option(GARLIC_CORE_WITH_CURL "Build the CurlTransport (libcurl)" ${_garlic_core_shared_default})
 option(GARLIC_CORE_BUILD_TESTS "Build the unit tests of the modules" ${PROJECT_IS_TOP_LEVEL})
 
 # Static modules are linked into a shared library later, so they need PIC.

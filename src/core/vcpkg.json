@@ -4,7 +4,16 @@
   "version-semver": "0.1.0",
   "description": "Qt-free core library of the garlic-player",
   "license": "AGPL-3.0-only",
-  "dependencies": [],
+  "dependencies": [
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": [
+        "openssl"
+      ],
+      "platform": "!emscripten"
+    }
+  ],
   "features": {
     "tests": {
       "description": "Build the unit tests",

@@ -10,3 +10,10 @@ garlic_core_set_options(garlic_core_downloader)
 target_include_directories(garlic_core_downloader PUBLIC ${PROJECT_SOURCE_DIR})
 
 target_link_libraries(garlic_core_downloader PUBLIC garlic::core::common)
+
+# libcurl is not available on WASM and ESP32, there other transports are used
+if(GARLIC_CORE_WITH_CURL)
+    find_package(CURL REQUIRED)
+    target_sources(garlic_core_downloader PRIVATE curl_transport.cpp)
+    target_link_libraries(garlic_core_downloader PUBLIC CURL::libcurl)
+endif()
