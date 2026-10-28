@@ -27,12 +27,12 @@ set(CMAKE_AUTORCC ON)
 
 enable_testing()
 
-include_directories(../src/garlic-lib/)
-include_directories(../src/garlic-lib/smilparser)
-include_directories(../src/garlic-lib/smilparser/trigger)
-include_directories(../src/garlic-lib/smilparser/timings)
-include_directories(../src/garlic-lib/tools)
-include_directories(../src/garlic-lib/tools/reboot)
+include_directories(../src/legacy/garlic-lib/)
+include_directories(../src/legacy/garlic-lib/smilparser)
+include_directories(../src/legacy/garlic-lib/smilparser/trigger)
+include_directories(../src/legacy/garlic-lib/smilparser/timings)
+include_directories(../src/legacy/garlic-lib/tools)
+include_directories(../src/legacy/garlic-lib/tools/reboot)
 link_directories(../src/lib/)
 
 include_directories(${PROJECT_SOURCE_DIR})
