@@ -59,7 +59,7 @@ namespace garlic::core::httpd
     struct Response
     {
         int                                              status       = 200;
-        std::string                                      content_type = "application/json";
+        std::string                                      content_type = "application/json"; // empty: no header
         std::string                                      body;
         std::vector<std::pair<std::string, std::string>> headers;
 

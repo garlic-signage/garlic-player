@@ -6,7 +6,7 @@ JavaScript/WASM, ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
 [downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
-[configuration](docs/configuration.md).
+[configuration](docs/configuration.md), [rest_api](docs/rest_api.md).
 
 ## Layout
 
@@ -22,12 +22,14 @@ src/core/
 ├── database/
 ├── httpd/
 ├── configuration/
+├── rest_api/
 └── tests/                one test executable per module
     ├── common/
     ├── downloader/
     ├── database/
     ├── httpd/
     ├── configuration/
+    ├── rest_api/
     └── support/          fakes shared by the tests
 ```
 

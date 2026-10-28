@@ -26,13 +26,17 @@
 namespace garlic::core::httpd
 {
     /**
-     * Maps method and path to a handler. Patterns are paths with optional placeholders: "/v2/files/{id}".
-     * The first matching route wins. Unknown path: 404, known path with another method: 405.
+     * Maps method and path to a handler. Patterns are paths with optional placeholders: "/v2/files/{id}",
+     * method "*" matches every method. The first matching route wins. Unknown path: 404 (or the fallback),
+     * known path with another method: 405.
      */
     class Router
     {
         public:
             void add(std::string method, std::string pattern, Handler handler);
+
+            /// Handler for requests no route matches, instead of the 404/405 answers.
+            void setFallback(Handler handler) { fallback = std::move(handler); }
 
             /// Calls the matching handler; fills request.path_params.
             Response handle(Request &request) const;
@@ -46,6 +50,7 @@ namespace garlic::core::httpd
             };
 
             std::vector<Route> routes;
+            Handler            fallback;
     };
 }
 

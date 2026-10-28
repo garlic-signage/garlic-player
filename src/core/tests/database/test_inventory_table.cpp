@@ -166,6 +166,14 @@ TEST_CASE("findAll returns the newest entries first, with last_update")
     CHECK(rows[1].last_update == "2026-01-01T00:00:00Z");
 }
 
+TEST_CASE("save with a given last_update")
+{
+    Fixture f;
+    f.table.save(entry("http://example.com/a.jpg", "abc.jpg"), "2025-06-01T12:00:00");
+
+    CHECK(f.table.findAll().at(0).last_update == "2025-06-01T12:00:00");
+}
+
 TEST_CASE("findPaginated")
 {
     Fixture f;

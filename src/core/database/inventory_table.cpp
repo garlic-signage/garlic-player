@@ -142,6 +142,11 @@ namespace garlic::core::database
 
     void InventoryTable::save(const InventoryEntry &entry)
     {
+        save(entry, std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(clock.now())));
+    }
+
+    void InventoryTable::save(const InventoryEntry &entry, std::string_view last_update)
+    {
         if (db == nullptr)
             return;
 
@@ -168,7 +173,7 @@ namespace garlic::core::database
         upsert.bind(5, entry.content_type);
         upsert.bind(6, static_cast<std::int64_t>(entry.content_length));
         upsert.bind(7, std::int64_t{entry.state == InventoryState::Complete ? state_complete : state_transfer});
-        upsert.bind(8, std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(clock.now())));
+        upsert.bind(8, last_update);
 
         if (upsert.step() != SQLITE_DONE)
         {

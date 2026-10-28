@@ -140,7 +140,8 @@ namespace garlic::core::httpd
         {
             MHD_Response *response = MHD_create_response_from_buffer(r.body.size(), const_cast<char *>(r.body.data()),
                                                                      MHD_RESPMEM_MUST_COPY);
-            MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, r.content_type.c_str());
+            if (!r.content_type.empty())
+                MHD_add_response_header(response, MHD_HTTP_HEADER_CONTENT_TYPE, r.content_type.c_str());
             for (const auto &[name, value] : r.headers)
                 MHD_add_response_header(response, name.c_str(), value.c_str());
 

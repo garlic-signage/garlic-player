@@ -99,13 +99,15 @@ namespace garlic::core::httpd
                 continue;
 
             path_exists = true;
-            if (route.method != request.method)
+            if (route.method != "*" && route.method != request.method)
                 continue;
 
             request.path_params = std::move(params);
             return route.handler(request);
         }
 
+        if (fallback)
+            return fallback(request);
         if (path_exists)
             return Response::json(405, R"({"error":"method not allowed"})");
         return Response::json(404, R"({"error":"not found"})");

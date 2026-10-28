@@ -56,6 +56,9 @@ namespace garlic::core::database
             std::optional<downloader::InventoryEntry> find(std::string_view url) const override;
             void                                      save(const downloader::InventoryEntry &entry) override;
 
+            /// Like save(), with the time of the last change given (ISO 8601), e.g. modifiedDate of an upload.
+            void save(const downloader::InventoryEntry &entry, std::string_view last_update);
+
             std::optional<InventoryRow> findByCacheName(std::string_view cache_name) const;
 
             /// Entry whose file name is base_name plus an extension, e.g. "abc" finds "abc.jpg" (REST API files/{id}).

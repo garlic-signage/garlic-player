@@ -120,3 +120,26 @@ TEST_CASE("Request::header is case-insensitive")
     CHECK(r.header("CONTENT-TYPE") == "application/json");
     CHECK(r.header("Accept").empty());
 }
+
+TEST_CASE("Router: method * matches every method")
+{
+    Router router;
+    router.add("*", "/v2/oauth2/token", answer("token"));
+
+    auto get  = request("GET", "/v2/oauth2/token");
+    auto post = request("POST", "/v2/oauth2/token");
+    CHECK(router.handle(get).body == "token");
+    CHECK(router.handle(post).body == "token");
+}
+
+TEST_CASE("Router: the fallback answers everything without a route")
+{
+    Router router;
+    router.add("GET", "/v2/files/{id}", answer("x"));
+    router.setFallback([](const Request &) { return Response{404, "", "The URL is wrong", {}}; });
+
+    auto unknown = request("GET", "/nothing");
+    auto wrong   = request("PUT", "/v2/files/a");
+    CHECK(router.handle(unknown).body == "The URL is wrong");
+    CHECK(router.handle(wrong).body == "The URL is wrong");
+}
