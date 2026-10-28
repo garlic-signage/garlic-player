@@ -2,6 +2,10 @@ configure_file(src/version.cpp.in "${CMAKE_CURRENT_BINARY_DIR}/generated/version
 
 add_library(garlic_core_common STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/generated/version.cpp"
+    src/md5.cpp
+    src/memory_file_system.cpp
+    src/std_file_system.cpp
+    src/system_clock.cpp
 )
 add_library(garlic::core::common ALIAS garlic_core_common)
 garlic_core_set_options(garlic_core_common)
