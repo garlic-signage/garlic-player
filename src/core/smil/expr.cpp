@@ -112,7 +112,12 @@ namespace garlic::core::smil
             returnString(ctxt, exprContext(ctxt).player_name);
         }
 
+        // libxml2 2.12 made the error const; Debian Trixie still has 2.9
+#if LIBXML_VERSION >= 21200
         void ignoreError(void *, const xmlError *)
+#else
+        void ignoreError(void *, xmlError *)
+#endif
         {
         }
     }
@@ -125,7 +130,12 @@ namespace garlic::core::smil
         std::unique_ptr<xmlXPathContext, ContextDeleter> xpath(xmlXPathNewContext(nullptr));
         if (!xpath)
             return false;
-        xmlXPathSetErrorHandler(xpath.get(), ignoreError, nullptr); // errors are just false, not printed
+        // errors are just false, not printed
+#if LIBXML_VERSION >= 21300
+        xmlXPathSetErrorHandler(xpath.get(), ignoreError, nullptr);
+#else
+        xpath->error = ignoreError;
+#endif
         xpath->userData = const_cast<ExprContext *>(&context);
 
         struct Function

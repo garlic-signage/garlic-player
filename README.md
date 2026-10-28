@@ -1,5 +1,8 @@
 # garlic-player - SMIL Player for Digital Signage
 
+[![CI](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml)
+![coverage](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/coverage.svg)
+
 The garlic-player is a SMIL 3.0 compatible media player that was developed specifically for the requirements of the digital signage industry. 
 
 It is used in numerous projects as well as on various Android hardware solutions.

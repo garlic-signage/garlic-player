@@ -1,5 +1,8 @@
 # garlic-core
 
+[![CI](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml)
+![coverage](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/coverage.svg)
+
 Qt-free rewrite of the garlic-lib in C++23. It provides the player-independent functions (download, database,
 HTTP server, SMIL parser, configuration, logger, system information) to the players (QWidget, QML, Java,
 JavaScript/WASM, ESP32).
@@ -87,3 +90,11 @@ The libraries are built without exceptions, the test executables with exceptions
 | `GARLIC_CORE_WITH_CURL`   | `ON` (`OFF` on WASM/ESP32)  | build the CurlTransport (needs libcurl)       |
 | `GARLIC_CORE_WITH_HTTPD`  | `ON` (`OFF` on WASM/ESP32)  | build the HTTP server (needs libmicrohttpd)   |
 | `GARLIC_CORE_BUILD_TESTS` | `ON` if top-level project   | build the unit tests                          |
+
+## CI
+
+`.github/workflows/ci.yml` builds the core and runs all tests in Debian Trixie (`debian:trixie` container, the
+libraries from its packages) with line coverage (`--coverage`, gcovr over `src/core` without `tests/`). The HTML
+report is attached to every run as artifact `coverage-report`. On `master` the coverage badge is made by
+`.github/scripts/coverage_badge.py` (an SVG, no external service) and committed to the branch `badges`, which only
+holds that file; the READMEs show it from there.
