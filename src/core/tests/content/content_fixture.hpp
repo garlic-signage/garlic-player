@@ -105,7 +105,8 @@ namespace garlic::core::tests
         mz_zip_archive zip{};
         REQUIRE(mz_zip_writer_init_heap(&zip, 0, 0));
         for (const auto &[name, content] : files)
-            REQUIRE(mz_zip_writer_add_mem(&zip, name.c_str(), content.data(), content.size(), MZ_DEFAULT_COMPRESSION));
+            REQUIRE(mz_zip_writer_add_mem(&zip, name.c_str(), content.data(), content.size(),
+                                          static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION)));
         void       *data = nullptr;
         std::size_t size = 0;
         REQUIRE(mz_zip_writer_finalize_heap_archive(&zip, &data, &size));

@@ -20,7 +20,9 @@
 
 #include "common/file_system.hpp"
 
+#include <cstdint>
 #include <expected>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -38,8 +40,11 @@ namespace garlic::core::content
      * Everything is extracted into "<directory>.part" first; only when that worked it replaces the directory. So a
      * broken file keeps the old widget, like a failed download keeps the old file. Entries with an absolute path or
      * ".." are not allowed ("zip slip"): such an archive is rejected as a whole.
+     *
+     * make_space (CacheSpace::makeSpace) gets the unpacked size first; false: not extracted.
      */
-    std::expected<void, std::string> extractWidget(common::FileSystem &fs, std::string_view wgt_path);
+    std::expected<void, std::string> extractWidget(common::FileSystem &fs, std::string_view wgt_path,
+                                                   const std::function<bool(std::uint64_t)> &make_space = {});
 }
 
 #endif // GARLIC_CORE_CONTENT_WIDGET_HPP

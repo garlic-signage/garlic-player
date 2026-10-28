@@ -53,8 +53,9 @@ namespace garlic::core::content
     }
 
     MediaManager::MediaManager(downloader::DownloadQueue &q, const downloader::Inventory &inv, common::FileSystem &f,
-                               logger::Logger &log, std::string cache, Supports can_play)
-        : queue(q), inventory(inv), fs(f), logger(log), cache_dir(std::move(cache)), supports(std::move(can_play))
+                               logger::Logger &log, std::string cache, Supports can_play, MakeSpace space)
+        : queue(q), inventory(inv), fs(f), logger(log), cache_dir(std::move(cache)), supports(std::move(can_play)),
+          make_space(std::move(space))
     {
     }
 
@@ -102,7 +103,7 @@ namespace garlic::core::content
             queue.add(path);
         else if (path.ends_with(".wgt") && !path.starts_with("adapi:"))
         {
-            if (auto extracted = extractWidget(fs, path); !extracted)
+            if (auto extracted = extractWidget(fs, path, make_space); !extracted)
                 logger.warning("ContentManager", path + ": " + extracted.error());
         }
     }
@@ -224,7 +225,7 @@ namespace garlic::core::content
 
         if (file.ends_with(".wgt") && (updated || !fs.exists(widgetIndex(file))))
         {
-            if (auto extracted = extractWidget(fs, file); !extracted)
+            if (auto extracted = extractWidget(fs, file, make_space); !extracted)
                 logger.warning("ContentManager", file + ": " + extracted.error());
             if (!fs.exists(widgetIndex(file)))
                 return std::nullopt;

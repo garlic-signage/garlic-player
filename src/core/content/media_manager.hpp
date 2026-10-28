@@ -24,6 +24,7 @@
 #include "logger/logger.hpp"
 #include "smil/engine.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
@@ -48,8 +49,12 @@ namespace garlic::core::content
             /// What the player can show, given by the frontend, e.g. no video on an e-ink display.
             using Supports = std::function<bool(const smil::Media &)>;
 
+            /// Room for an extracted widget (CacheSpace::makeSpace); not set: always enough.
+            using MakeSpace = std::function<bool(std::uint64_t bytes)>;
+
             MediaManager(downloader::DownloadQueue &queue, const downloader::Inventory &inventory,
-                         common::FileSystem &fs, logger::Logger &logger, std::string cache_dir, Supports supports);
+                         common::FileSystem &fs, logger::Logger &logger, std::string cache_dir, Supports supports,
+                         MakeSpace make_space = {});
 
             /// A new index: registers its media and region backgrounds for download.
             void load(const smil::Document &document, std::string_view base);
@@ -71,6 +76,7 @@ namespace garlic::core::content
             logger::Logger              &logger;
             std::string                  cache_dir;
             Supports                     supports;
+            MakeSpace                    make_space;
 
             std::string                           base;          // of the index, for relative src
             std::set<std::string, std::less<>>    not_cacheable; // URLs the downloader reported as NotCacheable

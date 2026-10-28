@@ -51,6 +51,9 @@ namespace garlic::core::downloader
 
             virtual std::optional<InventoryEntry> find(std::string_view url) const = 0;
             virtual void                          save(const InventoryEntry &entry) = 0;
+
+            /// Forgets the entry of a file that was removed from the cache.
+            virtual void deleteByCacheName(std::string_view cache_name) = 0;
     };
 }
 

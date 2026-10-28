@@ -53,6 +53,11 @@ namespace
             a.reloadIndex   = [this] { calls.push_back("reload"); };
             a.playTemporary = [this](std::string uri) { calls.push_back("temporary " + uri); };
             a.screenshot    = [this](std::string path) { calls.push_back("screenshot " + path); };
+            a.makeSpace     = [this](std::uint64_t bytes) -> std::uint64_t
+            {
+                calls.push_back("space " + std::to_string(bytes));
+                return bytes > 1000 ? bytes - 1000 : 0; // 1000 bytes can be made free
+            };
             return a;
         }
 
@@ -227,6 +232,19 @@ TEST_CASE("files/new: wrong size is not completed")
     CHECK(body(r)["completed"] == false);
     CHECK(body(r)["transferredSize"] == 5);
     CHECK(f.inventory.find("http://x/a.png")->state == downloader::InventoryState::Transfer);
+}
+
+TEST_CASE("files/new: room for fileSize is made first, otherwise the error of garlic-lib")
+{
+    Fixture f;
+    auto    r = f.upload("/v2/files/new", {{"downloadPath", "http://x/big.mp4"}, {"fileSize", "1500"}}, "data");
+    CHECK(body(r)["error"] == "Neccessary 500 byte cannot be relesed from disc space");
+    CHECK(f.calls == std::vector<std::string>{"space 1500"});
+    CHECK_FALSE(f.inventory.findByCacheName(common::Md5::hex("http://x/big.mp4") + ".mp4").has_value());
+
+    r = f.upload("/v2/files/new", {{"downloadPath", "http://x/a.jpg"}, {"fileSize", "4"}}, "data");
+    CHECK(body(r)["completed"] == true);
+    CHECK(f.calls.back() == "space 4");
 }
 
 TEST_CASE("files/new: missing fields")

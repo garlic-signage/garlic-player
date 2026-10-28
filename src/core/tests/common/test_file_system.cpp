@@ -21,6 +21,7 @@
 #include "common/memory_file_system.hpp"
 #include "common/std_file_system.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -242,4 +243,53 @@ TEST_CASE("MemoryFileSystem takes lastModified from the clock")
 
     REQUIRE(first.has_value());
     CHECK(f.fs.lastModified(f.path("a")) == *first + 10s);
+}
+
+TEST_CASE_TEMPLATE("FileSystem lists the files and directories of a directory", Fixture, MemoryFixture, StdFixture)
+{
+    Fixture f;
+    REQUIRE(f.fs.createDirectories(f.path("list/w/js")).has_value());
+    writeFile(f, f.path("list/a.jpg"), "a", WriteMode::Truncate);
+    writeFile(f, f.path("list/w.wgt"), "zip", WriteMode::Truncate);
+    writeFile(f, f.path("list/w/index.html"), "html", WriteMode::Truncate);
+    writeFile(f, f.path("list/w/js/app.js"), "js", WriteMode::Truncate);
+
+    auto entries = f.fs.list(f.path("list"));
+    REQUIRE(entries.has_value());
+    std::ranges::sort(*entries, {}, &DirectoryEntry::name);
+    REQUIRE(entries->size() == 3);
+    CHECK((*entries)[0].name == "a.jpg");
+    CHECK_FALSE((*entries)[0].directory);
+    CHECK((*entries)[1].name == "w");
+    CHECK((*entries)[1].directory);
+    CHECK((*entries)[2].name == "w.wgt");
+
+    auto missing = f.fs.list(f.path("not_there"));
+    REQUIRE_FALSE(missing.has_value());
+    CHECK(missing.error().code == FileSystemErrorCode::NotFound);
+}
+
+TEST_CASE("StdFileSystem lastAccess is close to the current time")
+{
+    StdFixture f;
+    writeFile(f, f.path("a"), "data", WriteMode::Truncate);
+
+    auto accessed = f.fs.lastAccess(f.path("a"));
+    REQUIRE(accessed.has_value());
+    auto difference = std::chrono::system_clock::now() - *accessed;
+    CHECK(difference < 60s);
+    CHECK(difference > -60s);
+    CHECK(f.fs.lastAccess(f.path("not_there")).error().code == FileSystemErrorCode::NotFound);
+}
+
+TEST_CASE("MemoryFileSystem: lastAccess is the last write or readFile")
+{
+    MemoryFixture f;
+    writeFile(f, f.path("a"), "data", WriteMode::Truncate);
+    CHECK(f.fs.lastAccess(f.path("a")) == f.clock.now());
+
+    f.clock.advance(10s);
+    (void)f.fs.readFile(f.path("a"));
+    CHECK(f.fs.lastAccess(f.path("a")) == f.clock.now());
+    CHECK(f.fs.lastModified(f.path("a")) == f.clock.now() - 10s);
 }

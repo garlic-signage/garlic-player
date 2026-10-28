@@ -22,6 +22,8 @@
 #include <filesystem>
 #include <system_error>
 
+#include <sys/stat.h>
+
 namespace garlic::core::common
 {
     namespace
@@ -135,6 +137,35 @@ namespace garlic::core::common
             return std::unexpected(toError(ec, path));
 
         return std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::file_clock::to_sys(time));
+    }
+
+    /// std::filesystem has no access time: stat. Without atime (mounted noatime) it stays at the creation.
+    FileSystemResult<std::chrono::system_clock::time_point> StdFileSystem::lastAccess(std::string_view path) const
+    {
+#ifdef _WIN32
+        struct _stat64 info{};
+        if (_wstat64(toPath(path).c_str(), &info) != 0)
+            return std::unexpected(errnoError(path));
+#else
+        struct stat info{};
+        if (::stat(toPath(path).c_str(), &info) != 0)
+            return std::unexpected(errnoError(path));
+#endif
+        return std::chrono::system_clock::from_time_t(info.st_atime);
+    }
+
+    FileSystemResult<std::vector<DirectoryEntry>> StdFileSystem::list(std::string_view path) const
+    {
+        std::error_code             ec;
+        std::vector<DirectoryEntry> entries;
+        for (fs::directory_iterator it(toPath(path), ec), end; !ec && it != end; it.increment(ec))
+        {
+            std::u8string name = it->path().filename().u8string();
+            entries.push_back({std::string(name.begin(), name.end()), it->is_directory(ec)});
+        }
+        if (ec)
+            return std::unexpected(toError(ec, path));
+        return entries;
     }
 
     FileSystemResult<std::string> StdFileSystem::readFile(std::string_view path) const

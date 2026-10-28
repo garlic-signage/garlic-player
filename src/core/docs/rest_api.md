@@ -12,7 +12,7 @@ api.poll();                              // with every poll of the core: screens
 ```
 
 The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it gets as `RestActions`: `notify`,
-`reboot`, `reloadIndex`, `playTemporary`, `screenshot` (empty functions do nothing).
+`reboot`, `reloadIndex`, `playTemporary`, `screenshot`, `makeSpace` (empty functions do nothing).
 
 ## Endpoints
 
@@ -36,6 +36,10 @@ The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it g
 All calls except the token need `access_token` (URL or form); parameters come as form, URL or JSON
 (`Content-Type: application/json`). `/v2/system`, `/v2/app` and `/v2/task` check the token first, then the name: an
 unknown name is 403 without and 404 with a valid token (RequestMapper of garlic-lib).
+
+`/v2/files/new` makes room for `fileSize` first (`RestActions::makeSpace`, the cache cleanup of the content module);
+if it cannot, the answer is `{"error": "Neccessary <bytes> byte cannot be relesed from disc space"}` with the spelling
+of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
 
 ### app, task and system in detail
 

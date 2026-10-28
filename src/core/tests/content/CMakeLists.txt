@@ -1,5 +1,6 @@
 add_executable(garlic_core_content_tests
     main.cpp
+    test_cache_space.cpp
     test_index_manager.cpp
     test_media_manager.cpp
     test_widget.cpp

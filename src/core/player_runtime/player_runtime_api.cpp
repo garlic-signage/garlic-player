@@ -34,6 +34,7 @@
 #endif
 
 #include <format>
+#include <limits>
 
 namespace garlic::core
 {
@@ -83,15 +84,32 @@ namespace garlic::core
         if (auto opened = inventory->open(database); !opened)
             return std::unexpected("database: " + opened.error());
 
+        auto free_space = settings.free_space;
+#if GARLIC_CORE_WITH_SYSTEM
+        if (!free_space)
+            free_space = [cache = settings.cache_dir]
+            {
+                system::DiskSpace disk = system::diskSpace(cache);
+                return disk.total > 0 ? disk.free : std::numeric_limits<std::uint64_t>::max(); // unknown: no cleanup
+            };
+#endif
+        content::MediaManager::MakeSpace make_space;
+        if (free_space)
+        {
+            cache_space = std::make_unique<content::CacheSpace>(fs, *inventory, *logger, settings.cache_dir, free_space);
+            make_space  = [this](std::uint64_t bytes) { return cache_space->makeSpace(bytes); };
+        }
+
         downloader::DownloaderConfig download;
         download.cache_dir  = settings.cache_dir;
         download.user_agent = config.userAgent();
+        download.make_space = make_space;
         queue = std::make_unique<downloader::DownloadQueue>(transport, fs, *inventory, clock, download,
                                                             settings.parallel_downloads,
                                                             [this](const downloader::DownloadResult &r) { dispatch(r); });
 
         media = std::make_unique<content::MediaManager>(*queue, *inventory, fs, *logger, settings.cache_dir,
-                                                        settings.supports);
+                                                        settings.supports, make_space);
         index = std::make_unique<content::IndexManager>(*queue, fs, clock, *logger, config, settings.cache_dir,
                                                         [this](smil::Document d, std::string base)
                                                         { newIndex(std::move(d), std::move(base)); });
@@ -116,6 +134,12 @@ namespace garlic::core
         actions.reloadIndex   = [this] { index->start(); };
         actions.playTemporary = [this](std::string uri) { index->startTemporary(std::move(uri)); };
         actions.screenshot    = [this](std::string path) { events.emplace_back(Screenshot{std::move(path)}); };
+        if (cache_space)
+            actions.makeSpace = [this](std::uint64_t bytes) -> std::uint64_t
+            {
+                std::uint64_t needed = cache_space->needed(bytes); // garlic-lib named the bytes to free
+                return needed == 0 || cache_space->makeSpace(bytes) ? 0 : needed;
+            };
         rest_api = std::make_unique<rest_api::RestApi>(config, *inventory, fs, clock, std::move(actions));
         rest_api->registerRoutes(*router);
 #if GARLIC_CORE_WITH_HTTPD

@@ -97,6 +97,9 @@ new valid index
   without HTTP server can really sleep.
 - **System information**: `config.system_info` for the reports; empty means `system::collectSystemInfo` where the
   module exists (native platforms). WASM and ESP32 give their own.
+- **Space in the cache**: `config.free_space` gives the free bytes of the cache's disk; empty means
+  `system::diskSpace` where the module exists. With it the downloader, the widgets and `/v2/files/new` remove the
+  longest unread files when the disk is full ([content](content.md#space-in-the-cache-cachespace)).
 - **One thread**: everything runs in the thread that calls `poll()`. A helper that runs the core in a thread of its
   own follows later as a small separate part.
 - Playlists from the hub repeat their body (`repeatCount="indefinite"`): media that are still downloading at the

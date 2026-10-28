@@ -6,7 +6,9 @@ The SMIL index and its media: download, check, hand on. Namespace `garlic::core:
 ```cpp
 IndexManager index(queue, fs, clock, logger, config, cache_dir,
                    [&](smil::Document document, std::string base) { /* swap document + engine, media.load() */ });
-MediaManager media(queue, inventory, fs, logger, cache_dir, supports);   // the smil::MediaSource of the engine
+CacheSpace   space(fs, inventory, logger, cache_dir, free_space);     // free_space: free bytes of the disk
+MediaManager media(queue, inventory, fs, logger, cache_dir, supports,   // the smil::MediaSource of the engine
+                   [&](std::uint64_t bytes) { return space.makeSpace(bytes); });
 
 index.start();
 // host loop: transport.poll(); queue.poll(); index.poll(); engine.poll() …
@@ -18,6 +20,7 @@ index.start();
 | `index_manager.hpp/.cpp` | `IndexManager`: get, check and hand on the SMIL index       |
 | `media_manager.hpp/.cpp` | `MediaManager`: the media in the cache, `smil::MediaSource` |
 | `widget.hpp/.cpp`        | `extractWidget()`: unzip `.wgt` with miniz                  |
+| `cache_space.hpp/.cpp`   | `CacheSpace`: remove old files when the disk is full        |
 
 ## IndexManager
 
@@ -79,8 +82,6 @@ playback does not wait for them (SMIL standard: no rule to wait for media; garli
 
 `supports` comes from the frontend and says what the player can show, e.g. no video on an e-ink display.
 
-Not done yet: removing old files when space is short (garlic-lib: `FreeDiscSpace`); the downloader has the
-`make_space` hook for it.
 
 ## Widgets
 
@@ -91,5 +92,34 @@ A `.wgt` is a zip archive. It is extracted next to the file: `cache/abc.wgt` →
 - Extracted into `<directory>.part` first; only when everything worked it replaces the directory. A broken archive
   keeps the old widget. garlic-lib deleted the directory first.
 - Entries with an absolute path, a drive or `..` reject the whole archive ("zip slip"). garlic-lib did not check.
+- Before extracting, `make_space` gets the unpacked size (garlic-lib: `calculateUncompressedSize`); if it cannot be
+  made free, the widget is not extracted.
 - The directory is the whole name without `.wgt`. garlic-lib compared with `baseName()`, which cuts at the first dot,
   so `xyz.secret.wgt` was extracted again at every check.
+
+## Space in the cache (CacheSpace)
+
+garlic-lib: `FreeDiscSpace`. Asked before a download (`make_space` of the downloader with the size from the server),
+before a widget is extracted and before an upload of the REST API (`/v2/files/new`) is stored.
+
+```
+makeSpace(bytes)
+├── needed = bytes + 10 - free_space()             0: fits, nothing to do (garlic-lib: calculateNeededDiscSpaceToFree)
+├── list the cache directory, group the entries by their cache file
+│     a.jpg, a.jpg.part, a.jpg.ready → a.jpg        widget w.wgt with its directory w (and w.part) → w.wgt
+├── keep: index.smil, temporary.smil, QtWebEngine, groups with a ".part" file (download), ".tmp" files (upload)
+├── sort by the last read (lastAccess, the newest file of the group), the longest unread first
+├── remove group by group until the removed bytes reach needed:
+│     files and directories, the inventory row of the cache file, event OBJECT_REMOVED
+└── enough: OBJECTS_REMOVED, true      not enough: FAILED_FREEING_SPACE, false
+```
+
+- `free_space` comes from the host: `system::diskSpace(cache_dir).free`, the available bytes minus 4 % for the
+  operating system, like garlic-lib. If the disk is unknown, nothing is cleaned up; without the system module
+  (ESP32, WASM) the frontend gives its own or the cache is never cleaned up.
+- Media of the current index can go, also the one that is playing, like in garlic-lib: otherwise a cache filled by
+  the index would block every download. A removed medium is downloaded again when it is needed.
+- The last read is the atime of the file system. Linux mounts with `relatime` update it at most once a day, `noatime`
+  never; then the order is the one of the downloads. garlic-lib had the same (`QFileInfo::lastRead`).
+- New: groups. garlic-lib removed a widget directory with its `.wgt` too, but left `.ready` and `.part` files, and
+  a file with a running download could go.

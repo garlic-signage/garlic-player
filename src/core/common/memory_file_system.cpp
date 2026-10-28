@@ -41,6 +41,7 @@ namespace garlic::core::common
 
                     node->data.insert(node->data.end(), data.begin(), data.end());
                     node->modified = clock.now();
+                    node->accessed = node->modified;
                     return {};
                 }
 
@@ -91,12 +92,40 @@ namespace garlic::core::common
         return it->second->modified;
     }
 
+    FileSystemResult<std::chrono::system_clock::time_point> MemoryFileSystem::lastAccess(std::string_view path) const
+    {
+        auto it = files.find(path);
+        if (it == files.end())
+            return std::unexpected(notFound(path));
+
+        return it->second->accessed;
+    }
+
+    FileSystemResult<std::vector<DirectoryEntry>> MemoryFileSystem::list(std::string_view path) const
+    {
+        std::vector<DirectoryEntry> entries;
+        for (const auto &[file, node] : files)
+        {
+            if (!isInside(file, path))
+                continue;
+            std::string_view rest  = std::string_view(file).substr(path.size() + 1);
+            std::size_t      slash = rest.find('/');
+            DirectoryEntry   entry{std::string(rest.substr(0, slash)), slash != std::string_view::npos};
+            if (entries.empty() || entries.back().name != entry.name) // sorted map: a directory's files follow each other
+                entries.push_back(std::move(entry));
+        }
+        if (entries.empty())
+            return std::unexpected(notFound(path));
+        return entries;
+    }
+
     FileSystemResult<std::string> MemoryFileSystem::readFile(std::string_view path) const
     {
-        auto text = content(path);
-        if (!text)
+        auto it = files.find(path);
+        if (it == files.end())
             return std::unexpected(notFound(path));
-        return *text;
+        it->second->accessed = clock.now();
+        return *content(path);
     }
 
     FileSystemResult<std::unique_ptr<WritableFile>> MemoryFileSystem::openForWrite(std::string_view path,
@@ -109,6 +138,7 @@ namespace garlic::core::common
             it->second->data.clear();
 
         it->second->modified = clock.now();
+        it->second->accessed = it->second->modified;
         return std::make_unique<MemoryWritableFile>(it->second, clock);
     }
 

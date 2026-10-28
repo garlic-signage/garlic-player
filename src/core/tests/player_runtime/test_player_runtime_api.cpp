@@ -59,6 +59,7 @@ namespace
             config.index_uri   = "http://hub/index.smil";
             config.database_path = ":memory:";
             config.system_info = [] { return reports::SystemInfo{}; };
+            config.free_space  = [] { return std::uint64_t{1} << 40; };
             runtime            = std::make_unique<PlayerRuntimeApi>(fs, clock, transport, config);
         }
 

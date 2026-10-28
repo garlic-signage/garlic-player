@@ -29,6 +29,8 @@ namespace garlic::core::common
             bool exists(std::string_view path) const override;
             FileSystemResult<std::uint64_t> fileSize(std::string_view path) const override;
             FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const override;
+            FileSystemResult<std::chrono::system_clock::time_point> lastAccess(std::string_view path) const override;
+            FileSystemResult<std::vector<DirectoryEntry>> list(std::string_view path) const override;
             FileSystemResult<std::string> readFile(std::string_view path) const override;
             FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) override;
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override;

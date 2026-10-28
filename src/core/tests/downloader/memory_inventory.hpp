@@ -38,6 +38,11 @@ namespace garlic::core::downloader::tests
 
             void save(const InventoryEntry &entry) override { entries.insert_or_assign(entry.url, entry); }
 
+            void deleteByCacheName(std::string_view cache_name) override
+            {
+                std::erase_if(entries, [&](const auto &entry) { return entry.second.file_name == cache_name; });
+            }
+
             std::map<std::string, InventoryEntry, std::less<>> entries;
     };
 }

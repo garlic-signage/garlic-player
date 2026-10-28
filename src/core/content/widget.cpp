@@ -79,7 +79,8 @@ namespace garlic::core::content
         return widgetDirectory(wgt_path) + "/index.html";
     }
 
-    std::expected<void, std::string> extractWidget(common::FileSystem &fs, std::string_view wgt_path)
+    std::expected<void, std::string> extractWidget(common::FileSystem &fs, std::string_view wgt_path,
+                                                   const std::function<bool(std::uint64_t)> &make_space)
     {
         if (isUpToDate(fs, wgt_path))
             return {};
@@ -93,6 +94,17 @@ namespace garlic::core::content
             return std::unexpected("widget is no zip archive");
         std::unique_ptr<mz_zip_archive, ZipDeleter> zip(&archive);
 
+        mz_uint count = mz_zip_reader_get_num_files(zip.get());
+        if (make_space)
+        {
+            std::uint64_t unpacked = 0; // garlic-lib: calculateUncompressedSize
+            for (mz_uint i = 0; i < count; ++i)
+                if (mz_zip_archive_file_stat stat; mz_zip_reader_file_stat(zip.get(), i, &stat))
+                    unpacked += stat.m_uncomp_size;
+            if (!make_space(unpacked))
+                return std::unexpected("not enough disk space to extract the widget");
+        }
+
         std::string directory = widgetDirectory(wgt_path);
         std::string part      = directory + ".part";
         (void)fs.removeAll(part);
@@ -105,7 +117,6 @@ namespace garlic::core::content
             return std::unexpected(std::move(reason));
         };
 
-        mz_uint count = mz_zip_reader_get_num_files(zip.get());
         for (mz_uint i = 0; i < count; ++i)
         {
             mz_zip_archive_file_stat stat;

@@ -21,6 +21,7 @@
 #include "common/clock.hpp"
 #include "common/file_system.hpp"
 #include "configuration/configuration.hpp"
+#include "content/cache_space.hpp"
 #include "content/media_manager.hpp"
 #include "downloader/http_transport.hpp"
 #include "reports/reporter.hpp"
@@ -92,6 +93,8 @@ namespace garlic::core
 
         content::MediaManager::Supports     supports;    // what the frontend can show; empty: everything
         reports::Reporter::SystemInfoSource system_info; // empty: system::collectSystemInfo where it exists
+        content::CacheSpace::FreeSpace      free_space;  // free bytes of the cache; empty: system::diskSpace where it
+                                                         // exists, otherwise the cache is never cleaned up
 
         std::uint32_t random_seed        = 0; // for <seq> with pickNumber; pass a random value
         std::size_t   parallel_downloads = 2;
@@ -155,6 +158,7 @@ namespace garlic::core
             configuration::Configuration               config;
             std::unique_ptr<logger::Logger>            logger;
             std::unique_ptr<database::InventoryTable>  inventory;
+            std::unique_ptr<content::CacheSpace>       cache_space; // only with free_space
             std::unique_ptr<downloader::DownloadQueue> queue;
             std::unique_ptr<content::IndexManager>     index;
             std::unique_ptr<content::MediaManager>     media;

@@ -1,4 +1,5 @@
 add_library(garlic_core_content STATIC
+    cache_space.cpp
     index_manager.cpp
     media_manager.cpp
     widget.cpp

@@ -68,7 +68,7 @@ namespace garlic::core::database
             std::vector<InventoryRow> findAll() const;
             std::vector<InventoryRow> findPaginated(int max_results, int begin) const;
 
-            void deleteByCacheName(std::string_view cache_name);
+            void deleteByCacheName(std::string_view cache_name) override;
 
             /// Removes all entries, e.g. when the player cache is cleared (task applyCommand clear_cache).
             void clear();

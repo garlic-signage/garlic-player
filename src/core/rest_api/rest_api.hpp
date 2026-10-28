@@ -27,6 +27,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -44,6 +45,8 @@ namespace garlic::core::rest_api
         std::function<void()>                      reloadIndex;   // /v2/app/start, /v2/app/switch
         std::function<void(std::string uri)>       playTemporary; // /v2/app/exec
         std::function<void(std::string path)>      screenshot;    // /v2/task/screenshot: the frontend saves a JPEG
+        // /v2/files/new: room for fileSize bytes (CacheSpace); returns 0 or the bytes that could not be made free
+        std::function<std::uint64_t(std::uint64_t bytes)> makeSpace;
     };
 
     /**

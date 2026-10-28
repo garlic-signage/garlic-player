@@ -246,6 +246,9 @@ namespace garlic::core::rest_api
             return respondError("fileSize field missed");
         if (download_path.empty())
             return respondError("downloadPath field missed");
+        auto file_size = static_cast<std::uint64_t>(toInt(request.param("fileSize")));
+        if (std::uint64_t missing = actions.makeSpace ? actions.makeSpace(file_size) : 0)
+            return respondError("Neccessary " + std::to_string(missing) + " byte cannot be relesed from disc space");
 
         std::string id = common::Md5::hex(download_path);
         return respond(storeUpload(request, download_path, id + "." + suffix(download_path), id));

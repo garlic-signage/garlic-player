@@ -26,6 +26,8 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 | `exists(path)`               |                                                              |
 | `fileSize(path)`             |                                                              |
 | `lastModified(path)`         | as `system_clock::time_point`                                |
+| `lastAccess(path)`           | last read (atime), for the cache cleanup; without atime the creation |
+| `list(path)`                 | names and directory flag of a directory, no `.`/`..`, no order |
 | `readFile(path)`             | complete content, for small files (configuration, SMIL)      |
 | `openForWrite(path, mode)`   | `Truncate` or `Append` (resume); returns a `WritableFile`    |
 | `rename(from, to)`           | file or directory; replaces an existing target file          |
@@ -41,7 +43,7 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 | Implementation     | Platform                                              |
 |--------------------|-------------------------------------------------------|
 | `StdFileSystem`    | Linux, Windows, macOS, Android, iOS (`std::filesystem` + stdio, UTF-8 paths also on Windows) |
-| `MemoryFileSystem` | tests and garlic-hub preview; `lastModified` comes from the injected `Clock` |
+| `MemoryFileSystem` | tests and garlic-hub preview; times come from the injected `Clock`, `readFile` sets `lastAccess`; directories are derived from the paths |
 | OPFS, Tizen, webOS, LittleFS/SD | planned                                  |
 
 The tests in `tests/common/test_file_system.cpp` run identically against every implementation.

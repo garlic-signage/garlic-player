@@ -51,6 +51,13 @@ namespace garlic::core::common
         Append    // create or continue at the end (resume of downloads)
     };
 
+    /// One entry of a directory listing.
+    struct DirectoryEntry
+    {
+        std::string name; // without the directory
+        bool        directory = false;
+    };
+
     /// File opened for writing. Closed by close() or at the latest by the destructor.
     class WritableFile
     {
@@ -78,6 +85,13 @@ namespace garlic::core::common
             virtual FileSystemResult<std::uint64_t> fileSize(std::string_view path) const = 0;
 
             virtual FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const = 0;
+
+            /// Last read of a file (atime), for removing the longest unused files first. Where the file system does
+            /// not keep it, the last change.
+            virtual FileSystemResult<std::chrono::system_clock::time_point> lastAccess(std::string_view path) const = 0;
+
+            /// The files and directories in a directory, without "." and "..", in no particular order.
+            virtual FileSystemResult<std::vector<DirectoryEntry>> list(std::string_view path) const = 0;
 
             /// Complete content of a file. For small files like the configuration or SMIL indexes.
             virtual FileSystemResult<std::string> readFile(std::string_view path) const = 0;
