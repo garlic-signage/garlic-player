@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgarlic_core_player_runtime.a CMakeFiles/garlic_core_player_runtime.dir/player_runtime_api.cpp.o CMakeFiles/garlic_core_player_runtime.dir/reboot_schedule.cpp.o CMakeFiles/garlic_core_player_runtime.dir/threaded_runtime.cpp.o
+/usr/bin/ranlib libgarlic_core_player_runtime.a

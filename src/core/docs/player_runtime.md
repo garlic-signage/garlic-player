@@ -42,7 +42,9 @@ while (running)
 | `accessKey(key)`           | a key was pressed                                                 |
 | `notify(name)`             | a notification for `notify(…)` triggers                           |
 | `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
-| `configuration()`          | read and change settings, e.g. in a settings dialog               |
+| `playerSettings()`         | what the settings dialog shows: player name, index URI, HTTP server on/off and port |
+| `changePlayerSettings(s)`  | check and store them; error text of the core if not valid         |
+| `configuration()`          | read and change any setting                                       |
 | `stop()`                   | stop the playback (standby, quitting); the `StopMedia` come with the next `poll()` |
 
 `poll()` returns **one ordered list** of `CoreEvent`:
@@ -117,6 +119,24 @@ new valid index
 - **REST API**: its actions go to the runtime: `notify` to the engine, `reboot` and `screenshot` as events,
   `app/start` and `app/switch` load the stored index again, `app/exec` plays a temporary index
   ([rest_api](rest_api.md)).
+
+## Settings dialog
+
+The frontends only show the fields; reading, checking and storing is done here (garlic-lib: `ConfigDialog`, the same
+for QWidget and QML). Standby and restarts come from the CMS and are not in the dialog.
+
+```
+changePlayerSettings({player_name, index_uri, httpd_enabled, httpd_port})
+├── index URI checked (Configuration::validateIndexUri)   invalid: its error text, nothing stored
+├── port 1..65535 if the server is on                     otherwise "invalid port"
+├── HTTP server changed? the new one starts first, then the old one stops
+│     port in use: error text, nothing stored, the old server runs on
+├── stored: player_name, index_uri, httpd/enabled, httpd/port
+├── user agent of the downloads anew (the reports read it at every upload)
+└── index loaded again (garlic-lib: initParser after the dialog, also without a change)
+```
+
+Running requests of a stopped server get 503, like when the player quits.
 
 ## ThreadedRuntime
 

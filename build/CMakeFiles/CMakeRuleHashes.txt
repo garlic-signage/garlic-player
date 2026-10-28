@@ -1,0 +1,5 @@
+# Hashes of file build rules.
+9a8a98db53e00cff56702cef487b1291 player-widget/CMakeFiles/player-widget_autogen
+a61ff56636fec87ce426f415c0efefe1 player-widget/player-widget_autogen/timestamp
+e048c9f5033fd028cc5326b67c6ccd68 player-widget/qtavplayer/CMakeFiles/qtavplayer_autogen
+034c898be16a0182dab148161064edac player-widget/qtavplayer/qtavplayer_autogen/timestamp

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgarlic_core_httpd.a CMakeFiles/garlic_core_httpd.dir/router.cpp.o CMakeFiles/garlic_core_httpd.dir/mhd_server.cpp.o
+/usr/bin/ranlib libgarlic_core_httpd.a

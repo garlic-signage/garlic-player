@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgarlic_core_system.a CMakeFiles/garlic_core_system.dir/system_info.cpp.o CMakeFiles/garlic_core_system.dir/platform_linux.cpp.o
+/usr/bin/ranlib libgarlic_core_system.a

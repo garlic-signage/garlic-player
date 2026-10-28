@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgarlic_core_reports.a CMakeFiles/garlic_core_reports.dir/report_xml.cpp.o CMakeFiles/garlic_core_reports.dir/reporter.cpp.o
+/usr/bin/ranlib libgarlic_core_reports.a
