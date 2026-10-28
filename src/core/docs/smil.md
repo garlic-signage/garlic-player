@@ -20,7 +20,8 @@ that is missing gets the default values of garlic-lib, unknown elements and attr
 are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
-plays media, `seq` and `par`; `begin`/`end`, `restart`, `expr`, `excl` and triggers follow step by step.
+plays media, `seq` and `par` with `begin`/`end` offsets, `restart` and `expr`; `excl` and triggers (wallclock,
+syncbase, events, accesskey, notify) follow step by step.
 
 ## How the parser works
 
@@ -217,8 +218,8 @@ no `<priorityClass>`, all children of the `excl` form one with the defaults and 
 | `<brush color>`                                            | `Brush`     |
 | `<prefetch>`                                               | `Prefetch`  |
 
-Other elements (also `<ref>` with an unknown `type`) are not part of the tree; garlic-lib created a `TUnknown` that
-did nothing.
+Other elements (also `<ref>` with an unknown `type`) are not part of the tree, so they take no time. garlic-lib
+created a `TUnknown` that was skipped like a missing medium (100 ms in a `seq`, an ending child in a `par`).
 
 | Attribute / param                   | `Media`          | Note                                           |
 |-------------------------------------|------------------|------------------------------------------------|
@@ -431,6 +432,10 @@ Schedule: [ 10 s: v SimpleEnd ] …
 - `mediaFailed` is like an early end: with `dur` the time still runs ("4s nothing" in `body/simple.smil`), without
   `dur` the next element follows at once.
 - Media the `MediaSource` does not have are skipped; `prefetch` is downloaded and skipped.
+- Skipped like in garlic-lib (`skipElement`): nothing is shown, the element ends after `skip_delay` (100 ms) like a
+  normal one. So skipped images show as a short black gap ("black" in `seq/2_without_dur.smil`), they count as ended
+  (e.g. for `endsync="first"`), and a repeating container of skipped elements tries again every 100 ms instead of
+  looping without time; it starts by itself when the downloads are done.
 - `repeatCount` plays the instance again (`RepeatMedia`), the play log has one entry for all repeats.
 
 ### Rules for seq and par (garlic-lib: `TSeq`, `TPar`)
@@ -446,16 +451,50 @@ Then `repeatCount` decides: a new run or the end.
 - Body and `seq` play their children one after another, `par` starts all at once.
 - `par` with `endsync`: `last` when all children have ended, `first` when the first ends (the others are stopped),
   `<id>` when this child ends. Ignored if the `par` has a `dur`.
-- A child that is skipped (missing medium, no `dur`) did not end: it does not trigger `endsync="first"`. In
-  garlic-lib a skipped element ended after 100 ms and could end a `par`.
+- A skipped child ends after 100 ms like any other, so it can trigger `endsync="first"` (like garlic-lib).
 - Skipped: `dur="0s"`, `dur="media"`, empty without `dur`. An empty container with `dur` is a pause of that length.
 - A container cut by its `dur` stops everything in it before the next run starts clean. garlic-lib started the next
   run while the old children kept playing.
-- A repeating container whose run played nothing (e.g. all media still downloading) is tried again after
-  `empty_run_retry` (1 s) instead of looping within one `poll()`. garlic-lib waited 100 ms per skipped element, so a
-  skipped image showed as a short black gap; now it is passed over at once.
-- `pickNumber` N: per run N children from a shuffled stack; every child plays once before one repeats, then the
-  stack is shuffled anew. garlic-lib shuffled once when parsing and then always cycled in the same order. The random
-  generator (`std::mt19937`) gets `EngineConfig::random_seed`; the host passes a random value, tests a fixed one. The
-  shuffle is an own Fisher-Yates, because `std::shuffle` gives a different order on every standard library.
+- `pickNumber` N: the children are shuffled once per engine (garlic-lib: once when parsing, the engine is new for every
+  index). Every run takes the next N of this fixed order; at the end it starts again from the front in the same
+  order. This is deliberate: every round has the same order. The random generator (`std::mt19937`) gets
+  `EngineConfig::random_seed`; the host passes a random value, tests a fixed one. The shuffle is an own
+  Fisher-Yates, because `std::shuffle` gives a different order on every standard library.
+
+### Lifecycle of an element: begin, end, restart, expr (garlic-lib: `BaseTimings`, `BeginTimer`, `EndTimer`)
+
+```
+activated ──► Waiting ──(begin time)──► Active ──(dur / end of medium / skipped)──► Waiting ──► … ──► Ended
+                 ▲                                                                     │
+                 └──────────────── begin times still to come (list) ◄─────────────────┘
+```
+
+- **Activation**: `begin` and `end` count from the moment the parent activates the element: a `par` (and the body)
+  at the start of its run, a `seq` when the previous child has ended.
+- **begin**: `0s` starts now, `5s` in 5 s. `-2s` means "began 2 s ago": the element starts now for the rest of its
+  `dur`, if there is a rest (`dur` longer than 2 s, `indefinite` or `media`); without `dur` it does not start (like
+  garlic-lib). `indefinite` waits for a trigger.
+- **Intervals**: every begin starts an interval, a medium gets a new instance per interval (new `StartMedia`, own play
+  log entry). `repeatCount` repeats within the interval (`RepeatMedia`, same instance), as in the SMIL standard.
+  `repeatCount` is ignored while begin times are still to come (garlic-lib: `!isBeginTimerActive()`).
+- **Waiting**: after an interval an element with begin times to come waits for them. A `par` with `endsync="last"`
+  waits for such children too; `endsync="first"` and `"<id>"` react to the end of every interval. A `seq` goes on
+  only when its child has ended.
+- **end**: counts from the activation like `begin`, also while the element still waits. It cuts the interval, but
+  does not extend it: if the `dur` is over earlier, the element ends then. When the end time comes, the element ends
+  for this activation; later begin times are void. `end` before `begin` and `end="0s"` mean it is never shown.
+- **restart** when a begin time comes:
+
+  | `restart`               | element plays                    | element does not play                         |
+  |-------------------------|----------------------------------|-----------------------------------------------|
+  | `always` (default)      | ends the interval, starts a new  | starts                                        |
+  | `whenNotActive`         | ignores the begin                | starts                                        |
+  | `never`                 | ignores the begin                | only the first start of the activation        |
+
+- **expr** is evaluated at every start (`evaluateExpr` with `ExprContext` from the clock and `EngineConfig`); false
+  skips the element (100 ms). With later begin times it is checked again then.
+- **Same time**: an interval that ends at the moment of the next begin ends first (`par/8`: `whenNotActive` with
+  begin 6 s and 11 s and a run of 5 s plays three times).
+- An element that can never start (only begin times in the past without rest, no `end`, no trigger) is skipped.
+  garlic-lib left it waiting forever, so a `seq` behind it stopped.
 

@@ -21,6 +21,7 @@
 #include "common/clock.hpp"
 #include "logger/logger.hpp"
 #include "smil/document.hpp"
+#include "smil/expr.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -86,13 +87,14 @@ namespace garlic::core::smil
         std::string player_id;   // smil-playerId() in expr
         std::string player_name; // smil-playerName() in expr
 
-        /// Start value of the random generator for <seq> with pickNumber. The host passes a random value
-        /// (e.g. std::random_device); tests a fixed one, so the order is the same on every platform.
+        /// Start value of the random generator for <seq> with pickNumber (shuffled once per engine). The host passes a
+        /// random value (e.g. std::random_device); tests a fixed one, so the order is the same on every platform.
         std::uint32_t random_seed = 0;
 
-        /// A repeating container whose run played nothing (e.g. all media still downloading) is not repeated at
-        /// once, but after this time. Otherwise it would loop without end in one poll().
-        std::chrono::milliseconds empty_run_retry{1000};
+        /// A skipped element (missing medium, no dur, prefetch …) ends after this time, garlic-lib: skipElement.
+        /// It counts as ended like any other child (e.g. for endsync="first"), and a repeating container of skipped
+        /// elements takes time instead of looping without end in one poll().
+        std::chrono::milliseconds skip_delay{100};
     };
 
     /**
@@ -125,8 +127,9 @@ namespace garlic::core::smil
             enum class State
             {
                 Idle,
-                Active,
-                Ended
+                Waiting, // activated by the parent, waits for a begin time (or a trigger)
+                Active,  // plays (or is skipped for skip_delay)
+                Ended    // no further begin in this activation
             };
 
             /// Runtime state of one node of the tree; the tree itself stays unchanged.
@@ -138,26 +141,33 @@ namespace garlic::core::smil
                 std::vector<std::size_t> children;
 
                 State         state      = State::Idle;
-                std::uint32_t generation = 0; // changes when the node ends, so old scheduled events are ignored
+                std::uint32_t generation = 0; // per interval: old dur/skip events are ignored
+                std::uint32_t activation = 0; // per activation by the parent: old begin/end events are ignored
                 int           remaining_repeats = 1;
+                int           pending_begins    = 0;     // begin times of this activation still to come
+                bool          open_begin        = false; // begin="indefinite": waits for a trigger
+                bool          started_once      = false; // for restart="never"
 
                 // container
-                bool                                  starting = false; // in activate(): a synchronous end is a skip
                 std::vector<std::size_t>              run_order;        // seq: the children of this run
                 std::size_t                           next_child = 0;   // seq: index into run_order
-                std::vector<std::size_t>              pick_stack;       // seq with pickNumber: not yet picked
-                std::chrono::steady_clock::time_point run_start;
+                std::vector<std::size_t>              pick_order;       // seq with pickNumber: shuffled once
+                std::size_t                           pick_next = 0;    // seq with pickNumber: index into pick_order
 
                 // media
                 InstanceId                            instance = 0;
                 bool                                  failed   = false;
+                bool                                  skipping = false; // skipped, ends after skip_delay
                 std::chrono::system_clock::time_point started_at; // for the play log
             };
 
+            /// Same time: ends before begins, so an interval that ends when the next begins makes room for it.
             enum class EventType
             {
                 SimpleEnd, // dur of a medium or a container has elapsed
-                Run        // run a container again (empty_run_retry)
+                Skipped,   // skip_delay of a skipped element has elapsed
+                End,       // a time of the end attribute
+                Begin      // a time of the begin attribute
             };
 
             struct Scheduled
@@ -170,7 +180,11 @@ namespace garlic::core::smil
 
                 bool operator>(const Scheduled &other) const
                 {
-                    return time != other.time ? time > other.time : order > other.order;
+                    if (time != other.time)
+                        return time > other.time;
+                    if (type != other.type)
+                        return type > other.type;
+                    return order > other.order;
                 }
             };
 
@@ -194,10 +208,20 @@ namespace garlic::core::smil
             std::vector<std::size_t>   regionsOf(const Media &media) const;
 
             bool hasDur(const Timing &timing) const; // dur with a time or indefinite: the dur decides the end
+            const Timing &timingOf(std::size_t node) const;
 
-            bool activate(std::size_t node);
-            bool startContainer(std::size_t container);
-            void beginRun(std::size_t container);
+            // lifecycle of every element
+            void activate(std::size_t node);
+            void tryStart(std::size_t node, std::chrono::milliseconds elapsed);
+            void skip(std::size_t node);
+            void endEvent(std::size_t node);
+            void intervalEnded(std::size_t node);
+            void stopNode(std::size_t node);
+            bool mayRepeat(std::size_t node) const;
+
+            // containers
+            void startContainer(std::size_t container, std::chrono::milliseconds elapsed);
+            void beginRun(std::size_t container, std::chrono::milliseconds elapsed);
             std::vector<std::size_t> pickChildren(std::size_t container);
             void playNext(std::size_t container);
             void childEnded(std::size_t container, std::size_t child);
@@ -205,7 +229,8 @@ namespace garlic::core::smil
             void containerSimpleEnd(std::size_t container);
             void stopChildren(std::size_t container);
 
-            bool startMedia(std::size_t node);
+            // media
+            void startMedia(std::size_t node, std::chrono::milliseconds elapsed);
             void mediaSimpleEnd(std::size_t node);
             void endMedia(std::size_t node);
             void earlyEnd(std::size_t node);

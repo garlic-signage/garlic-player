@@ -28,14 +28,14 @@ TEST_CASE("media in the body play one after another")
     CHECK(runner.run(10s) == "0s start a | 2s stop a | 2s start b | 5s stop b");
 }
 
-TEST_CASE("images without a dur that ends them are skipped")
+TEST_CASE("images without a dur that ends them are skipped, 100 ms each like garlic-lib")
 {
     auto runner = EngineRunner::body(R"(
         <img xml:id="no_dur" src="a.jpg"/>
         <img xml:id="zero" src="a.jpg" dur="0s"/>
         <img xml:id="media" src="a.jpg" dur="media"/>
         <img xml:id="ok" src="a.jpg" dur="1s"/>)");
-    CHECK(runner.run(10s) == "0s start ok | 1s stop ok");
+    CHECK(runner.run(10s) == "0.300s start ok | 1.300s stop ok");
 }
 
 TEST_CASE("indefinite image stays")
@@ -64,7 +64,7 @@ TEST_CASE("media not in the cache are skipped, prefetch only downloads")
         <img xml:id="missing" src="missing.jpg" dur="2s"/>
         <img xml:id="a" src="a.jpg" dur="1s"/>)");
     runner.media.missing.insert("missing.jpg");
-    CHECK(runner.run(10s) == "0s start a | 1s stop a");
+    CHECK(runner.run(10s) == "0.200s start a | 1.200s stop a");
     CHECK(runner.media.prefetched == std::vector<std::string>{"next.mp4"});
 }
 
@@ -97,15 +97,15 @@ TEST_CASE("body with repeatCount")
     CHECK(runner.run(10s) == "0s start a | 1s stop a | 1s start a | 2s stop a");
 }
 
-TEST_CASE("repeating body that plays nothing does not loop, but tries again")
+TEST_CASE("repeating body that plays nothing tries again every 100 ms, so it starts when the download is done")
 {
     EngineRunner runner(R"(<smil><body repeatCount="indefinite"><img xml:id="a" src="a.jpg" dur="2s"/></body></smil>)");
     runner.media.missing.insert("a.jpg");
     CHECK(runner.run(2500ms).empty());
-    CHECK(runner.engine->nextDeadline() == runner.clock.monotonic() + 500ms); // next try every second
+    CHECK(runner.engine->nextDeadline() == runner.clock.monotonic() + 100ms);
 
     runner.media.missing.clear(); // the download is done
-    CHECK(runner.runFor(6s) == "3s start a | 5s stop a | 5s start a");
+    CHECK(runner.runFor(5s) == "2.600s start a | 4.600s stop a | 4.600s start a");
 }
 
 TEST_CASE("regions: by regionName, all with the same name, by id, unknown is the first")

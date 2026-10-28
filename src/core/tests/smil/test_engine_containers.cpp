@@ -65,7 +65,7 @@ TEST_CASE("par: endsync first stops the others, endsync id waits for that child"
                             " | 5s stop middle | 5s stop long");
 }
 
-TEST_CASE("par: a skipped child does not count as first")
+TEST_CASE("par: a skipped child ends after 100 ms and counts as first like garlic-lib")
 {
     auto runner = EngineRunner::body(R"(
         <par endsync="first">
@@ -73,7 +73,7 @@ TEST_CASE("par: a skipped child does not count as first")
             <img xml:id="a" src="a.jpg" dur="3s"/>
         </par>)");
     runner.media.missing.insert("missing.jpg");
-    CHECK(runner.run(10s) == "0s start a | 3s stop a");
+    CHECK(runner.run(10s) == "0s start a | 0.100s stop a");
 }
 
 TEST_CASE("container dur: shorter cuts the children, longer leaves the rest empty, endsync is ignored")
@@ -105,26 +105,26 @@ TEST_CASE("empty containers: without dur skipped, with dur a pause, dur 0 and me
         <seq dur="0s"><img xml:id="x" src="x.jpg" dur="1s"/></seq>
         <seq dur="media"><img xml:id="y" src="y.jpg" dur="1s"/></seq>
         <img xml:id="a" src="a.jpg" dur="1s"/>)");
-    CHECK(runner.run(10s) == "2s start a | 3s stop a");
+    CHECK(runner.run(10s) == "2.300s start a | 3.300s stop a"); // 3 skipped containers, 100 ms each
 }
 
-TEST_CASE("container with only missing media is skipped, repeating it waits and tries again")
+TEST_CASE("container with only missing media: 100 ms per skipped child, repeating it tries again")
 {
     auto skipped = EngineRunner::body(R"(<seq><img xml:id="m" src="m.jpg" dur="1s"/></seq><img xml:id="a" src="a.jpg" dur="1s"/>)");
     skipped.media.missing.insert("m.jpg");
-    CHECK(skipped.run(10s) == "0s start a | 1s stop a");
+    CHECK(skipped.run(10s) == "0.100s start a | 1.100s stop a");
 
     auto waiting = EngineRunner::body(R"(<seq repeatCount="indefinite"><img xml:id="m" src="m.jpg" dur="1s"/></seq>
                                         <img xml:id="a" src="a.jpg" dur="1s"/>)");
     waiting.media.missing.insert("m.jpg");
     CHECK(waiting.run(3500ms).empty());
     waiting.media.missing.clear();
-    CHECK(waiting.runFor(5500ms) == "4s start m | 5s stop m | 5s start m"); // retry at 4 s, then every second
+    CHECK(waiting.runFor(5s) == "3.600s start m | 4.600s stop m | 4.600s start m");
 }
 
-TEST_CASE("pickNumber: N random children per run, every child once before one repeats")
+TEST_CASE("pickNumber: shuffled once, then N children per run in this fixed order, round after round")
 {
-    auto runner = EngineRunner::body(R"(<seq repeatCount="3">
+    auto runner = EngineRunner::body(R"(<seq repeatCount="4">
         <metadata><meta name="adapi:pickNumber" content="2"/></metadata>
         <img xml:id="a" src="a.jpg" dur="1s"/><img xml:id="b" src="b.jpg" dur="1s"/>
         <img xml:id="c" src="c.jpg" dur="1s"/><img xml:id="d" src="d.jpg" dur="1s"/>
@@ -132,14 +132,17 @@ TEST_CASE("pickNumber: N random children per run, every child once before one re
     runner.config.random_seed = 42;
     std::string timeline      = runner.run(20s);
 
-    REQUIRE(runner.starts.size() == 6);
-    std::set<std::string> first_four;
-    for (std::size_t i = 0; i < 4; ++i)
-        first_four.insert(runner.starts[i].media->id);
-    CHECK(first_four == std::set<std::string>{"a", "b", "c", "d"}); // two runs: every child once
+    REQUIRE(runner.starts.size() == 8);
+    std::vector<std::string> ids;
+    for (const auto &start : runner.starts)
+        ids.push_back(start.media->id);
 
-    // the same seed gives the same order
-    auto again = EngineRunner::body(R"(<seq repeatCount="3">
+    std::set<std::string> first_round(ids.begin(), ids.begin() + 4);
+    CHECK(first_round == std::set<std::string>{"a", "b", "c", "d"}); // two runs: every child once
+    CHECK(std::vector(ids.begin() + 4, ids.end()) == std::vector(ids.begin(), ids.begin() + 4)); // same order again
+
+    // the same seed gives the same order on every platform
+    auto again = EngineRunner::body(R"(<seq repeatCount="4">
         <metadata><meta name="adapi:pickNumber" content="2"/></metadata>
         <img xml:id="a" src="a.jpg" dur="1s"/><img xml:id="b" src="b.jpg" dur="1s"/>
         <img xml:id="c" src="c.jpg" dur="1s"/><img xml:id="d" src="d.jpg" dur="1s"/>
@@ -172,9 +175,9 @@ TEST_CASE("seq/1_simple.smil")
 TEST_CASE("seq/2_without_dur.smil: images without dur are skipped")
 {
     auto runner = EngineRunner::file("seq/2_without_dur.smil");
-    // begin, black, 10, black, 10, end; "black" was the 100 ms garlic-lib waited per skipped image
-    CHECK(runner.run(20s) == "0s start img_begin | 2s stop img_begin | 2s start img0010 | 3s stop img0010"
-                             " | 3s start img0010 | 4s stop img0010 | 4s start img_end | 6s stop img_end");
+    // begin, black, 10, black, 10, end; "black" are the 4 skipped images, 100 ms each
+    CHECK(runner.run(20s) == "0s start img_begin | 2s stop img_begin | 2.400s start img0010 | 3.400s stop img0010"
+                             " | 3.800s start img0010 | 4.800s stop img0010 | 4.800s start img_end | 6.800s stop img_end");
 }
 
 TEST_CASE("seq/3_indefinite.smil: repeats without end")
