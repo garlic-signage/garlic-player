@@ -71,6 +71,7 @@ add_subdirectory(tasks)
 if(_garlic_core_native)
     add_subdirectory(system)
 endif()
+add_subdirectory(player_runtime)
 
 if(GARLIC_CORE_BUILD_TESTS)
     enable_testing()
@@ -103,6 +104,7 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::reports>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::tasks>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::system>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::player_runtime>"
     )
 
     set_target_properties(garlic_core PROPERTIES
