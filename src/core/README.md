@@ -58,4 +58,5 @@ The libraries are built without exceptions, the test executables with exceptions
 | Option                    | Default                     | Meaning                                       |
 |---------------------------|-----------------------------|-----------------------------------------------|
 | `GARLIC_CORE_BUILD_SHARED`| `ON` (`OFF` on WASM/ESP32)  | build the shared library `core`               |
+| `GARLIC_CORE_WITH_CURL`   | `ON` (`OFF` on WASM/ESP32)  | build the CurlTransport (needs libcurl)       |
 | `GARLIC_CORE_BUILD_TESTS` | `ON` if top-level project   | build the unit tests                          |

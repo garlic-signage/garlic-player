@@ -52,7 +52,7 @@ the `Clock` interface.
 | Implementation      | Platform                                | Status   |
 |---------------------|-----------------------------------------|----------|
 | `FakeHttpTransport` | tests (`tests/downloader`)              | done     |
-| `CurlTransport`     | Linux, Windows, macOS, Android, iOS     | planned  |
+| `CurlTransport`     | Linux, Windows, macOS, Android, iOS     | done     |
 | `FetchTransport`    | browser (WASM)                          | planned  |
 | Tizen, webOS        | via JS bridge                           | planned  |
 | ESP32               | `esp_http_client`                       | planned  |
@@ -134,3 +134,24 @@ queue.add(media_url);
   the callback (e.g. after the index was loaded).
 - `clear()` drops waiting jobs and cancels running ones without callbacks.
 - The queue does not call `HttpTransport::poll()`; the host does, so other modules can share the transport.
+
+## CurlTransport
+
+Header: `downloader/curl_transport.hpp`, only built with `GARLIC_CORE_WITH_CURL` (default on, off for WASM/ESP32).
+
+```cpp
+CurlTransport transport;                       // or CurlTransport{{.ca_bundle = "/path/cacert.pem"}}
+```
+
+- `curl_multi` without threads: each `poll()` lets libcurl do what is due and returns immediately.
+- Redirects are not followed (`CURLOPT_FOLLOWLOCATION` off), compression is off (`Accept-Encoding` not sent), so
+  `Content-Length` matches the bytes written.
+- Proxies from the environment (`http_proxy`, `https_proxy`) are used by libcurl automatically.
+- `start()` and `cancel()` may be called from inside handler callbacks; libcurl forbids changing its handles there,
+  so these changes are applied in the next `poll()`.
+- **CA certificates:** on Linux OpenSSL finds the system certificates. Android, iOS, macOS and Windows have no
+  OpenSSL certificate store; there `ca_bundle` must point to a PEM file (e.g. the Mozilla bundle shipped with the
+  player).
+
+Tests (`tests/downloader/test_curl_transport.cpp`) run against a small HTTP server on `127.0.0.1` inside the test
+(POSIX only), including a complete download through the `Downloader` with a redirect. No internet is needed.
