@@ -70,6 +70,9 @@ namespace garlic::core::database
 
             void deleteByCacheName(std::string_view cache_name);
 
+            /// Removes all entries, e.g. when the player cache is cleared (task applyCommand clear_cache).
+            void clear();
+
             /// Message of the last failed operation, for logging.
             const std::string &lastError() const noexcept { return last_error; }
 

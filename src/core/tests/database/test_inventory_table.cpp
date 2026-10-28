@@ -256,3 +256,15 @@ TEST_CASE("open fails for a path that cannot be created")
     CHECK_FALSE(result.has_value());
     CHECK_FALSE(table.find("x").has_value()); // no crash without database
 }
+
+TEST_CASE("clear removes all entries")
+{
+    FakeClock      clock;
+    InventoryTable table(clock);
+    REQUIRE(table.open(":memory:").has_value());
+    table.save({"http://a", "a.jpg", "", "", "image/jpeg", 1, garlic::core::downloader::InventoryState::Complete});
+    table.save({"http://b", "b.jpg", "", "", "image/jpeg", 1, garlic::core::downloader::InventoryState::Complete});
+    table.clear();
+    CHECK(table.findAll().empty());
+}
+

@@ -226,6 +226,16 @@ namespace garlic::core::database
             last_error = sqlite3_errmsg(db);
     }
 
+    void InventoryTable::clear()
+    {
+        if (db == nullptr)
+            return;
+
+        Statement s(db, "DELETE FROM inventory");
+        if (s.step() != SQLITE_DONE)
+            last_error = sqlite3_errmsg(db);
+    }
+
     std::vector<InventoryRow> InventoryTable::query(std::string_view sql, std::vector<std::string> params) const
     {
         std::vector<InventoryRow> rows;

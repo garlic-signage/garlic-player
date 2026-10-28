@@ -24,6 +24,7 @@ DownloadQueue queue{transport, fs, inventory, clock, config, 4, on_finished};
 | `findAll()`                  | inventory report                     |
 | `findPaginated(max, begin)`  | REST API files list                  |
 | `deleteByCacheName(name)`    | disk space cleanup, REST API         |
+| `clear()`                    | clearing the player cache (task `applyCommand`) |
 
 Errors: `open()` returns them; the other methods return empty results and keep the message in `lastError()`. A
 failing database never stops downloading or playing.
