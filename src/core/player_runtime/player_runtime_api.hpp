@@ -31,8 +31,10 @@
 #include <chrono>
 #include <cstdint>
 #include <expected>
+#include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -66,10 +68,23 @@ namespace garlic::core
         class Logger;
     }
 
-    /// A new index: the frontend builds its regions anew. Valid until the next NewLayout.
+    /**
+     * A new index: the frontend builds its regions anew from document->head (root_layout, regions sorted by z-index,
+     * title). The frontend keeps the document until the next NewLayout: the StartMedia point into it.
+     */
     struct NewLayout
     {
-        const smil::Head *head = nullptr; // root_layout, regions (sorted by z-index), title
+        std::shared_ptr<const smil::Document> document;
+        /// backgroundImage of root-layout and regions as written in the SMIL → local path or URL; only those already
+        /// there, the others follow as BackgroundImage
+        std::map<std::string, std::string, std::less<>> backgrounds;
+    };
+
+    /// A background image of the current layout that was not there yet at NewLayout.
+    struct BackgroundImage
+    {
+        std::string src;  // as written in the SMIL
+        std::string path; // local path or URL
     };
 
     /// REST /v2/task/screenshot: the frontend saves a JPEG of the screen to path and calls screenshotTaken(path).
@@ -80,7 +95,8 @@ namespace garlic::core
 
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, tasks::InstallSoftware, tasks::Reboot, tasks::ClearCaches, Screenshot>;
+                                   NewLayout, BackgroundImage, tasks::InstallSoftware, tasks::Reboot, tasks::ClearCaches,
+                                   Screenshot>;
 
     struct PlayerRuntimeConfig
     {
@@ -138,9 +154,6 @@ namespace garlic::core
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
-            /// Where a src (e.g. a background image of NewLayout) is to be loaded from; nullopt if not there yet.
-            std::optional<std::string> locate(std::string_view src);
-
             configuration::Configuration &configuration() noexcept { return config; }
 
             /// Stops the playback, e.g. for standby or before quitting; the StopMedia come with the next poll().
@@ -168,10 +181,10 @@ namespace garlic::core
             std::unique_ptr<rest_api::RestApi>         rest_api;
             std::unique_ptr<httpd::Server>             server;
 
-            std::unique_ptr<smil::Document> document;
-            std::unique_ptr<smil::Document> retired; // the previous one, until the next poll()
+            std::shared_ptr<smil::Document> document; // shared with the frontend through NewLayout
             std::unique_ptr<smil::Engine>   engine;
             std::vector<CoreEvent>          events;
+            std::set<std::string, std::less<>> missing_backgrounds; // of the current layout, not there yet
 
             std::optional<std::chrono::steady_clock::time_point> next_reboot;
             std::chrono::steady_clock::time_point                next_resource_log;
@@ -180,6 +193,7 @@ namespace garlic::core
             void newIndex(smil::Document document, std::string base);
             void onTask(tasks::TaskAction action);
             void collectEngine();
+            void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
             void logResources();
     };

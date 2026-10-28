@@ -165,8 +165,6 @@ namespace garlic::core
 
     std::vector<CoreEvent> PlayerRuntimeApi::poll()
     {
-        retired.reset(); // the frontend has handled the StopMedia of the previous index
-
         transport.poll();
         if (queue)
             queue->poll();
@@ -260,13 +258,6 @@ namespace garlic::core
             rest_api->screenshotTaken(path);
     }
 
-    std::optional<std::string> PlayerRuntimeApi::locate(std::string_view src)
-    {
-        if (!media)
-            return std::nullopt;
-        return media->locate(src);
-    }
-
     void PlayerRuntimeApi::stop()
     {
         if (!engine)
@@ -285,13 +276,17 @@ namespace garlic::core
         else if (tasks && tasks->downloaded(result))
             return;
         else if (media)
+        {
             media->downloaded(result);
+            findBackgrounds(nullptr);
+        }
     }
 
     /**
      * A new valid index (garlic-lib: loadIndex, without stopping before the new one is known to be valid): the old
      * engine stops (StopMedia), the new document is loaded by the media manager, the reports and tasks follow its
-     * subscriptions, then NewLayout and the new engine. The old document lives until the next poll().
+     * subscriptions, then NewLayout and the new engine. The old document lives as long as the frontend keeps the
+     * previous NewLayout.
      */
     void PlayerRuntimeApi::newIndex(smil::Document next, std::string base)
     {
@@ -301,14 +296,21 @@ namespace garlic::core
             collectEngine();
             engine.reset();
         }
-        retired  = std::move(document);
-        document = std::make_unique<smil::Document>(std::move(next));
+        document = std::make_shared<smil::Document>(std::move(next));
 
         media->load(*document, base);
         reporter->subscribe(document->head.subscriptions);
         tasks->subscribe(document->head.subscriptions);
 
-        events.emplace_back(NewLayout{&document->head});
+        missing_backgrounds.clear();
+        for (const smil::Region &region : document->head.regions)
+            missing_backgrounds.insert(region.background_image);
+        missing_backgrounds.insert(document->head.root_layout.background_image);
+        for (const char *nothing : {"", "none", "inherited"})
+            missing_backgrounds.erase(nothing);
+        NewLayout layout{document, {}};
+        findBackgrounds(&layout.backgrounds);
+        events.emplace_back(std::move(layout));
         smil::EngineConfig engine_config;
         engine_config.player_id   = config.uuid();
         engine_config.player_name = config.playerName();
@@ -339,6 +341,25 @@ namespace garlic::core
                            events.emplace_back(std::move(a));
                    },
                    action);
+    }
+
+    /// The background images of the layout that are there now: into found (NewLayout) or as BackgroundImage events.
+    void PlayerRuntimeApi::findBackgrounds(std::map<std::string, std::string, std::less<>> *found)
+    {
+        for (auto it = missing_backgrounds.begin(); it != missing_backgrounds.end();)
+        {
+            auto path = media->locate(*it);
+            if (!path)
+            {
+                ++it;
+                continue;
+            }
+            if (found)
+                found->emplace(*it, std::move(*path));
+            else
+                events.emplace_back(BackgroundImage{*it, std::move(*path)});
+            it = missing_backgrounds.erase(it);
+        }
     }
 
     void PlayerRuntimeApi::collectEngine()

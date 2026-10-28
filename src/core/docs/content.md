@@ -67,8 +67,8 @@ startTemporary(uri)                   REST /v2/app/exec: another index for a whi
 | `adapi:…`                               | used as it is                                                     |
 | local `.wgt`                            | extracted next to the file                                        |
 
-Region and root-layout backgrounds are registered too; the frontend gets their path with `locate(src)`. The
-playback does not wait for them (SMIL standard: no rule to wait for media; garlic-lib waited up to 10 s).
+Region and root-layout backgrounds are registered too; the PlayerRuntimeApi finds their paths with `locate(src)` and
+hands them to the frontend with `NewLayout` or `BackgroundImage`. The playback does not wait for them (SMIL standard: no rule to wait for media; garlic-lib waited up to 10 s).
 
 `resolve(media)` for the engine (garlic-lib: `getLoadablePath`, `checkCacheStatus`):
 

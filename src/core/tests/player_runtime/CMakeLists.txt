@@ -2,6 +2,7 @@ add_executable(garlic_core_player_runtime_tests
     main.cpp
     test_player_runtime_api.cpp
     test_reboot_schedule.cpp
+    test_threaded_runtime.cpp
 )
 garlic_core_set_options(garlic_core_player_runtime_tests TEST)
 target_include_directories(garlic_core_player_runtime_tests PRIVATE ../support ../downloader)

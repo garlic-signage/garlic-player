@@ -26,7 +26,7 @@ while (running)
         std::visit(frontend, event);
     wait until runtime.nextDeadline() or input
 }
-// input: runtime.mediaFinished(id), mediaFailed(id), elementActivated(id), accessKey('a'), locate(src)
+// input: runtime.mediaFinished(id), mediaFailed(id), elementActivated(id), accessKey('a')
 ```
 
 ## Interface
@@ -42,7 +42,6 @@ while (running)
 | `accessKey(key)`           | a key was pressed                                                 |
 | `notify(name)`             | a notification for `notify(…)` triggers                           |
 | `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
-| `locate(src)`              | where a background image of the layout is                         |
 | `configuration()`          | read and change settings, e.g. in a settings dialog               |
 | `stop()`                   | stop the playback (standby, quitting); the `StopMedia` come with the next `poll()` |
 
@@ -51,7 +50,8 @@ while (running)
 | Event                                   | Meaning                                                     |
 |-----------------------------------------|-------------------------------------------------------------|
 | `StartMedia`, `StopMedia`, `RepeatMedia`, `PauseMedia`, `ResumeMedia` | from the engine ([smil](smil.md#engine)) |
-| `NewLayout{head}`                       | a new index: build the regions anew (`head->root_layout`, `head->regions`) |
+| `NewLayout{document, backgrounds}`      | a new index: build the regions anew (`document->head`); background images that are there |
+| `BackgroundImage{src, path}`            | a background image of the current layout is downloaded      |
 | `InstallSoftware{path}`                 | a firmware update is ready ([tasks](tasks.md))              |
 | `Reboot{task_id}`                       | restart the device: a task, or `"DailyReboot"` from the schedule |
 | `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the host clears the web cache and restarts |
@@ -59,6 +59,15 @@ while (running)
 
 One list instead of several, because the order counts: at a new index first the `StopMedia` of the old one, then
 `NewLayout`, then the `StartMedia` of the new one.
+
+**The document of `NewLayout`** is a `shared_ptr<const smil::Document>`: the frontend keeps it until the next
+`NewLayout`, because `StartMedia::media` points into it. So the old document lives exactly as long as the frontend can
+still read it, also when the core runs in another thread.
+
+**Background images** (`backgroundImage` of root-layout and regions) are downloaded like media, but the index does not
+wait for them. `NewLayout::backgrounds` maps the value of the SMIL to the local path (or URL, if not cacheable) of the
+ones that are already there; each other one follows as `BackgroundImage` when it is downloaded. `none`, `inherited`
+and empty values are no images.
 
 ## Inside
 
@@ -81,10 +90,10 @@ poll()
 
 new valid index
 ├── the old engine stops            → StopMedia
-├── document and engine are swapped; the old document lives until the next poll(), so a frontend that kept
-│   media pointers can still handle its StopMedia
+├── document and engine are swapped; the old document lives on in the NewLayout the frontend still keeps
 ├── media.load(), reporter.subscribe(), tasks.subscribe()
-└── NewLayout, the new engine starts
+├── NewLayout with the background images that are there; the others are remembered for BackgroundImage
+└── the new engine starts
 ```
 
 - **Tasks**: `ApplyConfiguration` loads the index again and plans the restart anew (the core does it).
@@ -100,8 +109,8 @@ new valid index
 - **Space in the cache**: `config.free_space` gives the free bytes of the cache's disk; empty means
   `system::diskSpace` where the module exists. With it the downloader, the widgets and `/v2/files/new` remove the
   longest unread files when the disk is full ([content](content.md#space-in-the-cache-cachespace)).
-- **One thread**: everything runs in the thread that calls `poll()`. A helper that runs the core in a thread of its
-  own follows later as a small separate part.
+- **One thread**: everything runs in the thread that calls `poll()`; `ThreadedRuntime` moves that into a thread of
+  its own (below).
 - Playlists from the hub repeat their body (`repeatCount="indefinite"`): media that are still downloading at the
   first start are skipped and follow in a later run, like in garlic-lib.
 
@@ -109,6 +118,37 @@ new valid index
   `app/start` and `app/switch` load the stored index again, `app/exec` plays a temporary index
   ([rest_api](rest_api.md)).
 
+## ThreadedRuntime
+
+Header: `player_runtime/threaded_runtime.hpp`. For native frontends whose UI thread must not wait for the core
+(downloads, SQLite, HTTP server). The `PlayerRuntimeApi` is created, started, polled and destroyed in one thread of
+the helper, so curl, libmicrohttpd and SQLite still see only one thread. WASM (no threads) and ESP32 (own loop) use
+the `PlayerRuntimeApi` directly.
+
+```cpp
+ThreadedRuntime runtime(fs, clock, http, config, [&] { /* in the core thread: wake the UI thread */ });
+if (auto started = runtime.start(); !started) … started.error()      // waits for PlayerRuntimeApi::start()
+
+runtime.post([id](PlayerRuntimeApi &r) { r.mediaFinished(id); });   // from any thread, runs before the next poll()
+for (const CoreEvent &event : runtime.takeEvents()) …                 // in the UI thread after the wake
+runtime.stop();                                                       // also the destructor: ends and joins the thread
+```
+
+```
+core thread
+├── PlayerRuntimeApi runtime(…); runtime.start()   → result to start(), an error ends the thread
+└── until stop():
+    ├── the posted calls, in their order
+    ├── runtime.poll() → events appended under the mutex, then wake() if there are new ones
+    └── wait until nextDeadline() (measured with the runtime's clock) or until post()/stop()
+```
+
+- Every call of the frontend goes through `post()`, also `configuration()`; nothing returns a value directly. A
+  result goes back the way the frontend chooses (e.g. a promise or a queued signal in the call).
+- `wake` runs in the core thread; with Qt e.g. `QMetaObject::invokeMethod(…, Qt::QueuedConnection)`.
+- `fs`, `clock` and `transport` are used only by the core thread after `start()`.
+- After `stop()` the events not taken can still be taken; `start()` again creates a new runtime.
+
 ## Not yet
 
-- Sending the task execution log, cleaning up the cache when space is short.
+- Windows and macOS: `platform_windows.cpp` and `platform_apple.cpp` are not compiled yet.

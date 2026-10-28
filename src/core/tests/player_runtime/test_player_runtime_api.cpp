@@ -47,6 +47,7 @@ namespace
         std::unique_ptr<PlayerRuntimeApi>    runtime;
         std::vector<std::string>             log; // what the frontend saw
         std::map<std::string, smil::InstanceId> instances; // last instance per id
+        NewLayout                            layout;    // kept until the next one, like a frontend
 
         explicit Fixture(std::string ini = "[httpd]\nenabled=false\n")
         {
@@ -108,8 +109,13 @@ namespace
             }
             else if (std::holds_alternative<smil::StopMedia>(event))
                 log.push_back("stop");
-            else if (const auto *layout = std::get_if<NewLayout>(&event))
-                log.push_back("layout " + layout->head->title);
+            else if (const auto *next = std::get_if<NewLayout>(&event))
+            {
+                layout = *next;
+                log.push_back("layout " + layout.document->head.title);
+            }
+            else if (const auto *background = std::get_if<BackgroundImage>(&event))
+                log.push_back("background " + background->src);
             else if (const auto *reboot = std::get_if<tasks::Reboot>(&event))
                 log.push_back("reboot " + reboot->task_id);
             else if (const auto *clear = std::get_if<tasks::ClearCaches>(&event))
@@ -242,17 +248,28 @@ TEST_CASE("nextDeadline: fast while downloading, idle without anything to do")
     CHECK(*idle - f.clock.monotonic() > 200s);
 }
 
-TEST_CASE("locate: a background image of the layout")
+TEST_CASE("background images: in NewLayout when they are there, otherwise as BackgroundImage when downloaded")
 {
     Fixture f;
-    f.serve("http://hub/index.smil", indexText("", 0, R"x(<layout><region xml:id="r" backgroundImage="bg.png"/></layout>)x"),
+    f.serve("http://hub/index.smil", indexText("", 60, R"x(<layout><root-layout backgroundImage="/local/root.png"/>
+            <region xml:id="r" backgroundImage="bg.png"/><region xml:id="s" backgroundImage="none"/></layout>)x"),
             "application/smil+xml");
     f.serve("http://hub/bg.png", "png", "image/png");
     REQUIRE(f.runtime->start().has_value());
     f.run(5s);
-    auto path = f.runtime->locate("http://hub/bg.png");
-    REQUIRE(path.has_value());
-    CHECK(f.fs.content(*path) == "png");
+
+    CHECK(f.seen() == "layout No Title | background bg.png");
+    CHECK(f.layout.backgrounds.size() == 1); // the local one at once, "none" is no image
+    CHECK(f.layout.backgrounds.at("/local/root.png") == "/local/root.png");
+
+    // a new index with the same image: now it comes with NewLayout
+    f.log.clear();
+    f.serve("http://hub/index.smil", indexText("", 60, R"x(<layout><region xml:id="r" backgroundImage="bg.png"/></layout>)x"),
+            "application/smil+xml", "v2");
+    f.run(60s);
+    CHECK(f.seen() == "layout No Title");
+    REQUIRE(f.layout.backgrounds.contains("bg.png"));
+    CHECK(f.fs.content(f.layout.backgrounds.at("bg.png")) == "png");
 }
 
 TEST_CASE("the HTTP server runs when it is enabled")
