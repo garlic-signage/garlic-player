@@ -111,7 +111,7 @@ exactly one `finished` per run, nothing after `stop()`.
 
 | Backend        | CMake option              | Notes                                                                |
 |----------------|---------------------------|----------------------------------------------------------------------|
-| `qtavplayer`   | `PLAYER_WITH_QTAVPLAYER`  | default; FFmpeg, frames to `QVideoWidget`, sound to `QAVAudioOutput`; downloaded by FetchContent (tag `v2026-10-04`); needs the private headers of Qt Multimedia, which Debian Trixie does not ship |
+| `qtavplayer`   | `PLAYER_WITH_QTAVPLAYER`  | default; FFmpeg, frames to `QVideoWidget`, sound to `QAVAudioOutput`; downloaded by FetchContent (tag `v2026-10-04`); needs the private headers of Qt Multimedia, which Debian Trixie does not ship; frames in formats QtAVPlayer cannot hand to Qt (e.g. 10 bit `yuv420p10le`) are converted to 8 bit YUV420P first, otherwise they stay black |
 | `qtmultimedia` | `PLAYER_WITH_QTMULTIMEDIA`| `QMediaPlayer` (FFmpeg backend of Qt)                                 |
 | `vlc`          | `PLAYER_WITH_VLC`         | draws into a native window: on Linux X11 (`QT_QPA_PLATFORM=xcb`), not Wayland; one libvlc instance for all; no fit (like garlic-lib); events of libvlc are handed to the UI thread |
 

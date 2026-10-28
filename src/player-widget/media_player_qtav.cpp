@@ -21,11 +21,45 @@
 
 namespace player
 {
+    namespace
+    {
+        /**
+         * QtAVPlayer hands only these formats to Qt (QAVVideoFrame::operator QVideoFrame); every other one, e.g. 10 bit
+         * like yuv420p10le of HEVC Main10, becomes an empty frame: black, and a warning per frame. Those are converted
+         * to 8 bit YUV420P by swscale first.
+         */
+        bool handedOnByQtAvPlayer(AVPixelFormat format)
+        {
+            switch (format)
+            {
+                case AV_PIX_FMT_RGB32:
+                case AV_PIX_FMT_YUV420P:
+                case AV_PIX_FMT_YUV422P:
+                case AV_PIX_FMT_NV12:
+                case AV_PIX_FMT_VAAPI:
+                case AV_PIX_FMT_VDPAU:
+                case AV_PIX_FMT_CUDA:
+                case AV_PIX_FMT_D3D11:
+                case AV_PIX_FMT_VIDEOTOOLBOX:
+                case AV_PIX_FMT_VULKAN:
+                case AV_PIX_FMT_MEDIACODEC: return true;
+                default: return false;
+            }
+        }
+    }
+
     QtAvMediaPlayer::QtAvMediaPlayer()
     {
         // the frames come from the decoder threads: handed on there, like the examples of QtAVPlayer
         connect(&player, &QAVPlayer::videoFrame, &player,
-                [this](const QAVVideoFrame &frame) { video.videoSink()->setVideoFrame(frame); }, Qt::DirectConnection);
+                [this](const QAVVideoFrame &frame)
+                {
+                    if (handedOnByQtAvPlayer(frame.format()))
+                        video.videoSink()->setVideoFrame(frame);
+                    else
+                        video.videoSink()->setVideoFrame(frame.convertTo(AV_PIX_FMT_YUV420P));
+                },
+                Qt::DirectConnection);
         connect(&player, &QAVPlayer::audioFrame, &player, [this](const QAVAudioFrame &frame) { audio.play(frame); },
                 Qt::DirectConnection);
 
