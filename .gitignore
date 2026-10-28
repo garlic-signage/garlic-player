@@ -10,3 +10,4 @@ libios
 ./*.sh
 ./*.bat
 !./build_scripts/
+.idea

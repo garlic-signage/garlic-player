@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "garlic-core",
+  "version-semver": "0.1.0",
+  "description": "Qt-free core library of the garlic-player",
+  "license": "AGPL-3.0-only",
+  "dependencies": [],
+  "features": {
+    "tests": {
+      "description": "Build the unit tests",
+      "dependencies": [
+        "doctest"
+      ]
+    }
+  }
+}
