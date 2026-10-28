@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_rest_api.a CMakeFiles/garlic_core_rest_api.dir/rest_api.cpp.o
-/usr/bin/ranlib libgarlic_core_rest_api.a

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_configuration.a CMakeFiles/garlic_core_configuration.dir/configuration.cpp.o CMakeFiles/garlic_core_configuration.dir/ini_file.cpp.o
-/usr/bin/ranlib libgarlic_core_configuration.a

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_logger.a CMakeFiles/garlic_core_logger.dir/logger.cpp.o
-/usr/bin/ranlib libgarlic_core_logger.a

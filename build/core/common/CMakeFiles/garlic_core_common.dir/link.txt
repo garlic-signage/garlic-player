@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_common.a CMakeFiles/garlic_core_common.dir/version.cpp.o CMakeFiles/garlic_core_common.dir/md5.cpp.o CMakeFiles/garlic_core_common.dir/memory_file_system.cpp.o CMakeFiles/garlic_core_common.dir/std_file_system.cpp.o CMakeFiles/garlic_core_common.dir/system_clock.cpp.o CMakeFiles/garlic_core_common.dir/time_format.cpp.o
-/usr/bin/ranlib libgarlic_core_common.a

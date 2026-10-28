@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/niko/Source/github/garlic-player/build/_deps/miniz-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_content.a CMakeFiles/garlic_core_content.dir/cache_space.cpp.o CMakeFiles/garlic_core_content.dir/index_manager.cpp.o CMakeFiles/garlic_core_content.dir/media_manager.cpp.o CMakeFiles/garlic_core_content.dir/widget.cpp.o
-/usr/bin/ranlib libgarlic_core_content.a

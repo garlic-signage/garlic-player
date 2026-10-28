@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_downloader.a CMakeFiles/garlic_core_downloader.dir/download_queue.cpp.o CMakeFiles/garlic_core_downloader.dir/downloader.cpp.o CMakeFiles/garlic_core_downloader.dir/http_headers.cpp.o CMakeFiles/garlic_core_downloader.dir/curl_transport.cpp.o
-/usr/bin/ranlib libgarlic_core_downloader.a

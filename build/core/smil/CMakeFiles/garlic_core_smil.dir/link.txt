@@ -1,2 +1,0 @@
-/usr/bin/ar qc libgarlic_core_smil.a CMakeFiles/garlic_core_smil.dir/engine.cpp.o CMakeFiles/garlic_core_smil.dir/expr.cpp.o CMakeFiles/garlic_core_smil.dir/parser.cpp.o CMakeFiles/garlic_core_smil.dir/wallclock.cpp.o
-/usr/bin/ranlib libgarlic_core_smil.a
