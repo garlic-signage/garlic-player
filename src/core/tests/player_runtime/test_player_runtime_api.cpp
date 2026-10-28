@@ -20,6 +20,7 @@
 #include "common/memory_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
+#include "httpd/mhd_server.hpp"
 #include "player_runtime/player_runtime_api.hpp"
 #include "time_zone.hpp"
 
@@ -280,4 +281,83 @@ TEST_CASE("the HTTP server runs when it is enabled")
     auto next = f.runtime->nextDeadline();
     REQUIRE(next.has_value());
     CHECK(*next <= f.clock.monotonic() + PlayerRuntimeApi::busy_poll); // polled for the server
+}
+
+TEST_CASE("player settings: read, an invalid index URI is not stored")
+{
+    Fixture f;
+    REQUIRE(f.runtime->start().has_value());
+    PlayerSettings current = f.runtime->playerSettings();
+    CHECK(current.index_uri == "http://hub/index.smil");
+    CHECK_FALSE(current.httpd_enabled);  // the ini of the fixture
+    CHECK(current.httpd_port == 8080);   // default
+
+    PlayerSettings next = current;
+    next.player_name    = "lobby";
+    next.index_uri      = "nothing";
+    auto changed        = f.runtime->changePlayerSettings(next);
+    REQUIRE_FALSE(changed.has_value());
+    CHECK_FALSE(changed.error().empty());
+    CHECK(f.runtime->playerSettings().player_name == current.player_name);
+
+    next.index_uri     = "http://hub/index.smil";
+    next.httpd_port    = 0;
+    next.httpd_enabled = true;
+    CHECK(f.runtime->changePlayerSettings(next).error() == "invalid port");
+}
+
+TEST_CASE("player settings: stored, the user agent follows the name, the index is loaded again")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="http://hub/a.jpg" dur="10s"/>)x"), "application/smil+xml");
+    f.serve("http://hub/other.smil", indexText(R"x(<img xml:id="b" src="http://hub/a.jpg" dur="10s"/>)x"), "application/smil+xml");
+    f.serve("http://hub/a.jpg", "jpg", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+
+    PlayerSettings next = f.runtime->playerSettings();
+    next.player_name    = "lobby";
+    next.index_uri      = "http://hub/other.smil";
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value());
+    f.run(5s);
+
+    CHECK(f.runtime->configuration().playerName() == "lobby");
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/other.smil");
+    CHECK(f.fs.content("config/garlic-player.ini")->find("player_name=lobby") != std::string::npos);
+    CHECK(f.instances.contains("b"));
+
+    auto other = std::ranges::find(f.transport.requests, std::string("http://hub/other.smil"), &downloader::HttpRequest::url);
+    REQUIRE(other != f.transport.requests.end());
+    CHECK(other->headers.find("User-Agent").value_or("").find("NAME:lobby") != std::string::npos);
+}
+
+TEST_CASE("player settings: the HTTP server is switched on and off, a port in use keeps the old one")
+{
+    Fixture f;
+    REQUIRE(f.runtime->start().has_value());
+
+    // a port that is surely in use: the one of a second server
+    httpd::Router        router;
+    httpd::MhdServer     blocker(router, f.fs);
+    httpd::HttpdSettings blocking; // all interfaces like the player
+    blocking.port = 0;
+    REQUIRE(blocker.start(blocking).has_value());
+
+    PlayerSettings next = f.runtime->playerSettings();
+    next.httpd_enabled  = true;
+    next.httpd_port     = blocker.port();
+    auto changed        = f.runtime->changePlayerSettings(next);
+    REQUIRE_FALSE(changed.has_value());
+    CHECK(changed.error().find(std::to_string(blocker.port())) != std::string::npos);
+    CHECK_FALSE(f.runtime->playerSettings().httpd_enabled); // nothing stored
+
+    blocker.stop();
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value()); // now free
+    CHECK(f.runtime->playerSettings().httpd_enabled);
+    CHECK(f.runtime->playerSettings().httpd_port == next.httpd_port);
+    CHECK(f.fs.content("config/garlic-player.ini")->find("enabled=true") != std::string::npos);
+
+    next.httpd_enabled = false;
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value());
+    CHECK_FALSE(f.runtime->playerSettings().httpd_enabled);
 }

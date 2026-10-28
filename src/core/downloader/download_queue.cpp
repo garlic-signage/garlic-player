@@ -56,6 +56,12 @@ namespace garlic::core::downloader
             slot.downloader->poll();
     }
 
+    void DownloadQueue::setUserAgent(const std::string &user_agent)
+    {
+        for (Slot &slot : slots)
+            slot.downloader->setUserAgent(user_agent);
+    }
+
     std::size_t DownloadQueue::runningCount() const noexcept
     {
         return static_cast<std::size_t>(

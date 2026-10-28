@@ -116,6 +116,15 @@ namespace garlic::core
         std::size_t   parallel_downloads = 2;
     };
 
+    /// What the settings dialog of a frontend shows (garlic-lib: ConfigDialog); standby and restarts come from the CMS.
+    struct PlayerSettings
+    {
+        std::string   player_name;
+        std::string   index_uri;
+        bool          httpd_enabled = true;
+        std::uint16_t httpd_port    = 8080;
+    };
+
     /**
      * The one interface of the core for the frontend (garlic-lib: LibFacade). It owns all modules, connects them and
      * is driven by poll() from one thread. The frontend only shows: it gets events and reports what only it knows.
@@ -155,6 +164,15 @@ namespace garlic::core
             void screenshotTaken(std::string_view path);
 
             configuration::Configuration &configuration() noexcept { return config; }
+
+            PlayerSettings playerSettings() const;
+
+            /**
+             * Checks and stores the settings of the dialog: an invalid index URI or port gives the error text and
+             * nothing is stored. The user agent follows the player name, a changed HTTP server is restarted (a port
+             * in use keeps the old one running), the index is loaded again (garlic-lib: initParser after the dialog).
+             */
+            std::expected<void, std::string> changePlayerSettings(const PlayerSettings &next);
 
             /// Stops the playback, e.g. for standby or before quitting; the StopMedia come with the next poll().
             void stop();
@@ -196,6 +214,7 @@ namespace garlic::core
             void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
             void logResources();
+            std::expected<void, std::string> restartServer(bool enabled, std::uint16_t port);
     };
 }
 

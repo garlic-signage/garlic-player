@@ -142,18 +142,9 @@ namespace garlic::core
             };
         rest_api = std::make_unique<rest_api::RestApi>(config, *inventory, fs, clock, std::move(actions));
         rest_api->registerRoutes(*router);
-#if GARLIC_CORE_WITH_HTTPD
         auto httpd = config.httpd();
-        if (httpd.enabled)
-        {
-            server = std::make_unique<httpd::MhdServer>(*router, fs);
-            if (auto started = server->start(httpd); !started)
-            {
-                logger->error("Httpd", "not started: " + started.error());
-                server.reset();
-            }
-        }
-#endif
+        if (auto started = restartServer(httpd.enabled, httpd.port); !started)
+            logger->error("Httpd", "not started: " + started.error());
 
         planReboot();
         next_resource_log = clock.monotonic() + resource_log;
@@ -264,6 +255,62 @@ namespace garlic::core
             return;
         engine->stop();
         collectEngine();
+    }
+
+    // ------------------------------------------------------------------ settings
+
+    PlayerSettings PlayerRuntimeApi::playerSettings() const
+    {
+        httpd::HttpdSettings httpd = config.httpd();
+        return {config.playerName(), config.indexUri(), httpd.enabled, httpd.port};
+    }
+
+    std::expected<void, std::string> PlayerRuntimeApi::changePlayerSettings(const PlayerSettings &next)
+    {
+        auto uri = configuration::Configuration::validateIndexUri(next.index_uri);
+        if (!uri)
+            return std::unexpected(uri.error());
+        if (next.httpd_enabled && next.httpd_port == 0)
+            return std::unexpected("invalid port");
+
+        PlayerSettings current = playerSettings();
+        if (next.httpd_enabled != current.httpd_enabled || (next.httpd_enabled && next.httpd_port != current.httpd_port))
+            if (auto restarted = restartServer(next.httpd_enabled, next.httpd_port); !restarted)
+                return restarted; // nothing stored, the old server runs on
+
+        config.setPlayerName(next.player_name);
+        config.setIndexUri(*uri);
+        config.setValue("httpd/enabled", next.httpd_enabled ? "true" : "false");
+        config.setValue("httpd/port", std::to_string(next.httpd_port));
+        if (queue)
+            queue->setUserAgent(config.userAgent()); // the reports read it at every upload
+        if (index)
+            index->start();
+        return {};
+    }
+
+    /// Starts the new server before the old one stops, so a port in use keeps the old one (and its port) running.
+    std::expected<void, std::string> PlayerRuntimeApi::restartServer(bool enabled, std::uint16_t port)
+    {
+#if GARLIC_CORE_WITH_HTTPD
+        std::unique_ptr<httpd::Server> next;
+        if (enabled)
+        {
+            httpd::HttpdSettings httpd = config.httpd(); // the other keys of [httpd]; enabled and port are new
+            httpd.enabled              = true;
+            httpd.port                 = port;
+            next                       = std::make_unique<httpd::MhdServer>(*router, fs);
+            if (auto started = next->start(httpd); !started)
+                return started;
+        }
+        if (server)
+            server->stop();
+        server = std::move(next);
+#else
+        (void)enabled;
+        (void)port;
+#endif
+        return {};
     }
 
     // ------------------------------------------------------------------ inside

@@ -9,5 +9,5 @@ libios
 *.pro.user*
 ./*.sh
 ./*.bat
-!./build_scripts/
+!legacy/build_scripts/
 .idea

@@ -91,7 +91,9 @@ if(GARLIC_CORE_BUILD_SHARED)
     garlic_core_set_options(garlic_core)
 
     # WHOLE_ARCHIVE keeps all symbols of the modules, even if the shared library itself does not use them.
-    target_link_libraries(garlic_core PUBLIC
+    # PRIVATE: the modules are only in the shared library. PUBLIC would hand them on to every user of garlic::core,
+    # which would link them a second time into its own binary.
+    target_link_libraries(garlic_core PRIVATE
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::common>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::logger>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::downloader>"
@@ -106,6 +108,15 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::system>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::player_runtime>"
     )
+
+    # What users of garlic::core need for the headers: the include directory and nlohmann/json (json_fwd.hpp)
+    target_include_directories(garlic_core PUBLIC ${PROJECT_SOURCE_DIR})
+    target_link_libraries(garlic_core PUBLIC nlohmann_json::nlohmann_json)
+
+    # Release without symbol table (strip); MSVC keeps symbols in the .pdb anyway, Apple's linker strips differently
+    if(NOT MSVC AND NOT APPLE)
+        target_link_options(garlic_core PRIVATE $<$<CONFIG:Release>:-s>)
+    endif()
 
     set_target_properties(garlic_core PROPERTIES
         OUTPUT_NAME core

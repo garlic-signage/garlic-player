@@ -52,6 +52,9 @@ namespace garlic::core::downloader
             /// Checks the idle timeouts of the running downloads.
             void poll();
 
+            /// For all downloaders, from their next request on.
+            void setUserAgent(const std::string &user_agent);
+
             std::size_t pendingCount() const noexcept { return pending.size(); }
             std::size_t runningCount() const noexcept;
             bool        isIdle() const noexcept { return pending.empty() && runningCount() == 0; }

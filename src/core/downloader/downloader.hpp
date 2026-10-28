@@ -98,6 +98,9 @@ namespace garlic::core::downloader
             /// Cancels the running job without calling on_finished.
             void cancel();
 
+            /// A new player name changes the user agent; used from the next request on.
+            void setUserAgent(std::string user_agent) { config.user_agent = std::move(user_agent); }
+
             bool isBusy() const noexcept { return phase != Phase::Idle; }
 
         private:
