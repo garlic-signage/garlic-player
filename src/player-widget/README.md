@@ -113,7 +113,18 @@ exactly one `finished` per run, nothing after `stop()`.
 |----------------|---------------------------|----------------------------------------------------------------------|
 | `qtavplayer`   | `PLAYER_WITH_QTAVPLAYER`  | default; FFmpeg, frames to `QVideoWidget`, sound to `QAVAudioOutput`; downloaded by FetchContent (tag `v2026-10-04`); needs the private headers of Qt Multimedia, which Debian Trixie does not ship; frames in formats QtAVPlayer cannot hand to Qt (e.g. 10 bit `yuv420p10le`) are converted to 8 bit YUV420P first, otherwise they stay black |
 | `qtmultimedia` | `PLAYER_WITH_QTMULTIMEDIA`| `QMediaPlayer` (FFmpeg backend of Qt)                                 |
-| `vlc`          | `PLAYER_WITH_VLC`         | draws into a native window: on Linux X11 (`QT_QPA_PLATFORM=xcb`), not Wayland; one libvlc instance for all; no fit (like garlic-lib); events of libvlc are handed to the UI thread |
+| `vlc`          | `PLAYER_WITH_VLC`         | draws into a native window: on Linux X11, start with `--platform xcb` (under Wayland otherwise a second window opens); one libvlc instance for all; no fit (like garlic-lib); events of libvlc are handed to the UI thread |
+
+Chosen at every start, not stored:
+
+```
+garlic-player --media-backend qtmultimedia
+garlic-player --media-backend vlc --platform xcb
+```
+
+**libvlc needs `--platform xcb`**, especially under Wayland: libvlc draws into an X11 window, and without it a second
+window opens for the video (`QT_QPA_PLATFORM=xcb` does the same). In CLion: *Edit Configurations… → player-widget →
+Program arguments*. `garlic-player --help` lists the backends built in.
 
 At least one has to be built; `--media-backend` with one that is not built in ends with the list of the available.
 Without the option it is `qtavplayer`, or the first one built in.

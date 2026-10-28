@@ -109,8 +109,20 @@ Arguments:
 SMIL_INDEX        URI or path of the SMIL index; without it the one of the settings is used. Without any index the
                   settings dialog opens.
 
-The index of the command line wins over the one in a `config.xml`. libvlc needs X11 on Linux (`QT_QPA_PLATFORM=xcb`
-under Wayland); positioning on a screen (`-s`, `bigscreen`) needs X11 too.
+Another media backend for video and audio, only for this start (it is not stored):
+
+```
+garlic-player --media-backend qtmultimedia
+garlic-player --media-backend vlc --platform xcb -m windowed https://example.com/index.smil
+```
+
+**libvlc needs `--platform xcb`**, especially under Wayland: libvlc draws into an X11 window, and without it a second
+window opens for the video. `QT_QPA_PLATFORM=xcb` does the same.
+
+`garlic-player --help` lists the backends built in.
+
+The index of the command line wins over the one in a `config.xml`. Positioning on a screen (`-s`, `bigscreen`) needs X11
+too (`--platform xcb`).
 
 ## HotKeys
  - toggle fullscreen with Ctrl-F

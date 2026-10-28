@@ -26,8 +26,9 @@ struct libvlc_event_t;
 namespace player
 {
     /**
-     * libvlc: draws into the native window of a widget (X11, Windows, macOS; on Linux not under Wayland, start with
-     * QT_QPA_PLATFORM=xcb). The events of libvlc come from its own threads and are handed to the UI thread.
+     * libvlc: draws into the native window of a widget (X11, Windows, macOS). On Linux start with --platform xcb,
+     * under Wayland libvlc otherwise opens a second window. The events of libvlc come from its own threads and are
+     * handed to the UI thread.
      * fit is not supported (like garlic-lib): the video keeps its aspect ratio.
      */
     class VlcMediaPlayer final : public MediaPlayer
