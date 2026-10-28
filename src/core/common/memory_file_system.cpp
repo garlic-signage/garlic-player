@@ -56,9 +56,21 @@ namespace garlic::core::common
         };
     }
 
+    namespace
+    {
+        /// "dir/file" is inside "dir"; directories exist only as the prefix of their files.
+        bool isInside(std::string_view file, std::string_view dir)
+        {
+            return file.size() > dir.size() && file.starts_with(dir) && file[dir.size()] == '/';
+        }
+    }
+
     bool MemoryFileSystem::exists(std::string_view path) const
     {
-        return files.find(path) != files.end();
+        if (files.find(path) != files.end())
+            return true;
+        auto next = files.lower_bound(path);
+        return next != files.end() && isInside(next->first, path);
     }
 
     FileSystemResult<std::uint64_t> MemoryFileSystem::fileSize(std::string_view path) const
@@ -103,12 +115,30 @@ namespace garlic::core::common
     FileSystemResult<void> MemoryFileSystem::rename(std::string_view from, std::string_view to)
     {
         auto it = files.find(from);
-        if (it == files.end())
-            return std::unexpected(notFound(from));
+        if (it != files.end())
+        {
+            auto node = it->second;
+            files.erase(it);
+            files.insert_or_assign(std::string(to), std::move(node));
+            return {};
+        }
 
-        auto node = it->second;
-        files.erase(it);
-        files.insert_or_assign(std::string(to), std::move(node));
+        // a directory: move everything inside it
+        std::vector<std::pair<std::string, std::shared_ptr<Node>>> moved;
+        for (auto entry = files.lower_bound(from); entry != files.end() && entry->first.starts_with(from);)
+        {
+            if (!isInside(entry->first, from))
+            {
+                ++entry;
+                continue;
+            }
+            moved.emplace_back(std::string(to) + entry->first.substr(from.size()), entry->second);
+            entry = files.erase(entry);
+        }
+        if (moved.empty())
+            return std::unexpected(notFound(from));
+        for (auto &[path, node] : moved)
+            files.insert_or_assign(std::move(path), std::move(node));
         return {};
     }
 
@@ -119,6 +149,13 @@ namespace garlic::core::common
             return std::unexpected(notFound(path));
 
         files.erase(it);
+        return {};
+    }
+
+    FileSystemResult<void> MemoryFileSystem::removeAll(std::string_view path)
+    {
+        files.erase(std::string(path));
+        std::erase_if(files, [&](const auto &entry) { return isInside(entry.first, path); });
         return {};
     }
 

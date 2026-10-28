@@ -34,15 +34,19 @@ namespace garlic::core::tests
     class FakeMediaSource final : public smil::MediaSource
     {
         public:
-            std::set<std::string>    missing;
-            std::vector<std::string> prefetched;
+            std::set<std::string>      missing;
+            std::vector<std::string>   prefetched;
+            std::map<std::string, int> in_use; // src → resolve() minus release()
 
             std::optional<std::string> resolve(const smil::Media &media) override
             {
                 if (missing.contains(media.src))
                     return std::nullopt;
+                ++in_use[media.src];
                 return "cache/" + media.src;
             }
+
+            void release(const smil::Media &media) override { --in_use[media.src]; }
 
             void prefetch(const smil::Media &media) override { prefetched.push_back(media.src); }
     };

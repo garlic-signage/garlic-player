@@ -44,6 +44,7 @@ namespace garlic::core::common
             FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) override;
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override;
             FileSystemResult<void> remove(std::string_view path) override;
+            FileSystemResult<void> removeAll(std::string_view path) override;
             FileSystemResult<void> createDirectories(std::string_view path) override;
 
             /// Content of a file as string, std::nullopt if it does not exist.

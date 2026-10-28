@@ -186,6 +186,28 @@ TEST_CASE_TEMPLATE("FileSystem creates nested directories", Fixture, MemoryFixtu
     CHECK(f.read(f.path("x/y/z/file")) == "data");
 }
 
+TEST_CASE_TEMPLATE("FileSystem renames and removes directories with everything in them", Fixture, MemoryFixture, StdFixture)
+{
+    Fixture f;
+    REQUIRE(f.fs.createDirectories(f.path("w.part/js")).has_value());
+    writeFile(f, f.path("w.part/index.html"), "html", WriteMode::Truncate);
+    writeFile(f, f.path("w.part/js/app.js"), "js", WriteMode::Truncate);
+    writeFile(f, f.path("w.partner"), "other", WriteMode::Truncate); // same prefix, not inside
+
+    CHECK(f.fs.exists(f.path("w.part")));
+    REQUIRE(f.fs.rename(f.path("w.part"), f.path("w")).has_value());
+    CHECK(f.read(f.path("w/index.html")) == "html");
+    CHECK(f.read(f.path("w/js/app.js")) == "js");
+    CHECK_FALSE(f.fs.exists(f.path("w.part")));
+    CHECK(f.read(f.path("w.partner")) == "other");
+
+    REQUIRE(f.fs.removeAll(f.path("w")).has_value());
+    CHECK_FALSE(f.fs.exists(f.path("w")));
+    CHECK_FALSE(f.fs.exists(f.path("w/index.html")));
+    CHECK(f.fs.exists(f.path("w.partner")));
+    CHECK(f.fs.removeAll(f.path("not_there")).has_value()); // nothing to remove is no error
+}
+
 TEST_CASE("StdFileSystem handles UTF-8 paths")
 {
     StdFixture  f;

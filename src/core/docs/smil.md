@@ -247,7 +247,11 @@ created a `TUnknown` that was skipped like a missing medium (100 ms in a `seq`, 
 - Time values: `01:30:00.5`, `1:30`, `2h`, `1.5min`, `90s`, `500ms`, `90` (seconds). Offsets in `begin`/`end`
   may have a sign (`-2s`). Negative durations become 0. An unknown unit (`30d`) is 0 like in garlic-lib. Like
   garlic-lib one leading character that is no digit (and no `.`) is dropped, so a typo like `dur="´1s"` is 1 s.
-- In a `seq` only the first value of a list counts. In a list with several values `indefinite` is ignored.
+- `begin` of a `seq` child, SMIL standard: "the only legal value for begin is a (single) non-negative offset value".
+  Only the first value counts; wallclock, triggers, `indefinite` and negative offsets are not readable there and
+  give the default `0s` (garlic-lib rejected only wallclock). The `end` of a `seq` child may use everything, also
+  lists, triggers and wallclock. The body keeps `begin` lists like in garlic-lib.
+- In a list with several values `indefinite` is ignored.
 - `None` and `Indefinite` are different: garlic-lib skipped an image without `dur` and `end`, but showed an image
   with `dur="indefinite"` forever.
 
@@ -411,8 +415,10 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 ### MediaSource
 
 The engine asks the cache through this interface (garlic-lib: `MediaManager`), without knowing the downloader:
-`resolve(media)` gives the local path or URL, `nullopt` skips the element; `prefetch(media)` only downloads.
-`cacheControl` is the business of the implementation.
+`resolve(media)` gives the local path or URL, `nullopt` skips the element; `prefetch(media)` only downloads;
+`release(media)` tells that an instance which got its source from `resolve()` has ended (every successful `resolve()`
+gets one `release()`, also when the instance is displaced or deferred in an `excl`), so an updated file may replace
+it now. `cacheControl` is the business of the implementation; the real one is `content::MediaManager`.
 
 ### How it works
 

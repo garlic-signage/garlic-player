@@ -1052,7 +1052,11 @@ namespace garlic::core::smil
                 source += media.query;
         }
         if (!admit(node))
+        {
+            if (media.kind != MediaKind::Brush)
+                media_source.release(media); // deferred or ignored in an excl: not used
             return;
+        }
 
         m.state             = State::Active;
         m.skipping          = false;
@@ -1101,6 +1105,8 @@ namespace garlic::core::smil
     {
         announceEnd(node);
         Runtime &m      = nodes[node];
+        if (m.media->kind != MediaKind::Brush)
+            media_source.release(*m.media);
         auto     unseen = std::ranges::find_if(pending,
                                                [&](const Command &command)
                                                {

@@ -189,6 +189,16 @@ namespace garlic::core::common
         return {};
     }
 
+    FileSystemResult<void> StdFileSystem::removeAll(std::string_view path)
+    {
+        std::error_code ec;
+        fs::remove_all(toPath(path), ec);
+        if (ec)
+            return std::unexpected(toError(ec, path));
+
+        return {};
+    }
+
     FileSystemResult<void> StdFileSystem::createDirectories(std::string_view path)
     {
         std::error_code ec;

@@ -193,6 +193,33 @@ TEST_CASE("wallclock is not allowed in a seq, in excl and par it is")
     CHECK(std::holds_alternative<Wallclock>(in_excl.timing.begin.at(0)));
 }
 
+TEST_CASE("begin of a seq child: only a single non-negative offset (standard), the end may use everything")
+{
+    Container body = parseBody(R"x(<seq>
+        <img xml:id="key" src="a.jpg" begin="accesskey(a)"/>
+        <img xml:id="sync" src="a.jpg" begin="key.end"/>
+        <img xml:id="indef" src="a.jpg" begin="indefinite"/>
+        <img xml:id="negative" src="a.jpg" begin="-2s"/>
+        <img xml:id="offset" src="a.jpg" begin="3s"/>
+        <img xml:id="ends" src="a.jpg" end="accesskey(x);wallclock(2026-01-01T08:00);5s"/>
+    </seq>)x");
+
+    const auto &children = container(body.children.at(0)).children;
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        const auto &begin = std::get<Media>(children[i]).timing.begin;
+        REQUIRE(begin.size() == 1);
+        CHECK(offset(begin[0]) == 0ms); // not readable: default
+    }
+    CHECK(offset(std::get<Media>(children[4]).timing.begin.at(0)) == 3s);
+
+    const auto &end = std::get<Media>(children[5]).timing.end;
+    REQUIRE(end.size() == 3);
+    CHECK(std::holds_alternative<AccessKey>(end[0]));
+    CHECK(std::holds_alternative<Wallclock>(end[1]));
+    CHECK(std::holds_alternative<Offset>(end[2]));
+}
+
 TEST_CASE("end with triggers")
 {
     Container body = parseBody(R"(<par><img src="a.jpg" end="accesskey(x);img2.endEvent"/></par>)");

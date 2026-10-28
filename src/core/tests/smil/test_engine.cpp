@@ -183,3 +183,24 @@ TEST_CASE("body/simple.smil: the sequence from its comment")
                              " | 14s start img0003 | 15s stop img0003 | 15s start nix_audio | 19s stop nix_audio"
                              " | 19s start img0004 | 20s stop img0004 | 20s start img_end | 21s stop img_end");
 }
+
+TEST_CASE("every resolve() gets one release(), also for instances stopped, displaced or deferred")
+{
+    auto runner = EngineRunner::body(R"(
+        <img xml:id="a" src="a.jpg" dur="1s" repeatCount="2"/>
+        <excl><priorityClass peers="defer">
+            <img xml:id="b" src="b.jpg" begin="0s" dur="2s"/>
+            <img xml:id="c" src="c.jpg" begin="1s" dur="1s"/>
+        </priorityClass></excl>
+        <excl><img xml:id="d" src="d.jpg" begin="0s" dur="1s"/><img xml:id="e" src="e.jpg" begin="0s" dur="1s"/></excl>
+        <img xml:id="f" src="f.jpg" dur="10s"/>)");
+    runner.run(8s);
+    runner.engine->stop();
+    runner.collect();
+    for (const auto &[src, count] : runner.media.in_use)
+    {
+        CAPTURE(src);
+        CHECK(count == 0);
+    }
+}
+

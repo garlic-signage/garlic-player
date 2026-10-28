@@ -1,0 +1,91 @@
+# content
+
+The SMIL index and its media: download, check, hand on. Namespace `garlic::core::content`. garlic-lib: `IndexManager`,
+`MediaManager`, `MediaModel`, `Wgt`.
+
+```cpp
+IndexManager index(queue, fs, clock, logger, config, cache_dir,
+                   [&](smil::Document document, std::string base) { /* swap document + engine, media.load() */ });
+MediaManager media(queue, inventory, fs, logger, cache_dir, supports);   // the smil::MediaSource of the engine
+
+index.start();
+// host loop: transport.poll(); queue.poll(); index.poll(); engine.poll() …
+// download results: the one for index.url() to index.downloaded(), all others to media.downloaded()
+```
+
+| File                     | Content                                                     |
+|--------------------------|-------------------------------------------------------------|
+| `index_manager.hpp/.cpp` | `IndexManager`: get, check and hand on the SMIL index       |
+| `media_manager.hpp/.cpp` | `MediaManager`: the media in the cache, `smil::MediaSource` |
+| `widget.hpp/.cpp`        | `extractWidget()`: unzip `.wgt` with miniz                  |
+
+## IndexManager
+
+Only valid documents are handed on. A broken index leaves the current one playing; the old index file is never
+replaced by a broken one.
+
+```
+start()
+├── local index (path, file://, USB)  read and hand on, no download, no refresh (like garlic-lib)
+└── remote index
+    ├── the last played index (cache/index.smil) plays at once, also offline
+    └── download as cache/index.smil
+         ├── first version               parse → hand on
+         ├── update (index.smil.ready)   parse first: valid → replaces index.smil → hand on
+         │                                        broken → deleted, SMIL_OPEN_ERROR, the current one plays on
+         └── not modified / failed        nothing; without any index yet the cached copy is tried
+refresh: meta http-equiv="Refresh" of the index, at least 60 s, 0 = never
+```
+
+- Handed on with the document is the **base** for relative `src`: the directory of a local index or the URL of a
+  remote one up to the last `/` (query removed), garlic-lib: `getIndexPath`.
+- The handed on file is stored as `last_played_index_path` in the configuration.
+- Events like in garlic-lib: `SMIL_LOADED`, `SMIL_OPEN_ERROR` (with `errorMessage`, `errorLine`), `SMIL_NOT_AVAILABLE`,
+  with `instanceId` `display:0`, `resourceURI`, `contentLength`, `lastModifiedTime`.
+- Without any valid index (first start, broken file) the manager tries again every 60 s. garlic-lib restarted the
+  player (`reboot("index_broken")`), and after the restart found the broken file again.
+- garlic-lib stopped the playing body first and renamed the download over the old index before parsing it. Now the
+  new document is parsed while the old one plays and swapped only if it is valid.
+
+## MediaManager
+
+`load(document, base)` registers the media of a new index (garlic-lib: `registerFile`):
+
+| `src`                                   | Handling                                                          |
+|-----------------------------------------|-------------------------------------------------------------------|
+| not supported (`supports` says no)      | not downloaded, event `MEDIA_UNSUPPORTED` (contentId, resourceURI, mediaType), once per index version |
+| `http://`, `https://`, `ftp://`         | download queue; a version in the cache is playable at once, also offline |
+| relative                                | against the base of the index, then as above                     |
+| absolute path, `file://`, `data:`       | used as it is                                                     |
+| `adapi:…`                               | used as it is                                                     |
+| local `.wgt`                            | extracted next to the file                                        |
+
+Region and root-layout backgrounds are registered too; the frontend gets their path with `locate(src)`. The
+playback does not wait for them (SMIL standard: no rule to wait for media; garlic-lib waited up to 10 s).
+
+`resolve(media)` for the engine (garlic-lib: `getLoadablePath`, `checkCacheStatus`):
+
+- not supported, or not downloaded yet → `nullopt`: the engine skips it and tries again next time
+- the cache file comes from the inventory of the downloader (URL → file name)
+- not cacheable (a web page) → the URL itself, unless `cacheControl="onlyIfCached"`
+- an update waits as `<file>.ready`; it replaces the file at the next `resolve()` when no instance plays the file any
+  more. The engine reports the end of an instance with `release()`, this replaces `currently_playing` of garlic-lib
+  that the player had to keep.
+- widgets → the extracted `index.html`; the engine appends the query
+
+`supports` comes from the frontend and says what the player can show, e.g. no video on an e-ink display.
+
+Not done yet: removing old files when space is short (garlic-lib: `FreeDiscSpace`); the downloader has the
+`make_space` hook for it.
+
+## Widgets
+
+A `.wgt` is a zip archive. It is extracted next to the file: `cache/abc.wgt` → `cache/abc/`, played is
+`cache/abc/index.html`. miniz reads the archive; it is one C file, also on WASM, and ESP-IDF brings it along.
+
+- Extracted again only if the file is newer than the extracted `index.html` (garlic-lib: `mustExtract`).
+- Extracted into `<directory>.part` first; only when everything worked it replaces the directory. A broken archive
+  keeps the old widget. garlic-lib deleted the directory first.
+- Entries with an absolute path, a drive or `..` reject the whole archive ("zip slip"). garlic-lib did not check.
+- The directory is the whole name without `.wgt`. garlic-lib compared with `baseName()`, which cuts at the first dot,
+  so `xyz.secret.wgt` was extracted again at every check.

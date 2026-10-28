@@ -84,11 +84,15 @@ namespace garlic::core::common
 
             virtual FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) = 0;
 
-            /// Renames a file. An existing target is replaced.
+            /// Renames a file or a directory. An existing target file is replaced; an existing target directory has to
+            /// be removed first (removeAll).
             virtual FileSystemResult<void> rename(std::string_view from, std::string_view to) = 0;
 
             /// Removes a file. Returns NotFound if it does not exist.
             virtual FileSystemResult<void> remove(std::string_view path) = 0;
+
+            /// Removes a file or a directory with everything in it. Nothing to remove is no error.
+            virtual FileSystemResult<void> removeAll(std::string_view path) = 0;
 
             /// Creates a directory including all missing parents. Existing directories are no error.
             virtual FileSystemResult<void> createDirectories(std::string_view path) = 0;

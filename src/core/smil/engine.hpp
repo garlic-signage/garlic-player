@@ -80,6 +80,10 @@ namespace garlic::core::smil
 
             /// <prefetch>: only download, nothing is shown.
             virtual void prefetch(const Media &media) = 0;
+
+            /// An instance that got its source from resolve() has ended: the file is not used by it any more
+            /// (e.g. an updated version may replace it now). Every successful resolve() gets one release().
+            virtual void release(const Media &media) = 0;
     };
 
     struct EngineConfig

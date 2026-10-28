@@ -28,8 +28,9 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 | `lastModified(path)`         | as `system_clock::time_point`                                |
 | `readFile(path)`             | complete content, for small files (configuration, SMIL)      |
 | `openForWrite(path, mode)`   | `Truncate` or `Append` (resume); returns a `WritableFile`    |
-| `rename(from, to)`           | replaces an existing target                                  |
+| `rename(from, to)`           | file or directory; replaces an existing target file          |
 | `remove(path)`               | `NotFound` if missing                                        |
+| `removeAll(path)`            | file or directory with everything in it; missing is no error |
 | `createDirectories(path)`    | existing directories are no error                            |
 
 `WritableFile::write()` takes data in chunks; `close()` flushes and reports whether everything was stored.

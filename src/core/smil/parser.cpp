@@ -487,16 +487,12 @@ namespace garlic::core::smil
          *   indefinite | wallclock(…) | offset | accesskey(…) | notify(…) | id.begin, id.end | id.event
          * Unreadable values give nullopt.
          */
-        std::optional<TimeCondition> parseTimeCondition(std::string_view v, ContainerKind parent)
+        std::optional<TimeCondition> parseTimeCondition(std::string_view v)
         {
             if (v.contains("indefinite"))
                 return Indefinite{};
             if (v.starts_with("wallclock(") && v.ends_with(')'))
-            {
-                if (parent == ContainerKind::Seq) // children of a seq cannot have wallclocks
-                    return std::nullopt;
                 return parseWallclock(v.substr(10, v.size() - 11));
-            }
             if (v.front() == '+' || v.front() == '-' || isDigit(v.front()))
                 return Offset{parseClockValue(v)};
             if (v.starts_with("accesskey("))
@@ -525,23 +521,34 @@ namespace garlic::core::smil
 
         /**
          * begin/end: list separated by ";", e.g. "0s;10s", garlic-lib: EnhancedTimer::parse.
-         * In a seq only the first value counts. In a list with several values "indefinite" is ignored.
+         * In a list with several values "indefinite" is ignored.
+         *
+         * SMIL standard for the begin of a seq child: "the only legal value for begin is a (single) non-negative offset
+         * value" - only the first value counts, anything else (wallclock, triggers, indefinite, negative) is not
+         * readable and gives the default 0s. The end of a seq child may use everything.
          */
-        std::vector<TimeCondition> parseTimeList(std::string_view value, ContainerKind parent)
+        std::vector<TimeCondition> parseTimeList(std::string_view value, ContainerKind parent, bool is_begin)
         {
+            bool                          seq_begin = parent == ContainerKind::Seq && is_begin;
             std::vector<std::string_view> values;
             for (auto part : split(value, ';'))
                 if (auto v = trim(part); !v.empty())
                     values.push_back(v);
-            if (parent == ContainerKind::Seq && values.size() > 1)
+            if (seq_begin && values.size() > 1)
                 values.resize(1);
 
             std::vector<TimeCondition> conditions;
             for (auto v : values)
             {
-                auto condition = parseTimeCondition(v, parent);
+                auto condition = parseTimeCondition(v);
                 if (!condition)
                     continue;
+                if (seq_begin)
+                {
+                    const auto *offset = std::get_if<Offset>(&*condition);
+                    if (!offset || offset->value < std::chrono::milliseconds(0))
+                        continue;
+                }
                 if (std::holds_alternative<Indefinite>(*condition) && values.size() > 1)
                     continue;
                 conditions.push_back(std::move(*condition));
@@ -554,7 +561,7 @@ namespace garlic::core::smil
         {
             Timing timing;
             if (auto begin = attribute(node, "begin"))
-                timing.begin = parseTimeList(*begin, parent);
+                timing.begin = parseTimeList(*begin, parent, true);
             if (timing.begin.empty()) // missing or not readable; in an excl only a trigger starts an element
             {
                 if (parent == ContainerKind::Excl || parent == ContainerKind::PriorityClass)
@@ -564,7 +571,7 @@ namespace garlic::core::smil
             }
 
             if (auto end = attribute(node, "end"))
-                timing.end = parseTimeList(*end, parent);
+                timing.end = parseTimeList(*end, parent, false);
             if (auto dur = attribute(node, "dur"))
                 timing.dur = parseDuration(*dur);
 

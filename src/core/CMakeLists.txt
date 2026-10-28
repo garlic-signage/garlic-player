@@ -36,6 +36,26 @@ FetchContent_Declare(nlohmann_json
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+# miniz (zip for widgets): from vcpkg or the system, otherwise downloaded. ESP-IDF brings its own.
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(INSTALL_PROJECT OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(miniz
+    GIT_REPOSITORY    https://github.com/richgel999/miniz.git
+    GIT_TAG           3.0.2
+    GIT_SHALLOW       TRUE
+    SYSTEM
+    FIND_PACKAGE_ARGS CONFIG
+)
+# miniz 3.0.2 asks for CMake 3.0, which CMake 4 no longer accepts; only for miniz
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+FetchContent_MakeAvailable(miniz)
+unset(CMAKE_POLICY_VERSION_MINIMUM)
+if(NOT TARGET miniz::miniz)
+    add_library(miniz::miniz ALIAS miniz)
+endif()
+
 # Static modules
 add_subdirectory(common)
 add_subdirectory(logger)
@@ -45,6 +65,7 @@ add_subdirectory(httpd)
 add_subdirectory(configuration)
 add_subdirectory(rest_api)
 add_subdirectory(smil)
+add_subdirectory(content)
 
 if(GARLIC_CORE_BUILD_TESTS)
     enable_testing()
@@ -73,6 +94,7 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::configuration>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::rest_api>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::smil>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::content>"
     )
 
     set_target_properties(garlic_core PROPERTIES

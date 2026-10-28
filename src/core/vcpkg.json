@@ -19,7 +19,8 @@
       "platform": "!emscripten"
     },
     "nlohmann-json",
-    "libxml2"
+    "libxml2",
+    "miniz"
   ],
   "features": {
     "tests": {
