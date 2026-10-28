@@ -1,7 +1,7 @@
 # player-widget: the Qt Widgets frontend of the garlic-player on the core (PlayerRuntimeApi in a ThreadedRuntime)
 cmake_minimum_required(VERSION 3.25)
 
-project(player-widget VERSION 0.7.0 LANGUAGES CXX)
+project(player-widget VERSION 2.0.0 LANGUAGES CXX)
 
 # Video and audio backends, chosen at runtime with --media-backend; at least one has to be built
 option(PLAYER_WITH_QTAVPLAYER "QtAVPlayer (FFmpeg), the default backend" ON)
@@ -35,7 +35,7 @@ if(NOT MSVC)
     target_compile_options(player-widget PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 # QT_NO_KEYWORDS: the core has members like "slots", which the Qt macros would replace
-target_compile_definitions(player-widget PRIVATE PLAYER_VERSION="${PROJECT_VERSION}" QT_NO_KEYWORDS)
+target_compile_definitions(player-widget PRIVATE PLAYER_VERSION="${PROJECT_VERSION}-beta" QT_NO_KEYWORDS)
 target_link_libraries(player-widget PRIVATE garlic::core Qt6::Widgets Qt6::WebEngineWidgets)
 if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(player-widget PRIVATE $<$<CONFIG:Release>:-s>)

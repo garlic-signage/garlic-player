@@ -80,7 +80,9 @@ int main(int argc, char *argv[])
          "windowed"},
         {{"z", "windows-size"}, "size in windows mode, e.g. 980x540", "width x height", "980x540"},
         {{"s", "screen-select"}, "number of the screen to start on", "screen", "0"},
-        {"media-backend", "video and audio: " + player::mediaBackendNames().join(", "), "backend", "qtavplayer"},
+        // default: qtavplayer, or the first one built in if it is not
+        {"media-backend", "video and audio: " + player::mediaBackendNames().join(", "), "backend",
+         player::mediaBackendNames().first()},
     });
     parser.addPositionalArgument("SMIL_INDEX", "URI or path of the SMIL index; empty: the one in the settings");
     parser.process(app);
