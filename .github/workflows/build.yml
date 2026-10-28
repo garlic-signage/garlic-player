@@ -1,11 +1,19 @@
+# Builds on the own runners. They start only after the CI (tests of the core in Debian Trixie) passed on master,
+# or by hand. GARLIC_SHA is the tested commit: the build scripts check out exactly that one.
 name: Build
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
+
+env:
+  GARLIC_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
   build-macos:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - name: Run macOS Build Script
@@ -13,6 +21,7 @@ jobs:
       - name: Run iOS Build Script
         run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]
     steps:
       - name: Run Windows 11 Build Script
@@ -20,11 +29,13 @@ jobs:
         run: |
           call "C:\BuildEssentials\3.1_buildPlayer.bat"
   build-linux-arm64:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Run Arm64 Linux Build Script
         run: /home/niko/scripts/build.sh
   build-linux-X64:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Run x64 Linux Build Script
