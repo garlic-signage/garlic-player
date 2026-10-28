@@ -56,3 +56,59 @@ the `Clock` interface.
 | `FetchTransport`    | browser (WASM)                          | planned  |
 | Tizen, webOS        | via JS bridge                           | planned  |
 | ESP32               | `esp_http_client`                       | planned  |
+
+## Downloader
+
+Header: `downloader/downloader.hpp`
+
+```cpp
+Downloader downloader{transport, fs, inventory, clock, config};
+downloader.start(url, "", [](const DownloadResult &r) { play(r.local_path); });
+// host loop: transport.poll(); downloader.poll();
+```
+
+One job at a time. `on_finished` is called exactly once, always from inside a `poll()`.
+
+### Flow
+
+1. HEAD, conditional (`If-None-Match`, `If-Modified-Since`) if the cached file exists
+2. 3xx: follow `Location` (absolute or relative), at most `max_redirects`
+3. 304, or the same ETag (or Last-Modified + size without ETag): `NotModified`
+4. `text/html`: `NotCacheable`; unknown content type: `Failed` (except `.wgt` and `.smil`)
+5. `make_space(bytes)`, inventory state `Transfer`
+6. GET into `<name>.part`; resume with `Range` + `If-Range` if the server still has the same version
+7. check: not empty, size matches `Content-Length`
+8. rename to `<name>`, or to `<name>.ready` if `<name>` exists; inventory state `Complete`
+
+### Results
+
+| Status         | `local_path`                                   |
+|----------------|------------------------------------------------|
+| `Downloaded`   | `<name>`; the new file may wait as `<name>.ready` |
+| `NotModified`  | `<name>`                                       |
+| `NotCacheable` | empty, the player uses the URL                 |
+| `Failed`       | the cached copy if there is one, else empty    |
+
+**The player keeps playing on errors.** No error deletes or overwrites the cached file: HTTP errors, connection
+loss, timeout, wrong size, no disk space. `Failed` returns the cached copy in `local_path`; `error` and `http_status`
+are for logging.
+
+### File names
+
+`MD5(original URL) + "." + extension`. The extension comes from the URL; from the content type if the URL has none,
+is a script (`.php`, `.asp`, …) or the server sends `application/octet-stream`. A fixed name (e.g. `index.smil`) can
+be passed to `start()`.
+
+### Inventory
+
+`Inventory` (`downloader/inventory.hpp`) stores per URL: file name, ETag and Last-Modified exactly as sent by the
+server, content type, size and state. Implemented by the database module later, `MemoryInventory` in the tests.
+
+### Differences to garlic-lib
+
+- ETag and Last-Modified are sent back unchanged (garlic-lib removed the quotes of the ETag and used its own
+  download time as If-Modified-Since).
+- Several redirects instead of one; `Location` may be relative.
+- Resume checks with `If-Range` that the file did not change.
+- Idle timeout for stalled downloads.
+- Not ported: computing the MD5 of the local file as ETag when the server changes (`handleDifferentServer`).

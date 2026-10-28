@@ -56,6 +56,8 @@ namespace garlic::core::downloader::tests
                                                            HttpResponseHandler &handler) override
             {
                 requests.push_back(request);
+                if (refuse_start)
+                    return std::unexpected(TransportError{TransportErrorCode::Busy, "refused"});
 
                 Response response;
                 response.status = 404;
@@ -84,6 +86,9 @@ namespace garlic::core::downloader::tests
 
             /// All requests in the order they were started.
             std::vector<HttpRequest> requests;
+
+            /// Set: start() fails with TransportErrorCode::Busy.
+            bool refuse_start = false;
 
         private:
             struct Active
