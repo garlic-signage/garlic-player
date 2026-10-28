@@ -20,7 +20,7 @@ that is missing gets the default values of garlic-lib, unknown elements and attr
 are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
-follows.
+plays media in the body; `seq`, `par`, `excl`, `begin`/`end`, `expr` and triggers follow step by step.
 
 ## How the parser works
 
@@ -33,6 +33,7 @@ follows.
 | `parser.cpp`   | everything else of the parser                                           |
 | `wallclock.hpp/.cpp` | `wallclockTriggers()`: when a wallclock fires (runtime)           |
 | `expr.hpp/.cpp`      | `evaluateExpr()`: whether an `expr` is true (runtime)             |
+| `engine.hpp/.cpp`    | `Engine`: plays a `Document`, events in, commands out             |
 
 libxml2 is only used in `parser.cpp` and `expr.cpp`.
 
@@ -355,4 +356,83 @@ not replaced as text:
   later, it is registered by hand like `compare`.
 - Fixed: `adapi-gmweekday()` returned the local weekday (garlic-lib replaced `adapi-weekday()` instead), and
   `smil-playerId()`/`smil-playerName()` were replaced by an empty string, so expressions with them were always false.
+
+## Engine
+
+The engine plays a `Document`. It decides **what** plays when and where; the player decides **how** (widget,
+decoder, WebView). Events go in, commands come out. No timers, no threads: the host calls `poll()`.
+
+```cpp
+Engine engine(document, clock, media_source, logger, {uuid, player_name});
+engine.start();
+while (running)
+{
+    for (const Command &command : engine.poll())
+        std::visit(player, command);               // StartMedia, StopMedia, RepeatMedia, PauseMedia, ResumeMedia
+    sleepUntil(engine.nextDeadline());             // or until the player reports something
+}
+// from the player: engine.mediaFinished(id), engine.mediaFailed(id)
+```
+
+The `Document` must live as long as the engine; `StartMedia::media` points into it. For a new index the index
+manager parses it first and swaps document and engine only if it is valid; a broken index leaves the old one playing.
+
+### Player interface
+
+| Engine → player | Meaning                                                                      |
+|-----------------|------------------------------------------------------------------------------|
+| `StartMedia`    | show instance `id`: `media` (kind, fit, soundLevel …), `source`, `regions`   |
+| `StopMedia`     | remove instance `id`                                                         |
+| `RepeatMedia`   | `repeatCount`: play instance `id` again from the beginning (video, audio); an image just stays |
+| `PauseMedia`, `ResumeMedia` | for `excl` (follows)                                              |
+
+| Player → engine        | When                                                                  |
+|------------------------|-----------------------------------------------------------------------|
+| `mediaFinished(id)`    | a video or audio ended by itself                                      |
+| `mediaFailed(id)`      | a medium could not be played                                          |
+
+- `InstanceId` is a running number per start, the basis for transitions later (two instances in one region).
+- `source` is ready to use: local path from the cache, the URL of uncachable media, widgets with their query. A brush
+  has no source.
+- `regions` are indexes into `head.regions`: all regions whose `regionName` (or `id` without `regionName`) is the
+  `region` of the medium, like the old player. Unknown region: the first one (lowest `z-index`); the old player
+  took the alphabetically first id.
+- The play log is written by the engine: one entry per instance with `logContentId`, from start to stop. Failed
+  media get none.
+
+### MediaSource
+
+The engine asks the cache through this interface (garlic-lib: `MediaManager`), without knowing the downloader:
+`resolve(media)` gives the local path or URL, `nullopt` skips the element; `prefetch(media)` only downloads.
+`cacheControl` is the business of the implementation.
+
+### How it works
+
+```
+Document (parser, unchanged)       Runtime per node (engine)
+body ──────────────────────────►   Active, run started at 0 s, next child 2
+├── img a ─────────────────────►   Ended
+└── video v ───────────────────►   Active, instance #2
+Schedule: [ 10 s: v SimpleEnd ] …
+```
+
+- Every node has a small `Runtime`: state (Idle, Active, Ended), remaining repeats, the instance of a medium, the
+  next child of a container. The tree stays unchanged.
+- One schedule (priority queue: time → node → event) replaces all QTimers of garlic-lib. `poll()` works off what is
+  due and collects the commands. Events of a node that has ended since are ignored (generation counter).
+- Calls of the player (`mediaFinished` …) only change the state; their commands come with the next `poll()`.
+
+### Rules for media (garlic-lib: `prepareDurationTimers`, `finishIntrinsicDuration`, `finishedSimpleDuration`)
+
+- Image, text, widget, brush, command: need `dur` with a time or `indefinite`; without (`dur` missing, `0s`,
+  `media`) they are skipped.
+- Video and audio: without `dur` until the player reports the end; with `dur` the `dur` decides, an earlier end is
+  ignored (and a later one too).
+- `mediaFailed` is like an early end: with `dur` the time still runs ("4s nothing" in `body/simple.smil`), without
+  `dur` the next element follows at once.
+- Media the `MediaSource` does not have are skipped; `prefetch` is downloaded and skipped.
+- `repeatCount` plays the instance again (`RepeatMedia`), the play log has one entry for all repeats.
+- The body plays its children one after another like a `seq`, with `repeatCount`.
+- A repeating container whose run played nothing (e.g. all media still downloading) is tried again after
+  `empty_run_retry` (1 s) instead of looping within one `poll()`. garlic-lib waited 100 ms per skipped element.
 

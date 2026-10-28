@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<smil>
+	<head>
+        <meta http-equiv="refresh" content="20" />
+		<meta name="title" content="Testing different mediaAlign values" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="yellow"  mediaAlign="center"/>
+		</layout>
+	</head>
+	<body>
+		<!--
+
+			sequence should be: yellow background
+			begin topLeft (default), 1 topLeft , 2 topMid, 3 topRight, 4 midLeft, 5 center, 6 midRight, 7 bottomLeft, 8 bottomMid, 9 bottomRight, end topLeft(default)
+					all for 1 seconds defaut set in region screen and is center
+
+		-->
+		<img xml:id="img_begin" src="../../images/begin.jpg" dur="1s" fit="meetBest" region="screen" />
+		<img xml:id="img0001" src="../../images/0001.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="topLeft" />
+		<img xml:id="img0002" src="../../images/0002.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="topMid" />
+		<img xml:id="img0003" src="../../images/0003.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="topRight" />
+		<img xml:id="img0004" src="../../images/0004.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="midLeft" />
+		<img xml:id="img0005" src="../../images/0005.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="center" />
+		<img xml:id="img0006" src="../../images/0006.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="midRight" />
+		<img xml:id="img0007" src="../../images/0007.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="bottomLeft" />
+		<img xml:id="img0008" src="../../images/0008.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="bottomMid" />
+		<img xml:id="img0009" src="../../images/0009.jpg" dur="1s" fit="meetBest" region="screen" mediaAlign="bottomRight" />
+		<img xml:id="img_end" src="../../images/end.jpg" dur="1s" fit="meetBest"  region="screen" />
+	</body>
+</smil>
