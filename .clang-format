@@ -1,0 +1,15 @@
+# Formatting rules, see CONVENTIONS.md
+# Requires clang-format 19 or newer
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 120
+BreakBeforeBraces: Allman
+IndentAccessModifiers: true
+PointerAlignment: Right
+ReferenceAlignment: Right
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+IndentCaseLabels: true
+AlignConsecutiveAssignments: Consecutive
+SortIncludes: Never

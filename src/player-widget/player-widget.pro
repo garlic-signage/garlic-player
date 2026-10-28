@@ -35,7 +35,7 @@ linux {
     contains(QT_ARCH, arm64){
         CONFIG   += support_libvlc
     } else {
-        CONFIG   += support_qtavplayer
+        CONFIG   += support_libvlc
     }
 }
 
