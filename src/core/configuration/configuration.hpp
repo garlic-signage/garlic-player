@@ -21,6 +21,7 @@
 #include "common/clock.hpp"
 #include "common/file_system.hpp"
 #include "configuration/ini_file.hpp"
+#include "httpd/httpd_settings.hpp"
 
 #include <expected>
 #include <string>
@@ -82,6 +83,10 @@ namespace garlic::core::configuration
             /// Token for the REST API. Valid for one day, a new one is created after it expired.
             std::string determineApiAccessToken(std::string_view username, std::string_view password);
             std::string apiAccessToken() const { return value("api_access_token"); }
+
+            // --- settings of the modules
+            /// HTTP server from the group [httpd]; defaults for missing keys, upload_dir is the cache directory.
+            httpd::HttpdSettings httpd() const;
 
             // --- given by the frontend, not stored
             void               setVersion(std::string v) { version = std::move(v); }

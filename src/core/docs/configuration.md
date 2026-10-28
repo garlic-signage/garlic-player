@@ -35,6 +35,8 @@ std::string ua = config.userAgent();
 | `determineApiAccessToken(user, pass)`    | `api_access_token`, `api_access_token_expire` |
 | `value(key)`, `setValue(key, value)`     | any other key, e.g. `audio/volume`        |
 
+`httpd()` returns the `HttpdSettings` of the HTTP server, see [httpd](httpd.md).
+
 Not stored, derived or given by the frontend: `indexPath()`, `validateIndexUri()`, `os()`, `userAgent()`,
 `cacheDir()`, `logDir()`.
 

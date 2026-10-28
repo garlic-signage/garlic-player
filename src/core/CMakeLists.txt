@@ -9,15 +9,16 @@ project(garlic-core
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(GarlicCoreOptions)
 
-# No dynamic libraries on WASM and ESP32: the static modules are linked directly there.
+# WASM and ESP32: no shared library (the static modules are linked directly), no libcurl, no libmicrohttpd
 if(EMSCRIPTEN OR ESP_PLATFORM)
-    set(_garlic_core_shared_default OFF)
+    set(_garlic_core_native OFF)
 else()
-    set(_garlic_core_shared_default ON)
+    set(_garlic_core_native ON)
 endif()
 
-option(GARLIC_CORE_BUILD_SHARED "Build the shared library 'core' from all static modules" ${_garlic_core_shared_default})
-option(GARLIC_CORE_WITH_CURL "Build the CurlTransport (libcurl)" ${_garlic_core_shared_default})
+option(GARLIC_CORE_BUILD_SHARED "Build the shared library 'core' from all static modules" ${_garlic_core_native})
+option(GARLIC_CORE_WITH_CURL "Build the CurlTransport (libcurl)" ${_garlic_core_native})
+option(GARLIC_CORE_WITH_HTTPD "Build the HTTP server (libmicrohttpd)" ${_garlic_core_native})
 option(GARLIC_CORE_BUILD_TESTS "Build the unit tests of the modules" ${PROJECT_IS_TOP_LEVEL})
 
 # Static modules are linked into a shared library later, so they need PIC.
@@ -27,6 +28,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(common)
 add_subdirectory(downloader)
 add_subdirectory(database)
+add_subdirectory(httpd)
 add_subdirectory(configuration)
 
 if(GARLIC_CORE_BUILD_TESTS)
@@ -51,6 +53,7 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::common>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::downloader>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::database>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::httpd>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::configuration>"
     )
 

@@ -5,7 +5,8 @@ HTTP server, SMIL parser, configuration, logger, system information) to the play
 JavaScript/WASM, ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
-[downloader](docs/downloader.md), [database](docs/database.md), [configuration](docs/configuration.md).
+[downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),
+[configuration](docs/configuration.md).
 
 ## Layout
 
@@ -19,11 +20,13 @@ src/core/
 ├── common/               shared types and interfaces (.hpp and .cpp side by side)
 ├── downloader/
 ├── database/
+├── httpd/
 ├── configuration/
 └── tests/                one test executable per module
     ├── common/
     ├── downloader/
     ├── database/
+    ├── httpd/
     ├── configuration/
     └── support/          fakes shared by the tests
 ```
@@ -63,4 +66,5 @@ The libraries are built without exceptions, the test executables with exceptions
 |---------------------------|-----------------------------|-----------------------------------------------|
 | `GARLIC_CORE_BUILD_SHARED`| `ON` (`OFF` on WASM/ESP32)  | build the shared library `core`               |
 | `GARLIC_CORE_WITH_CURL`   | `ON` (`OFF` on WASM/ESP32)  | build the CurlTransport (needs libcurl)       |
+| `GARLIC_CORE_WITH_HTTPD`  | `ON` (`OFF` on WASM/ESP32)  | build the HTTP server (needs libmicrohttpd)   |
 | `GARLIC_CORE_BUILD_TESTS` | `ON` if top-level project   | build the unit tests                          |

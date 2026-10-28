@@ -192,3 +192,35 @@ TEST_CASE("paths given by the frontend")
     CHECK(f.config.cacheDir() == "/data/cache");
     CHECK(f.config.logDir() == "/data/logs");
 }
+
+TEST_CASE("httpd settings from the ini, defaults for missing or invalid keys")
+{
+    Fixture f;
+    f.putIni("[General]\nuuid=u\nplayer_name=p\n\n[httpd]\nhost=127.0.0.1\nmaxRequestSize=16000\n"
+             "minThreads=8\nport=9090\nreadTimeout=1500\nmaxMultiPartSize=abc\n");
+    REQUIRE(f.config.load().has_value());
+    f.config.setCacheDir("/data/cache");
+
+    auto s = f.config.httpd();
+    CHECK(s.enabled);
+    CHECK(s.bind_address == "127.0.0.1");
+    CHECK(s.port == 9090);
+    CHECK(s.max_request_size == 16000);
+    CHECK(s.max_multipart_size == 114857600); // invalid: default
+    CHECK(s.read_timeout == 2s);              // 1500 ms rounded up
+    CHECK(s.upload_dir == "/data/cache");
+
+    // defaults are not written into the ini
+    CHECK(f.ini().find("maxMultiPartSize=abc") != std::string::npos);
+}
+
+TEST_CASE("httpd can be switched off in the ini")
+{
+    Fixture f;
+    REQUIRE(f.config.load().has_value());
+    CHECK(f.config.httpd().enabled);
+    CHECK(f.config.httpd().port == 8080);
+
+    f.config.setValue("httpd/enabled", "false");
+    CHECK_FALSE(f.config.httpd().enabled);
+}

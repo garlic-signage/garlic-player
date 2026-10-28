@@ -19,7 +19,9 @@
 
 #include "common/md5.hpp"
 
+#include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <format>
 #include <random>
@@ -59,6 +61,14 @@ namespace garlic::core::configuration
             auto colon = uri.find(':');
             return colon != std::string_view::npos && colon > 0 &&
                    uri.substr(0, colon).find_first_of("/?#") == std::string_view::npos;
+        }
+
+        /// Number from the ini, the default if the key is missing or no valid number.
+        template <typename T> T number(const std::string &text, T fallback)
+        {
+            T value{};
+            auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+            return error == std::errc{} && end == text.data() + text.size() ? value : fallback;
         }
 
         std::string upper(std::string text)
@@ -171,6 +181,23 @@ namespace garlic::core::configuration
         setValue("api_access_token_expire", expire);
         setValue("api_access_token", token);
         return token;
+    }
+
+    httpd::HttpdSettings Configuration::httpd() const
+    {
+        httpd::HttpdSettings s;
+        std::string          enabled = value("httpd/enabled");
+        s.enabled                    = enabled != "false" && enabled != "0";
+        s.bind_address               = value("httpd/host");
+        s.port                       = number(value("httpd/port"), s.port);
+        s.max_request_size           = number(value("httpd/maxRequestSize"), s.max_request_size);
+        s.max_multipart_size         = number(value("httpd/maxMultiPartSize"), s.max_multipart_size);
+        s.upload_dir                 = cache_dir;
+
+        // milliseconds in the ini (QtWebApp), whole seconds for the server, at least one
+        auto timeout_ms = number<std::int64_t>(value("httpd/readTimeout"), 60000);
+        s.read_timeout  = std::chrono::seconds{std::max<std::int64_t>(1, (timeout_ms + 999) / 1000)};
+        return s;
     }
 
     std::string_view Configuration::os()

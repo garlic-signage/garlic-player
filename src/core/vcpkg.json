@@ -13,7 +13,11 @@
       ],
       "platform": "!emscripten"
     },
-    "sqlite3"
+    "sqlite3",
+    {
+      "name": "libmicrohttpd",
+      "platform": "!emscripten"
+    }
   ],
   "features": {
     "tests": {
