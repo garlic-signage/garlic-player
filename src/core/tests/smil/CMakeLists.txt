@@ -8,6 +8,7 @@ add_executable(garlic_core_smil_tests
     test_wallclock.cpp
     test_expr.cpp
     test_engine.cpp
+    test_engine_containers.cpp
 )
 garlic_core_set_options(garlic_core_smil_tests TEST)
 

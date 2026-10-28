@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <optional>
 #include <queue>
+#include <random>
 #include <string>
 #include <variant>
 #include <vector>
@@ -85,6 +86,10 @@ namespace garlic::core::smil
         std::string player_id;   // smil-playerId() in expr
         std::string player_name; // smil-playerName() in expr
 
+        /// Start value of the random generator for <seq> with pickNumber. The host passes a random value
+        /// (e.g. std::random_device); tests a fixed one, so the order is the same on every platform.
+        std::uint32_t random_seed = 0;
+
         /// A repeating container whose run played nothing (e.g. all media still downloading) is not repeated at
         /// once, but after this time. Otherwise it would loop without end in one poll().
         std::chrono::milliseconds empty_run_retry{1000};
@@ -137,7 +142,10 @@ namespace garlic::core::smil
                 int           remaining_repeats = 1;
 
                 // container
-                std::size_t                           next_child = 0;
+                bool                                  starting = false; // in activate(): a synchronous end is a skip
+                std::vector<std::size_t>              run_order;        // seq: the children of this run
+                std::size_t                           next_child = 0;   // seq: index into run_order
+                std::vector<std::size_t>              pick_stack;       // seq with pickNumber: not yet picked
                 std::chrono::steady_clock::time_point run_start;
 
                 // media
@@ -148,7 +156,7 @@ namespace garlic::core::smil
 
             enum class EventType
             {
-                SimpleEnd, // dur has elapsed
+                SimpleEnd, // dur of a medium or a container has elapsed
                 Run        // run a container again (empty_run_retry)
             };
 
@@ -177,17 +185,25 @@ namespace garlic::core::smil
             std::uint64_t          next_order    = 0;
             InstanceId             next_instance = 0;
             std::vector<Command>   pending;
+            std::mt19937           random;
 
             void        addNode(const Node &node, std::size_t parent);
             void        at(std::chrono::steady_clock::time_point time, std::size_t node, EventType type);
             std::optional<std::size_t> findInstance(InstanceId id) const;
+            const std::string         &idOf(std::size_t node) const;
             std::vector<std::size_t>   regionsOf(const Media &media) const;
 
+            bool hasDur(const Timing &timing) const; // dur with a time or indefinite: the dur decides the end
+
             bool activate(std::size_t node);
+            bool startContainer(std::size_t container);
             void beginRun(std::size_t container);
+            std::vector<std::size_t> pickChildren(std::size_t container);
             void playNext(std::size_t container);
-            void childEnded(std::size_t container);
+            void childEnded(std::size_t container, std::size_t child);
+            void childrenDone(std::size_t container);
             void containerSimpleEnd(std::size_t container);
+            void stopChildren(std::size_t container);
 
             bool startMedia(std::size_t node);
             void mediaSimpleEnd(std::size_t node);

@@ -63,6 +63,7 @@ namespace garlic::core::tests
             std::map<std::string, std::chrono::milliseconds> media_length; // by src
             std::set<std::string>                            failing;      // src the player cannot play
             std::vector<smil::StartMedia>                    starts;       // every StartMedia, for details
+            smil::EngineConfig                               config;
             std::unique_ptr<smil::Engine>                    engine;
 
             explicit EngineRunner(std::string_view smil) : logger(fs, clock, loggerConfig())
@@ -70,6 +71,11 @@ namespace garlic::core::tests
                 auto parsed = smil::parse(smil);
                 REQUIRE(parsed.has_value());
                 document = std::move(*parsed);
+            }
+
+            static EngineRunner file(const std::string &name)
+            {
+                return EngineRunner(readFile(std::filesystem::path(GARLIC_CORE_TEST_DATA) / name));
             }
 
             static EngineRunner body(std::string_view body, std::string_view head = "")
@@ -82,7 +88,7 @@ namespace garlic::core::tests
             std::string run(std::chrono::milliseconds until)
             {
                 origin = clock.monotonic();
-                engine = std::make_unique<smil::Engine>(document, clock, media, logger);
+                engine = std::make_unique<smil::Engine>(document, clock, media, logger, config);
                 engine->start();
                 return runFor(until);
             }

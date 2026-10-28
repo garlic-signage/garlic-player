@@ -20,7 +20,7 @@ that is missing gets the default values of garlic-lib, unknown elements and attr
 are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
-plays media in the body; `seq`, `par`, `excl`, `begin`/`end`, `expr` and triggers follow step by step.
+plays media, `seq` and `par`; `begin`/`end`, `restart`, `expr`, `excl` and triggers follow step by step.
 
 ## How the parser works
 
@@ -432,7 +432,30 @@ Schedule: [ 10 s: v SimpleEnd ] …
   `dur` the next element follows at once.
 - Media the `MediaSource` does not have are skipped; `prefetch` is downloaded and skipped.
 - `repeatCount` plays the instance again (`RepeatMedia`), the play log has one entry for all repeats.
-- The body plays its children one after another like a `seq`, with `repeatCount`.
+
+### Rules for seq and par (garlic-lib: `TSeq`, `TPar`)
+
+| Container `dur` | End of a run                                                                        |
+|-----------------|-------------------------------------------------------------------------------------|
+| missing         | when the children are through: `seq` after the last, `par` by `endsync`             |
+| `10s`           | after exactly 10 s: earlier children leave it empty, longer ones are cut            |
+| `indefinite`    | never by itself                                                                     |
+
+Then `repeatCount` decides: a new run or the end.
+
+- Body and `seq` play their children one after another, `par` starts all at once.
+- `par` with `endsync`: `last` when all children have ended, `first` when the first ends (the others are stopped),
+  `<id>` when this child ends. Ignored if the `par` has a `dur`.
+- A child that is skipped (missing medium, no `dur`) did not end: it does not trigger `endsync="first"`. In
+  garlic-lib a skipped element ended after 100 ms and could end a `par`.
+- Skipped: `dur="0s"`, `dur="media"`, empty without `dur`. An empty container with `dur` is a pause of that length.
+- A container cut by its `dur` stops everything in it before the next run starts clean. garlic-lib started the next
+  run while the old children kept playing.
 - A repeating container whose run played nothing (e.g. all media still downloading) is tried again after
-  `empty_run_retry` (1 s) instead of looping within one `poll()`. garlic-lib waited 100 ms per skipped element.
+  `empty_run_retry` (1 s) instead of looping within one `poll()`. garlic-lib waited 100 ms per skipped element, so a
+  skipped image showed as a short black gap; now it is passed over at once.
+- `pickNumber` N: per run N children from a shuffled stack; every child plays once before one repeats, then the
+  stack is shuffled anew. garlic-lib shuffled once when parsing and then always cycled in the same order. The random
+  generator (`std::mt19937`) gets `EngineConfig::random_seed`; the host passes a random value, tests a fixed one. The
+  shuffle is an own Fisher-Yates, because `std::shuffle` gives a different order on every standard library.
 
