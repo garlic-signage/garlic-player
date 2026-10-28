@@ -5,4 +5,4 @@ cmake_minimum_required(VERSION 3.25)
 project(garlic-player LANGUAGES C CXX)
 
 add_subdirectory(src/core)
-add_subdirectory(src/player-widget)
+add_subdirectory(src/player-ui/qwidget)

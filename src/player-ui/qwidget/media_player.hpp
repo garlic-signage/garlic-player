@@ -15,8 +15,8 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_MEDIA_PLAYER_HPP
-#define PLAYER_WIDGET_MEDIA_PLAYER_HPP
+#ifndef PLAYER_UI_QWIDGET_MEDIA_PLAYER_HPP
+#define PLAYER_UI_QWIDGET_MEDIA_PLAYER_HPP
 
 #include <QObject>
 #include <QStringList>
@@ -99,4 +99,4 @@ namespace player
     std::unique_ptr<MediaPlayer> createMediaPlayer(MediaBackend backend);
 }
 
-#endif // PLAYER_WIDGET_MEDIA_PLAYER_HPP
+#endif // PLAYER_UI_QWIDGET_MEDIA_PLAYER_HPP

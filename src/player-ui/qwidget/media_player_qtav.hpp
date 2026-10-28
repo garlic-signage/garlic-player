@@ -15,8 +15,8 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_MEDIA_PLAYER_QTAV_HPP
-#define PLAYER_WIDGET_MEDIA_PLAYER_QTAV_HPP
+#ifndef PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTAV_HPP
+#define PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTAV_HPP
 
 #include "media_player.hpp"
 
@@ -52,4 +52,4 @@ namespace player
     };
 }
 
-#endif // PLAYER_WIDGET_MEDIA_PLAYER_QTAV_HPP
+#endif // PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTAV_HPP

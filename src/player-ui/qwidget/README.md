@@ -1,4 +1,4 @@
-# player-widget
+# qwidget
 
 The Qt Widgets frontend of the garlic-player on the core. It only shows: timing, downloads, play log, reports, tasks
 and the REST API are in the core (`PlayerRuntimeApi`), which runs in a thread of its own (`ThreadedRuntime`).
@@ -7,8 +7,8 @@ garlic-lib and the old frontend are in `../../legacy` for reference.
 Qt 6.5 or newer, Widgets and WebEngine. The executable is called `garlic-player`.
 
 ```
-cmake -S . -B build && cmake --build build            # in the repository: core and player-widget together
-build/src/player-widget/garlic-player -m fullscreen http://hub/index.smil
+cmake -S . -B build && cmake --build build            # in the repository: core and qwidget together
+build/src/player-ui/qwidget/garlic-player -m fullscreen http://hub/index.smil
 ```
 
 ## Command line
@@ -127,7 +127,7 @@ garlic-player --media-backend vlc --platform xcb
 ```
 
 **libvlc needs `--platform xcb`**, especially under Wayland: libvlc draws into an X11 window, and without it a second
-window opens for the video (`QT_QPA_PLATFORM=xcb` does the same). In CLion: *Edit Configurations… → player-widget →
+window opens for the video (`QT_QPA_PLATFORM=xcb` does the same). In CLion: *Edit Configurations… → qwidget →
 Program arguments*. `garlic-player --help` lists the backends built in.
 
 At least one has to be built; `--media-backend` with one that is not built in ends with the list of the available.

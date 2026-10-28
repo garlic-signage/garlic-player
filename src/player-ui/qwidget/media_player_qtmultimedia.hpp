@@ -15,27 +15,23 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_MEDIA_PLAYER_VLC_HPP
-#define PLAYER_WIDGET_MEDIA_PLAYER_VLC_HPP
+#ifndef PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTMULTIMEDIA_HPP
+#define PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTMULTIMEDIA_HPP
 
 #include "media_player.hpp"
 
-struct libvlc_media_player_t;
-struct libvlc_event_t;
+#include <QAudioOutput>
+#include <QMediaPlayer>
+#include <QVideoWidget>
 
 namespace player
 {
-    /**
-     * libvlc: draws into the native window of a widget (X11, Windows, macOS). On Linux start with --platform xcb,
-     * under Wayland libvlc otherwise opens a second window. The events of libvlc come from its own threads and are
-     * handed to the UI thread.
-     * fit is not supported (like garlic-lib): the video keeps its aspect ratio.
-     */
-    class VlcMediaPlayer final : public MediaPlayer
+    /// Qt Multimedia (FFmpeg backend since Qt 6.5).
+    class QtMultimediaPlayer final : public MediaPlayer
     {
         public:
-            VlcMediaPlayer();
-            ~VlcMediaPlayer() override;
+            QtMultimediaPlayer();
+            ~QtMultimediaPlayer() override;
 
             QWidget *videoWidget() override { return &video; }
 
@@ -46,15 +42,13 @@ namespace player
             void stop() override;
             void restart() override;
             void setVolume(double volume) override;
-            void setAspectRatioMode(Qt::AspectRatioMode) override {}
+            void setAspectRatioMode(Qt::AspectRatioMode mode) override;
 
         private:
-            QWidget                video;
-            libvlc_media_player_t *player = nullptr;
-            int                    volume = 100;
-
-            static void onEvent(const libvlc_event_t *event, void *self);
+            QVideoWidget video;
+            QAudioOutput audio;
+            QMediaPlayer player;
     };
 }
 
-#endif // PLAYER_WIDGET_MEDIA_PLAYER_VLC_HPP
+#endif // PLAYER_UI_QWIDGET_MEDIA_PLAYER_QTMULTIMEDIA_HPP

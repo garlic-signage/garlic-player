@@ -15,8 +15,8 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_MAIN_WINDOW_HPP
-#define PLAYER_WIDGET_MAIN_WINDOW_HPP
+#ifndef PLAYER_UI_QWIDGET_MAIN_WINDOW_HPP
+#define PLAYER_UI_QWIDGET_MAIN_WINDOW_HPP
 
 #include "media.hpp"
 #include "region.hpp"
@@ -96,4 +96,4 @@ namespace player
     };
 }
 
-#endif // PLAYER_WIDGET_MAIN_WINDOW_HPP
+#endif // PLAYER_UI_QWIDGET_MAIN_WINDOW_HPP

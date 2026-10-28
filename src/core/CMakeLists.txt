@@ -43,15 +43,12 @@ set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(INSTALL_PROJECT OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(miniz
     GIT_REPOSITORY    https://github.com/richgel999/miniz.git
-    GIT_TAG           3.0.2
+    GIT_TAG           3.1.1 # 3.1.1 asks for CMake 3.5...3.12, so neither CMake 3.x nor 4 warns; 3.1.2 went back to 3.5
     GIT_SHALLOW       TRUE
     SYSTEM
     FIND_PACKAGE_ARGS CONFIG
 )
-# miniz 3.0.2 asks for CMake 3.0, which CMake 4 no longer accepts (and warns below 3.10); only for miniz
-set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 FetchContent_MakeAvailable(miniz)
-unset(CMAKE_POLICY_VERSION_MINIMUM)
 if(NOT TARGET miniz::miniz)
     add_library(miniz::miniz ALIAS miniz)
 endif()

@@ -33,7 +33,7 @@ Why:
    installations and CMS keep working. Old bugs were fixed on the way and are documented in the
    [module docs](src/core/docs).
 
-The first frontend is **player-widget** ([src/player-widget](src/player-widget/README.md)) with Qt 6. Video and audio
+The first frontend is **qwidget** ([src/player-ui/qwidget](src/player-ui/qwidget/README.md)) with Qt 6. Video and audio
 can be played with QtAVPlayer (default), Qt Multimedia or libvlc.
 
 The beta runs on Linux. Windows, macOS, Android and iOS follow. The code of version 1.x (Qt 5, garlic-lib and the
@@ -50,7 +50,7 @@ apt install cmake ninja-build g++ pkg-config libcurl4-openssl-dev libmicrohttpd-
 
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_WITH_QTAVPLAYER=OFF
 cmake --build build
-build/src/player-widget/garlic-player -m fullscreen https://example.com/index.smil
+build/src/player-ui/qwidget/garlic-player -m fullscreen https://example.com/index.smil
 ```
 
 The media backends are switched with `-DPLAYER_WITH_QTAVPLAYER`, `-DPLAYER_WITH_QTMULTIMEDIA` and `-DPLAYER_WITH_VLC`

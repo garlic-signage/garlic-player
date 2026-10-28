@@ -15,39 +15,39 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_DEBUG_DIALOG_HPP
-#define PLAYER_WIDGET_DEBUG_DIALOG_HPP
+#ifndef PLAYER_UI_QWIDGET_SETTINGS_DIALOG_HPP
+#define PLAYER_UI_QWIDGET_SETTINGS_DIALOG_HPP
 
 #include "player_runtime/threaded_runtime.hpp"
 
+#include <QCheckBox>
 #include <QDialog>
 #include <QLabel>
-#include <QStringList>
-#include <QTimer>
-
-#include <functional>
+#include <QLineEdit>
+#include <QSpinBox>
 
 namespace player
 {
     /**
-     * Ctrl+D, six fast clicks or touches, or one held for 10 s (garlic-lib: DebugInfos). Every second the resources
-     * from the core (debugInfo) and the media that play now, one line per region, from the frontend.
+     * Ctrl+S and at the start without index (garlic-lib: ConfigDialog): player name, index URI, HTTP server. Reading,
+     * checking and storing is done by the core (playerSettings, changePlayerSettings); the dialog only shows the
+     * fields and the error text of the core. It waits for the core thread for both.
      */
-    class DebugDialog final : public QDialog
+    class SettingsDialog final : public QDialog
     {
         public:
-            using Playing = std::function<QStringList()>; // "region: title or source"
+            SettingsDialog(garlic::core::ThreadedRuntime &runtime, QWidget *parent = nullptr);
 
-            DebugDialog(garlic::core::ThreadedRuntime &runtime, Playing playing, QWidget *parent = nullptr);
+            void accept() override;
 
         private:
             garlic::core::ThreadedRuntime &runtime;
-            Playing                        playing;
-            QTimer                         timer;
-            QLabel                         title, user_agent, disk, memory, player_memory, threads, media;
-
-            void refresh();
+            QLineEdit                      player_name;
+            QLineEdit                      index_uri;
+            QCheckBox                      httpd_enabled;
+            QSpinBox                       httpd_port;
+            QLabel                         error;
     };
 }
 
-#endif // PLAYER_WIDGET_DEBUG_DIALOG_HPP
+#endif // PLAYER_UI_QWIDGET_SETTINGS_DIALOG_HPP

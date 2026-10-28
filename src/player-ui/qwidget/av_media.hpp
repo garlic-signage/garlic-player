@@ -15,31 +15,32 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_WEB_HPP
-#define PLAYER_WIDGET_WEB_HPP
+#ifndef PLAYER_UI_QWIDGET_AV_MEDIA_HPP
+#define PLAYER_UI_QWIDGET_AV_MEDIA_HPP
 
 #include "media.hpp"
 
-#include <QWebEngineView>
-
 namespace player
 {
-    /// <text>, <ref type="text/html">, widgets (extracted index.html with the query of their params).
-    class Web final : public Media
+    /// <video> and <audio> with the MediaPlayer of the chosen backend. Audio shows no widget.
+    class AvMedia final : public Media
     {
         public:
-            Web(const garlic::core::smil::Media &smil, const garlic::core::smil::Region &region, QString source);
+            AvMedia(const garlic::core::smil::Media &smil, const garlic::core::smil::Region &region, QString source,
+                    MediaBackend backend, bool video);
 
-            QWidget *widget() override { return &browser; }
+            QWidget *widget() override;
 
             void start() override;
-            void stop() override;
-            void pause() override { browser.setVisible(false); }
-            void resume() override { browser.setVisible(true); }
+            void stop() override { player->stop(); }
+            void pause() override { player->pause(); }
+            void resume() override { player->resume(); }
+            void repeat() override { player->restart(); }
 
         private:
-            QWebEngineView browser;
+            std::unique_ptr<MediaPlayer> player;
+            bool                         is_video;
     };
 }
 
-#endif // PLAYER_WIDGET_WEB_HPP
+#endif // PLAYER_UI_QWIDGET_AV_MEDIA_HPP

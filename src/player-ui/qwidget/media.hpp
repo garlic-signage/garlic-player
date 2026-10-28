@@ -15,8 +15,8 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef PLAYER_WIDGET_MEDIA_HPP
-#define PLAYER_WIDGET_MEDIA_HPP
+#ifndef PLAYER_UI_QWIDGET_MEDIA_HPP
+#define PLAYER_UI_QWIDGET_MEDIA_HPP
 
 #include "media_player.hpp"
 
@@ -77,4 +77,4 @@ namespace player
     Qt::Alignment alignment(const QString &media_align);
 }
 
-#endif // PLAYER_WIDGET_MEDIA_HPP
+#endif // PLAYER_UI_QWIDGET_MEDIA_HPP
