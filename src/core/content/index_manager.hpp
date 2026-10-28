@@ -55,6 +55,10 @@ namespace garlic::core::content
             void start();
             void poll();
 
+            /// Plays another index for a while (REST /v2/app/exec): not stored as index_uri, not as last played, in
+            /// its own file temporary.smil. With its own refresh, until start() goes back to the stored index.
+            void startTemporary(std::string uri);
+
             /// Result from the DownloadQueue for the index (see url()).
             void downloaded(const downloader::DownloadResult &result);
 
@@ -67,6 +71,7 @@ namespace garlic::core::content
             static constexpr std::chrono::seconds retry{60};
 
         private:
+            void load(std::string uri);
             downloader::DownloadQueue    &queue;
             common::FileSystem           &fs;
             const common::Clock          &clock;
@@ -76,7 +81,10 @@ namespace garlic::core::content
             OnIndex                       on_index;
 
             std::string remote_url; // empty: local index
+            std::string file_name = "index.smil"; // in the cache
+            bool        temporary = false;
             bool        has_index = false;
+            bool        source_loaded = false; // an index of the current source (uri) has been handed on
             std::optional<std::chrono::steady_clock::time_point> next_check;
 
             std::expected<smil::Document, std::string> read(const std::string &path);

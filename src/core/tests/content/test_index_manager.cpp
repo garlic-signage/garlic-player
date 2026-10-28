@@ -157,3 +157,26 @@ TEST_CASE("local index: read directly, base is its directory")
     CHECK(f.index.url().empty());
     CHECK(f.transport.requests.empty());
 }
+
+TEST_CASE("a temporary index (app/exec): own file, not remembered, start() goes back")
+{
+    Fixture f;
+    f.serve("http://hub/player/index.smil?id=1", indexText("stored"), "application/smil+xml");
+    f.serve("http://hub/event.smil", indexText("event", 60), "application/smil+xml");
+    f.index.start();
+    f.runUntilIdle();
+
+    f.index.startTemporary("http://hub/event.smil");
+    f.runUntilIdle();
+    CHECK(f.titles == std::vector<std::string>{"stored", "event"});
+    CHECK(f.index.url() == "http://hub/event.smil");
+    CHECK(f.fs.exists("cache/temporary.smil"));
+    CHECK(f.fs.content("cache/index.smil")->find("stored") != std::string::npos); // the stored one is untouched
+    CHECK(f.config.lastPlayedIndexPath() == "cache/index.smil");
+    CHECK(f.config.indexUri() == "http://hub/player/index.smil?id=1");
+
+    f.index.start(); // app/switch
+    f.runUntilIdle();
+    CHECK(f.titles.back() == "stored");
+}
+

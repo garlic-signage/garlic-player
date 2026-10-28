@@ -41,7 +41,8 @@ namespace garlic::core::httpd
 
             virtual void stop() = 0;
 
-            /// Accepts connections, reads requests and calls the handlers. Returns immediately.
+            /// Accepts connections, reads requests and calls the handlers, sends later answers (Response::later) that
+            /// are complete now. Returns immediately.
             virtual void poll() = 0;
 
             virtual bool isRunning() const = 0;

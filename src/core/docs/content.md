@@ -35,6 +35,10 @@ start()
          │                                        broken → deleted, SMIL_OPEN_ERROR, the current one plays on
          └── not modified / failed        nothing; without any index yet the cached copy is tried
 refresh: meta http-equiv="Refresh" of the index, at least 60 s, 0 = never
+
+startTemporary(uri)                   REST /v2/app/exec: another index for a while
+└── like a remote/local index, but in cache/temporary.smil, not stored as index_uri or last played;
+    start() goes back to the stored index
 ```
 
 - Handed on with the document is the **base** for relative `src`: the directory of a local index or the URL of a

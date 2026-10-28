@@ -6,9 +6,13 @@ Ported 1:1 from garlic-lib: same paths, parameters, JSON fields, error texts and
 keep working. Behaviour that looks wrong but is visible to clients is kept on purpose (see "Known issues").
 
 ```cpp
-rest_api::RestApi api{config, inventory, fs, clock};
+rest_api::RestApi api{config, inventory, fs, clock, actions};   // actions: what only the runtime can do
 api.registerRoutes(router);              // router of the httpd module
+api.poll();                              // with every poll of the core: screenshots that did not come in time
 ```
+
+The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it gets as `RestActions`: `notify`,
+`reboot`, `reloadIndex`, `playTemporary`, `screenshot` (empty functions do nothing).
 
 ## Endpoints
 
@@ -20,9 +24,35 @@ api.registerRoutes(router);              // router of the httpd module
 | `/v2/files/delete`    | any    | `id` (URL, form or JSON)                                          |
 | `/v2/files/{id}`      | GET    | file info                                                         |
 | `/v2/files/{id}`      | POST   | replace the file: `data`, `fileSize`, `downloadPath`, …           |
+| `/v2/system/firmwareInfo` | any | `{"firmwareVersion", "family": "garlic-player-<os>"}`             |
+| `/v2/system/modelInfo`    | any | `{"modelName"/"PCB": "garlic-player", "licenseModel": <os>, "manufacturer": "Sagiadinos", …}` |
+| `/v2/app/start`       | any    | `uri` (+ `packageName`, `className`): store as `index_uri`, load it |
+| `/v2/app/exec`        | any    | like `start`, but play `uri` for a while; `index_uri` stays       |
+| `/v2/app/switch`      | any    | `mode=start`: play the stored index again                         |
+| `/v2/task/notify`     | any    | `smilEvent`: `notify(…)` triggers of the engine                    |
+| `/v2/task/reboot`     | any    | restart the device (`Reboot{"httpd: <local time>"}` to the host)  |
+| `/v2/task/screenshot` | any    | the frontend saves a JPEG; the answer waits for it                |
 
-All `/v2/files` calls need `access_token` (URL or form). Not yet ported, follow with their modules: `/v2/system`,
-`/v2/task`, `/v2/app`.
+All calls except the token need `access_token` (URL or form); parameters come as form, URL or JSON
+(`Content-Type: application/json`). `/v2/system`, `/v2/app` and `/v2/task` check the token first, then the name: an
+unknown name is 403 without and 404 with a valid token (RequestMapper of garlic-lib).
+
+### app, task and system in detail
+
+- `app/start` and `app/exec` answer `{"uri", "packageName", "className", "data": uri}` with the uri as sent; an
+  invalid uri gives the error text of `Configuration::validateIndexUri`. `app/switch` answers the stored `index_uri`,
+  another mode `{"error":"wrong mode"}`. `Action` and `Type` are read by garlic-lib but not used, so they are not.
+- `app/exec` plays the index of `uri` with its own refresh in `cache/temporary.smil` until `app/start`,
+  `app/switch` or a restart; it is not stored as `index_uri` or as last played index. garlic-lib downloaded it as
+  `index.smil` and set the source back to `index_uri` at once, so the temporary content stayed until the stored
+  index changed.
+- `task/notify` answers `{}`, without `smilEvent` `{"error":" No SmilEvent exists"}` (with the space of garlic-lib).
+- `task/reboot` answers an empty body (JSON headers) and hands `Reboot{"httpd: 2026-10-28T08:00:00"}` to the host.
+- `task/screenshot`: the host gets `Screenshot{path}` with `path` = `<log dir>/yyyyMMddhhmmss.jpg` and calls
+  `screenshotTaken(path)` when the JPEG is saved. The answer is held back meanwhile (`Response::later`, the server
+  serves other requests); then `image/jpeg`, or `file not created.` / `file not readable.` like garlic-lib. Without
+  an answer of the host after 5 s it is `file not created.`. garlic-lib waited one second in the event loop and sent
+  whatever was there.
 
 ## Answers
 

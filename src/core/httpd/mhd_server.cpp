@@ -42,6 +42,7 @@ namespace garlic::core::httpd
         bool                   too_large = false;
         bool                   bad_form  = false;
         std::uint64_t          received  = 0;
+        std::shared_ptr<PendingResponse> pending; // the answer comes later
         std::string            write_error;
         std::map<std::string, std::unique_ptr<common::WritableFile>> open_files;
 
@@ -67,6 +68,10 @@ namespace garlic::core::httpd
         static common::FileSystem &fs(MhdServer &s) { return s.fs; }
         static const Router       &router(MhdServer &s) { return s.router; }
         static const HttpdSettings &settings(MhdServer &s) { return s.settings; }
+        static void suspend(MhdServer &s, MHD_Connection *connection, std::shared_ptr<PendingResponse> pending)
+        {
+            s.suspended.emplace_back(connection, std::move(pending));
+        }
     };
 
     namespace
@@ -178,6 +183,14 @@ namespace garlic::core::httpd
                 return MHD_YES;
             }
 
+            // resumed after a later answer: send it (MhdServer::poll resumes only completed ones)
+            if (c->pending)
+            {
+                if (c->pending->isComplete())
+                    return sendResponse(connection, *c->pending->response);
+                return MHD_YES;
+            }
+
             if (*upload_data_size != 0)
             {
                 const HttpdSettings &s     = ConnectionAccess::settings(server);
@@ -216,7 +229,18 @@ namespace garlic::core::httpd
             if (!c->write_error.empty())
                 return sendResponse(connection, Response::json(500, R"({"error":"upload could not be stored"})"));
 
-            return sendResponse(connection, ConnectionAccess::router(server).handle(c->request));
+            Response response = ConnectionAccess::router(server).handle(c->request);
+            if (response.pending && !response.pending->isComplete())
+            {
+                // the answer comes later: hold the connection, poll() resumes it
+                c->pending = response.pending;
+                ConnectionAccess::suspend(server, connection, response.pending);
+                MHD_suspend_connection(connection);
+                return MHD_YES;
+            }
+            if (response.pending)
+                return sendResponse(connection, *response.pending->response);
+            return sendResponse(connection, response);
         }
 
         void onCompleted(void *, MHD_Connection *, void **con_cls, MHD_RequestTerminationCode)
@@ -258,8 +282,8 @@ namespace garlic::core::httpd
         };
 
         // no MHD_USE_INTERNAL_POLLING_THREAD: libmicrohttpd only works inside MHD_run(), called from poll()
-        daemon = MHD_start_daemon(MHD_NO_FLAG, settings.port, nullptr, nullptr, &onRequest, this, MHD_OPTION_ARRAY,
-                                  options.data(), MHD_OPTION_END);
+        daemon = MHD_start_daemon(MHD_ALLOW_SUSPEND_RESUME, settings.port, nullptr, nullptr, &onRequest, this,
+                                  MHD_OPTION_ARRAY, options.data(), MHD_OPTION_END);
         if (daemon == nullptr)
             return std::unexpected("HTTP server could not listen on port " + std::to_string(settings.port));
 
@@ -269,14 +293,33 @@ namespace garlic::core::httpd
     void MhdServer::stop()
     {
         if (daemon != nullptr)
+        {
+            for (auto &[connection, pending] : suspended) // libmicrohttpd closes them only when resumed
+            {
+                if (!pending->isComplete())
+                    pending->complete(Response::json(503, R"({"error":"server stopped"})"));
+                MHD_resume_connection(connection);
+            }
+            suspended.clear();
+            MHD_run(daemon);
             MHD_stop_daemon(daemon);
+        }
         daemon = nullptr;
     }
 
     void MhdServer::poll()
     {
-        if (daemon != nullptr)
-            MHD_run(daemon);
+        if (daemon == nullptr)
+            return;
+        std::erase_if(suspended,
+                      [](auto &entry)
+                      {
+                          if (!entry.second->isComplete())
+                              return false;
+                          MHD_resume_connection(entry.first);
+                          return true;
+                      });
+        MHD_run(daemon);
     }
 
     std::uint16_t MhdServer::port() const

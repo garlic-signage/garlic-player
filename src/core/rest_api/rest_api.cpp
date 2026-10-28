@@ -18,6 +18,7 @@
 #include "rest_api/rest_api.hpp"
 
 #include "common/md5.hpp"
+#include "common/time_format.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -60,6 +61,13 @@ namespace garlic::core::rest_api
         Response notFound()
         {
             return {404, "", "The URL is wrong, no such document.", {}};
+        }
+
+        /// garlic-lib: respond(response, text) with a text that is not built as JSON, e.g. "" of task/reboot
+        Response respondText(std::string text)
+        {
+            return {200, "application/json; charset=utf-8", std::move(text),
+                    {{"Cache-Control", "no-cache,no-store"}, {"Pragma", "no-cache"}}};
         }
 
         // --- JSON request bodies; no exceptions: types are checked before every access
@@ -165,8 +173,8 @@ namespace garlic::core::rest_api
     }
 
     RestApi::RestApi(configuration::Configuration &c, database::InventoryTable &i, common::FileSystem &f,
-                     const common::Clock &cl)
-        : config(c), inventory(i), fs(f), clock(cl)
+                     const common::Clock &cl, RestActions a)
+        : config(c), inventory(i), fs(f), clock(cl), actions(std::move(a))
     {
     }
 
@@ -178,6 +186,9 @@ namespace garlic::core::rest_api
         router.add("*", "/v2/files/find", [this](const Request &r) { return filesFind(r); });
         router.add("*", "/v2/files/delete", [this](const Request &r) { return filesDelete(r); });
         router.add("*", "/v2/files/{id}", [this](const Request &r) { return fileById(r); });
+        router.add("*", "/v2/system/{name}", [this](const Request &r) { return system(r); });
+        router.add("*", "/v2/app/{name}", [this](const Request &r) { return app(r); });
+        router.add("*", "/v2/task/{name}", [this](const Request &r) { return task(r); });
         router.setFallback([](const Request &) { return notFound(); });
     }
 
@@ -382,5 +393,194 @@ namespace garlic::core::rest_api
                 {"createdDate", created},
                 {"transferredSize", stored},
                 {"completed", entry.state == InventoryState::Complete}};
+    }
+
+    // ------------------------------------------------------------------ system (garlic-lib: SystemInfo)
+
+    /// Token first, then the name: an unknown name with a valid token is 404, without token 403 (RequestMapper).
+    Response RestApi::system(const Request &request)
+    {
+        if (!validToken(request))
+            return accessViolation();
+
+        std::string name = request.path_params.at("name");
+        std::string os(configuration::Configuration::os());
+        if (name == "firmwareInfo")
+            return respond(json{{"firmwareVersion", config.version()}, {"family", "garlic-player-" + os}});
+        if (name == "modelInfo")
+            return respond(json{{"modelDescription", ""},
+                                {"modelName", "garlic-player"},
+                                {"modelURL", ""},
+                                {"manufacturer", "Sagiadinos"},
+                                {"licenseModel", os},
+                                {"PCBRevision", ""},
+                                {"manufacturerURL", "https://garlic-player.com"},
+                                {"PCB", "garlic-player"},
+                                {"options", ""}});
+        return notFound();
+    }
+
+    // ------------------------------------------------------------------ app (garlic-lib: App)
+
+    Response RestApi::app(const Request &request)
+    {
+        if (!validToken(request))
+            return accessViolation();
+
+        std::string name = request.path_params.at("name");
+        if (name == "start") // change the index URI and switch to it
+            return appStart(request, false);
+        if (name == "exec") // play the URI, but keep the index URI
+            return appStart(request, true);
+        if (name == "switch") // play the index URI again
+        {
+            std::string mode = request.param("mode");
+            if (isJson(request))
+            {
+                auto body = parseObject(request.body);
+                if (!body)
+                    return respondError("No JSON found");
+                mode = stringValue(*body, "mode");
+            }
+            if (mode != "start")
+                return respondError("wrong mode");
+            if (actions.reloadIndex)
+                actions.reloadIndex();
+            std::string uri = config.indexUri();
+            return respond(json{{"uri", uri}, {"packageName", ""}, {"className", ""}, {"data", uri}});
+        }
+        return notFound();
+    }
+
+    /// garlic-lib: App::start / App::exec - the parameters Action and Type were read but not used
+    Response RestApi::appStart(const Request &request, bool temporary)
+    {
+        std::string uri          = request.param("uri");
+        std::string package_name = request.param("packageName");
+        std::string class_name   = request.param("className");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            uri          = stringValue(*body, "uri");
+            package_name = stringValue(*body, "packageName");
+            class_name   = stringValue(*body, "className");
+        }
+
+        auto valid = configuration::Configuration::validateIndexUri(uri);
+        if (!valid)
+            return respondError(valid.error());
+
+        if (temporary)
+        {
+            if (actions.playTemporary)
+                actions.playTemporary(*valid);
+        }
+        else
+        {
+            config.setIndexUri(*valid);
+            if (actions.reloadIndex)
+                actions.reloadIndex();
+        }
+        return respond(json{{"uri", uri}, {"packageName", package_name}, {"className", class_name}, {"data", uri}});
+    }
+
+    // ------------------------------------------------------------------ task (garlic-lib: Task)
+
+    Response RestApi::task(const Request &request)
+    {
+        if (!validToken(request))
+            return accessViolation();
+
+        std::string name = request.path_params.at("name");
+        if (name == "notify")
+        {
+            std::string event = request.param("smilEvent");
+            if (isJson(request))
+            {
+                auto body = parseObject(request.body);
+                if (!body)
+                    return respondError("No JSON found");
+                event = stringValue(*body, "smilEvent");
+            }
+            if (event.empty())
+                return respondError(" No SmilEvent exists"); // with the space of garlic-lib
+            if (actions.notify)
+                actions.notify(event);
+            return respond(json::object());
+        }
+        if (name == "reboot")
+        {
+            // garlic-lib: "httpd: " + QDateTime::currentDateTime().toString(Qt::ISODate)
+            if (actions.reboot)
+                actions.reboot(std::format("httpd: {:%Y-%m-%dT%H:%M:%S}", common::toLocalTime(clock.now())));
+            return respondText("");
+        }
+        if (name == "screenshot")
+            return screenshot();
+        return notFound();
+    }
+
+    /**
+     * The frontend saves the screenshot; the answer waits for it (garlic-lib waited one second in the event loop and
+     * hoped). The file is named like in garlic-lib: <log dir>/yyyyMMddhhmmss.jpg.
+     */
+    Response RestApi::screenshot()
+    {
+        std::string path = config.logDir() + "/" +
+                           std::format("{:%Y%m%d%H%M%S}", common::toLocalTime(clock.now())) + ".jpg";
+        if (!actions.screenshot)
+            return screenshotFile(path);
+
+        auto pending = std::make_shared<httpd::PendingResponse>();
+        screenshots.push_back({path, pending, clock.monotonic() + screenshot_timeout});
+        actions.screenshot(path);
+        return Response::later(pending);
+    }
+
+    void RestApi::screenshotTaken(std::string_view path)
+    {
+        std::erase_if(screenshots,
+                      [&](Screenshot &s)
+                      {
+                          if (s.path != path)
+                              return false;
+                          s.pending->complete(screenshotFile(s.path));
+                          return true;
+                      });
+    }
+
+    void RestApi::poll()
+    {
+        auto now = clock.monotonic();
+        std::erase_if(screenshots,
+                      [&](Screenshot &s)
+                      {
+                          if (now < s.deadline)
+                              return false;
+                          s.pending->complete(screenshotFile(s.path)); // perhaps it is there anyway
+                          return true;
+                      });
+    }
+
+    std::optional<std::chrono::steady_clock::time_point> RestApi::nextDeadline() const
+    {
+        std::optional<std::chrono::steady_clock::time_point> next;
+        for (const auto &s : screenshots)
+            if (!next || s.deadline < *next)
+                next = s.deadline;
+        return next;
+    }
+
+    /// garlic-lib: RequestMapper::respondImage
+    Response RestApi::screenshotFile(const std::string &path) const
+    {
+        if (!fs.exists(path))
+            return {200, "", "file not created.", {}};
+        auto data = fs.readFile(path);
+        if (!data)
+            return {200, "", "file not readable.", {}};
+        return {200, "image/jpeg", std::move(*data), {}};
     }
 }

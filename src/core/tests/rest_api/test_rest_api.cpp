@@ -20,6 +20,7 @@
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
 #include "fake_clock.hpp"
+#include "time_zone.hpp"
 #include "rest_api/rest_api.hpp"
 
 #include <nlohmann/json.hpp>
@@ -29,6 +30,7 @@ using httpd::Request;
 using httpd::Response;
 using nlohmann::json;
 using tests::FakeClock;
+using tests::TimeZone;
 using namespace std::chrono_literals;
 
 namespace
@@ -39,13 +41,27 @@ namespace
         common::MemoryFileSystem     fs{clock};
         configuration::Configuration config{fs, clock, "garlic-player.ini"};
         database::InventoryTable     inventory{clock};
-        rest_api::RestApi            api{config, inventory, fs, clock};
+        std::vector<std::string>     calls; // what the REST API asked the runtime to do
+        rest_api::RestApi            api{config, inventory, fs, clock, actions()};
         httpd::Router                router;
+
+        rest_api::RestActions actions()
+        {
+            rest_api::RestActions a;
+            a.notify        = [this](std::string_view name) { calls.push_back("notify " + std::string(name)); };
+            a.reboot        = [this](std::string id) { calls.push_back("reboot " + id); };
+            a.reloadIndex   = [this] { calls.push_back("reload"); };
+            a.playTemporary = [this](std::string uri) { calls.push_back("temporary " + uri); };
+            a.screenshot    = [this](std::string path) { calls.push_back("screenshot " + path); };
+            return a;
+        }
 
         Fixture()
         {
             REQUIRE(config.load().has_value());
             config.setCacheDir("cache");
+            config.setLogDir("logs");
+            config.setVersion("2.0");
             REQUIRE(inventory.open(":memory:").has_value());
             api.registerRoutes(router);
         }
@@ -341,3 +357,138 @@ TEST_CASE("unknown paths get the 404 text of garlic-lib")
         CHECK(r.content_type.empty());
     }
 }
+
+// ------------------------------------------------------------------ system, app, task
+
+TEST_CASE("system: firmwareInfo and modelInfo like garlic-lib")
+{
+    Fixture f;
+    auto    os = std::string(configuration::Configuration::os());
+
+    auto firmware = body(f.call("GET", "/v2/system/firmwareInfo", f.auth()));
+    CHECK(firmware["firmwareVersion"] == "2.0");
+    CHECK(firmware["family"] == "garlic-player-" + os);
+
+    auto model = body(f.call("GET", "/v2/system/modelInfo", f.auth()));
+    CHECK(model["modelName"] == "garlic-player");
+    CHECK(model["PCB"] == "garlic-player");
+    CHECK(model["licenseModel"] == os);
+    CHECK(model["manufacturer"] == "Sagiadinos");
+    CHECK(model["manufacturerURL"] == "https://garlic-player.com");
+    CHECK(model["modelDescription"] == "");
+}
+
+TEST_CASE("system, app, task: token first (403), then an unknown name is 404")
+{
+    Fixture f;
+    for (const char *path : {"/v2/system/modelInfo", "/v2/app/start", "/v2/task/notify", "/v2/system/nothing"})
+        CHECK(f.call("GET", path).status == 403);
+
+    auto unknown = f.call("GET", "/v2/system/nothing", f.auth());
+    CHECK(unknown.status == 404);
+    CHECK(unknown.body == "The URL is wrong, no such document.");
+    CHECK(f.call("GET", "/v2/app/nothing", f.auth()).status == 404);
+    CHECK(f.call("GET", "/v2/task/nothing", f.auth()).status == 404);
+}
+
+TEST_CASE("app/start: stores the index URI and loads it, answers like garlic-lib")
+{
+    Fixture f;
+    auto    query = f.auth();
+    query["uri"]         = "http://hub/new.smil";
+    query["packageName"] = "com.example";
+    auto r = body(f.call("POST", "/v2/app/start", query));
+
+    CHECK(r == json{{"uri", "http://hub/new.smil"}, {"packageName", "com.example"}, {"className", ""},
+                    {"data", "http://hub/new.smil"}});
+    CHECK(f.config.indexUri() == "http://hub/new.smil");
+    CHECK(f.calls == std::vector<std::string>{"reload"});
+
+    auto invalid = body(f.call("POST", "/v2/app/start", f.auth(), {}, R"({"uri":""})"));
+    CHECK(invalid.contains("error"));
+    CHECK(f.calls.size() == 1);
+}
+
+TEST_CASE("app/exec: plays the URI for a while, the index URI stays")
+{
+    Fixture f;
+    f.config.setIndexUri("http://hub/index.smil");
+    auto query   = f.auth();
+    query["uri"] = "http://hub/event.smil";
+    auto r       = body(f.call("POST", "/v2/app/exec", query));
+
+    CHECK(r["data"] == "http://hub/event.smil");
+    CHECK(f.config.indexUri() == "http://hub/index.smil");
+    CHECK(f.calls == std::vector<std::string>{"temporary http://hub/event.smil"});
+}
+
+TEST_CASE("app/switch: mode start plays the stored index again")
+{
+    Fixture f;
+    f.config.setIndexUri("http://hub/index.smil");
+    auto query    = f.auth();
+    query["mode"] = "start";
+    CHECK(body(f.call("POST", "/v2/app/switch", query)) ==
+          json{{"uri", "http://hub/index.smil"}, {"packageName", ""}, {"className", ""}, {"data", "http://hub/index.smil"}});
+    CHECK(f.calls == std::vector<std::string>{"reload"});
+
+    query["mode"] = "stop";
+    CHECK(body(f.call("POST", "/v2/app/switch", query)) == json{{"error", "wrong mode"}});
+}
+
+TEST_CASE("task/notify: smilEvent to the notify triggers, the error text with its space")
+{
+    Fixture f;
+    auto    query      = f.auth();
+    query["smilEvent"] = "door_open";
+    auto r             = f.call("POST", "/v2/task/notify", query);
+    CHECK(r.body == "{}");
+    CHECK(f.calls == std::vector<std::string>{"notify door_open"});
+
+    CHECK(body(f.call("POST", "/v2/task/notify", f.auth(), {}, R"({"smilEvent":"bell"})")).empty());
+    CHECK(f.calls.back() == "notify bell");
+    CHECK(body(f.call("POST", "/v2/task/notify", f.auth())) == json{{"error", " No SmilEvent exists"}});
+}
+
+TEST_CASE("task/reboot: restart with the time, empty answer")
+{
+    TimeZone tz("UTC");
+    Fixture  f;
+    auto     r = f.call("POST", "/v2/task/reboot", f.auth());
+    CHECK(r.status == 200);
+    CHECK(r.body.empty());
+    CHECK(r.content_type == "application/json; charset=utf-8");
+    CHECK(f.calls == std::vector<std::string>{"reboot httpd: 2026-01-01T00:00:00"});
+}
+
+TEST_CASE("task/screenshot: the answer waits for the frontend")
+{
+    TimeZone tz("UTC");
+    Fixture  f;
+    auto     r = f.call("GET", "/v2/task/screenshot", f.auth());
+    REQUIRE(r.pending);
+    CHECK_FALSE(r.pending->isComplete());
+    CHECK(f.calls == std::vector<std::string>{"screenshot logs/20260101000000.jpg"});
+
+    f.putFile("logs/20260101000000.jpg", "JPEG");
+    f.api.screenshotTaken("logs/20260101000000.jpg");
+    REQUIRE(r.pending->isComplete());
+    CHECK(r.pending->response->content_type == "image/jpeg");
+    CHECK(r.pending->response->body == "JPEG");
+}
+
+TEST_CASE("task/screenshot: no file after 5 s gives the text of garlic-lib")
+{
+    Fixture f;
+    auto    r = f.call("GET", "/v2/task/screenshot", f.auth());
+    REQUIRE(r.pending);
+    f.clock.advance(4s);
+    f.api.poll();
+    CHECK_FALSE(r.pending->isComplete());
+    f.clock.advance(1s);
+    f.api.poll();
+    REQUIRE(r.pending->isComplete());
+    CHECK(r.pending->response->body == "file not created.");
+    CHECK_FALSE(f.api.nextDeadline().has_value());
+}
+

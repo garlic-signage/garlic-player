@@ -26,19 +26,37 @@
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace garlic::core::rest_api
 {
+    /// What the REST API cannot do itself; given by the PlayerRuntimeApi. Empty functions do nothing.
+    struct RestActions
+    {
+        std::function<void(std::string_view name)> notify;        // /v2/task/notify: notify(…) triggers
+        std::function<void(std::string task_id)>   reboot;        // /v2/task/reboot
+        std::function<void()>                      reloadIndex;   // /v2/app/start, /v2/app/switch
+        std::function<void(std::string uri)>       playTemporary; // /v2/app/exec
+        std::function<void(std::string path)>      screenshot;    // /v2/task/screenshot: the frontend saves a JPEG
+    };
+
     /**
      * REST API v2 of the player (IAdea compatible), ported 1:1 from garlic-lib: same paths, parameters, JSON fields,
      * error texts and status codes, so existing clients keep working.
      *
-     * Done: /v2/oauth2/token and /v2/files. Follow with their modules: /v2/system, /v2/task, /v2/app.
+     * /v2/oauth2/token, /v2/files, /v2/system, /v2/app, /v2/task.
      */
     class RestApi
     {
         public:
             RestApi(configuration::Configuration &config, database::InventoryTable &inventory, common::FileSystem &fs,
-                    const common::Clock &clock);
+                    const common::Clock &clock, RestActions actions = {});
 
             /// Adds all routes and the 404 answer of garlic-lib to the router.
             void registerRoutes(httpd::Router &router);
@@ -52,6 +70,20 @@ namespace garlic::core::rest_api
             httpd::Response filesDelete(const httpd::Request &request);
             httpd::Response fileById(const httpd::Request &request);
 
+            // --- /v2/system, /v2/app, /v2/task
+            httpd::Response system(const httpd::Request &request);
+            httpd::Response app(const httpd::Request &request);
+            httpd::Response task(const httpd::Request &request);
+
+            /// The frontend has saved the screenshot (or tried): the held answer is sent.
+            void screenshotTaken(std::string_view path);
+
+            /// Answers screenshots that did not come in time with "file not created." like garlic-lib.
+            void poll();
+            std::optional<std::chrono::steady_clock::time_point> nextDeadline() const;
+
+            static constexpr std::chrono::seconds screenshot_timeout{5};
+
         private:
             bool        validToken(const httpd::Request &request) const;
             std::string cachePath(std::string_view cache_name) const;
@@ -63,6 +95,19 @@ namespace garlic::core::rest_api
             database::InventoryTable     &inventory;
             common::FileSystem           &fs;
             const common::Clock          &clock;
+            RestActions                   actions;
+
+            struct Screenshot
+            {
+                std::string                             path;
+                std::shared_ptr<httpd::PendingResponse> pending;
+                std::chrono::steady_clock::time_point   deadline;
+            };
+            std::vector<Screenshot> screenshots;
+
+            httpd::Response appStart(const httpd::Request &request, bool temporary);
+            httpd::Response screenshot();
+            httpd::Response screenshotFile(const std::string &path) const;
     };
 }
 

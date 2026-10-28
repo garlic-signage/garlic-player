@@ -71,9 +71,15 @@ namespace garlic::core
         const smil::Head *head = nullptr; // root_layout, regions (sorted by z-index), title
     };
 
+    /// REST /v2/task/screenshot: the frontend saves a JPEG of the screen to path and calls screenshotTaken(path).
+    struct Screenshot
+    {
+        std::string path;
+    };
+
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, tasks::InstallSoftware, tasks::Reboot, tasks::ClearCaches>;
+                                   NewLayout, tasks::InstallSoftware, tasks::Reboot, tasks::ClearCaches, Screenshot>;
 
     struct PlayerRuntimeConfig
     {
@@ -125,6 +131,9 @@ namespace garlic::core
             void elementActivated(smil::InstanceId id);
             void accessKey(char key);
             void notify(std::string_view name);
+
+            /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
+            void screenshotTaken(std::string_view path);
 
             /// Where a src (e.g. a background image of NewLayout) is to be loaded from; nullopt if not there yet.
             std::optional<std::string> locate(std::string_view src);

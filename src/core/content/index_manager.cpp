@@ -45,7 +45,22 @@ namespace garlic::core::content
      */
     void IndexManager::start()
     {
-        std::string uri = config.indexUri();
+        temporary = false;
+        file_name = "index.smil";
+        load(config.indexUri());
+    }
+
+    void IndexManager::startTemporary(std::string uri)
+    {
+        temporary = true;
+        file_name = "temporary.smil";
+        load(std::move(uri));
+    }
+
+    void IndexManager::load(std::string uri)
+    {
+        next_check.reset();
+        source_loaded = false;
         if (uri.starts_with("file://"))
             uri.erase(0, 7);
 
@@ -58,14 +73,14 @@ namespace garlic::core::content
         }
 
         remote_url        = uri;
-        std::string cache = cache_dir + "/index.smil";
+        std::string cache = cache_dir + "/" + file_name;
         std::string last  = config.lastPlayedIndexPath();
-        if (last == cache && fs.exists(cache))
+        if (!temporary && last == cache && fs.exists(cache))
         {
             if (auto document = read(cache))
                 accept(std::move(*document), cache);
         }
-        queue.add(remote_url, "index.smil");
+        queue.add(remote_url, file_name);
     }
 
     void IndexManager::poll()
@@ -74,7 +89,7 @@ namespace garlic::core::content
         {
             next_check.reset();
             if (!remote_url.empty())
-                queue.add(remote_url, "index.smil");
+                queue.add(remote_url, file_name);
         }
     }
 
@@ -108,8 +123,8 @@ namespace garlic::core::content
             }
         }
 
-        // first download, not modified, or failed with a copy in the cache: play it if nothing plays yet
-        if (!has_index && !result.local_path.empty() && result.status != DownloadStatus::NotCacheable)
+        // first download, not modified, or failed with a copy in the cache: play it if nothing of this source plays yet
+        if (!source_loaded && !result.local_path.empty() && result.status != DownloadStatus::NotCacheable)
         {
             if (auto document = read(result.local_path))
             {
@@ -151,8 +166,10 @@ namespace garlic::core::content
     void IndexManager::accept(smil::Document document, const std::string &path)
     {
         logger.event(logger::Severity::Informational, "ContentManager", "SMIL_LOADED", metadata(path));
-        config.setLastPlayedIndexPath(path);
-        has_index = true;
+        if (!temporary)
+            config.setLastPlayedIndexPath(path);
+        has_index     = true;
+        source_loaded = true;
 
         // relative src are resolved against where the index comes from (garlic-lib: getIndexPath)
         std::string source = remote_url.empty() ? path : remote_url;

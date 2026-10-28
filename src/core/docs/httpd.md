@@ -53,6 +53,20 @@ never held in RAM. They are removed after the handler; a handler keeps a file by
 Routes are added in order, the first match wins. Placeholders like `{id}` match one path segment. Unknown path: 404,
 known path with another method: 405.
 
+## Answers that come later
+
+A handler that cannot answer at once (e.g. a screenshot made by the frontend) returns `Response::later(pending)` and
+keeps the `std::shared_ptr<PendingResponse>`. The server holds the connection (`MHD_suspend_connection`, the daemon
+is started with `MHD_ALLOW_SUSPEND_RESUME`) and goes on serving other requests. When `pending->complete(response)` has
+been called, the next `poll()` resumes the connection and sends the answer. Held connections still open at `stop()`
+get 503.
+
+```cpp
+router.add("GET", "/slow", [&](const Request &) { pending = std::make_shared<PendingResponse>(); return Response::later(pending); });
+…
+pending->complete(Response{200, "image/jpeg", jpeg, {}});   // later, from the core thread
+```
+
 ## Limits and errors
 
 | Case                                         | Response |

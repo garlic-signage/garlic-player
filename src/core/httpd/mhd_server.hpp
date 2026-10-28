@@ -22,7 +22,12 @@
 #include "httpd/router.hpp"
 #include "httpd/server.hpp"
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 struct MHD_Daemon;
+struct MHD_Connection;
 
 namespace garlic::core::httpd
 {
@@ -52,6 +57,9 @@ namespace garlic::core::httpd
             HttpdSettings       settings;
             MHD_Daemon         *daemon       = nullptr;
             std::uint64_t       upload_count = 0;
+
+            /// Connections held for a later answer (Response::later), resumed in poll() when it is complete.
+            std::vector<std::pair<MHD_Connection *, std::shared_ptr<PendingResponse>>> suspended;
     };
 }
 

@@ -345,3 +345,38 @@ TEST_CASE("MhdServer: invalid bind address")
 
     CHECK_FALSE(f.server.start(s).has_value());
 }
+
+TEST_CASE("MhdServer: a later answer holds the connection without blocking, other requests go on")
+{
+    Fixture                          f;
+    std::shared_ptr<PendingResponse> pending;
+    f.router.add("GET", "/slow",
+                 [&](const Request &)
+                 {
+                     pending = std::make_shared<PendingResponse>();
+                     return Response::later(pending);
+                 });
+    f.router.add("GET", "/fast", [](const Request &) { return Response::json(200, R"({"fast":true})"); });
+    f.start(f.settings());
+
+    auto slow = std::async(std::launch::async, [port = f.server.port()]
+                           { return sendRaw(port, "GET /slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"); });
+    auto end = std::chrono::steady_clock::now() + 5s;
+    while (!pending && std::chrono::steady_clock::now() < end)
+        f.server.poll();
+    REQUIRE(pending);
+
+    // meanwhile the server answers other requests
+    CHECK(bodyOf(f.request("GET /fast HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")) == R"({"fast":true})");
+    CHECK(slow.wait_for(0s) != std::future_status::ready);
+
+    pending->complete(Response{200, "image/jpeg", "JPEG", {}});
+    while (slow.wait_for(1ms) != std::future_status::ready && std::chrono::steady_clock::now() < end)
+        f.server.poll();
+    REQUIRE(slow.wait_for(0s) == std::future_status::ready);
+    auto response = slow.get();
+    CHECK(statusOf(response) == 200);
+    CHECK(response.find("Content-Type: image/jpeg") != std::string::npos);
+    CHECK(bodyOf(response) == "JPEG");
+}
+

@@ -41,6 +41,7 @@ while (running)
 | `elementActivated(id)`     | touch or click on a medium                                        |
 | `accessKey(key)`           | a key was pressed                                                 |
 | `notify(name)`             | a notification for `notify(…)` triggers                           |
+| `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
 | `locate(src)`              | where a background image of the layout is                         |
 | `configuration()`          | read and change settings, e.g. in a settings dialog               |
 | `stop()`                   | stop the playback (standby, quitting); the `StopMedia` come with the next `poll()` |
@@ -54,6 +55,7 @@ while (running)
 | `InstallSoftware{path}`                 | a firmware update is ready ([tasks](tasks.md))              |
 | `Reboot{task_id}`                       | restart the device: a task, or `"DailyReboot"` from the schedule |
 | `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the host clears the web cache and restarts |
+| `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
 
 One list instead of several, because the order counts: at a new index first the `StopMedia` of the old one, then
 `NewLayout`, then the `StartMedia` of the new one.
@@ -100,8 +102,10 @@ new valid index
 - Playlists from the hub repeat their body (`repeatCount="indefinite"`): media that are still downloading at the
   first start are skipped and follow in a later run, like in garlic-lib.
 
+- **REST API**: its actions go to the runtime: `notify` to the engine, `reboot` and `screenshot` as events,
+  `app/start` and `app/switch` load the stored index again, `app/exec` plays a temporary index
+  ([rest_api](rest_api.md)).
+
 ## Not yet
 
-- REST endpoints `/v2/system`, `/v2/task` (notify, screenshot), `/v2/app`: their port follows; `notify()` is ready
-  for them.
 - Sending the task execution log, cleaning up the cache when space is short.

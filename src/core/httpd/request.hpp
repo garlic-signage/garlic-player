@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -56,14 +58,35 @@ namespace garlic::core::httpd
         std::string header(std::string_view name) const;
     };
 
+    struct PendingResponse;
+
     struct Response
     {
         int                                              status       = 200;
         std::string                                      content_type = "application/json"; // empty: no header
         std::string                                      body;
         std::vector<std::pair<std::string, std::string>> headers;
+        std::shared_ptr<PendingResponse>                 pending{}; // set: the answer comes later
 
         static Response json(int status, std::string body) { return {status, "application/json", std::move(body), {}}; }
+
+        /// The answer is not known yet (e.g. a screenshot of the frontend): the server holds the connection until
+        /// pending is completed. Nothing blocks meanwhile.
+        static Response later(std::shared_ptr<PendingResponse> pending)
+        {
+            Response r;
+            r.pending = std::move(pending);
+            return r;
+        }
+    };
+
+    /// An answer that comes later; the handler keeps it and completes it from another place of the core.
+    struct PendingResponse
+    {
+        std::optional<Response> response;
+
+        void complete(Response r) { response = std::move(r); }
+        bool isComplete() const noexcept { return response.has_value(); }
     };
 
     using Handler = std::function<Response(const Request &)>;

@@ -110,7 +110,13 @@ namespace garlic::core
         tasks->checkPending();
 
         router   = std::make_unique<httpd::Router>();
-        rest_api = std::make_unique<rest_api::RestApi>(config, *inventory, fs, clock);
+        rest_api::RestActions actions;
+        actions.notify        = [this](std::string_view name) { notify(name); };
+        actions.reboot        = [this](std::string task_id) { events.emplace_back(tasks::Reboot{std::move(task_id)}); };
+        actions.reloadIndex   = [this] { index->start(); };
+        actions.playTemporary = [this](std::string uri) { index->startTemporary(std::move(uri)); };
+        actions.screenshot    = [this](std::string path) { events.emplace_back(Screenshot{std::move(path)}); };
+        rest_api = std::make_unique<rest_api::RestApi>(config, *inventory, fs, clock, std::move(actions));
         rest_api->registerRoutes(*router);
 #if GARLIC_CORE_WITH_HTTPD
         auto httpd = config.httpd();
@@ -144,6 +150,8 @@ namespace garlic::core
             index->poll();
         if (reporter)
             reporter->poll();
+        if (rest_api)
+            rest_api->poll(); // screenshots that did not come in time
         if (server)
             server->poll();
 
@@ -181,6 +189,8 @@ namespace garlic::core
             earlier(index->nextDeadline());
         if (reporter)
             earlier(reporter->nextDeadline());
+        if (rest_api)
+            earlier(rest_api->nextDeadline());
         earlier(next_reboot);
         // curl and libmicrohttpd run without threads of their own: they need to be polled while they work
         if ((queue && !queue->isIdle()) || server)
@@ -218,6 +228,12 @@ namespace garlic::core
     {
         if (engine)
             engine->notify(name);
+    }
+
+    void PlayerRuntimeApi::screenshotTaken(std::string_view path)
+    {
+        if (rest_api)
+            rest_api->screenshotTaken(path);
     }
 
     std::optional<std::string> PlayerRuntimeApi::locate(std::string_view src)
