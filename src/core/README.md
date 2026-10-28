@@ -5,7 +5,7 @@ HTTP server, SMIL parser, configuration, logger, system information) to the play
 JavaScript/WASM, ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
-[downloader](docs/downloader.md).
+[downloader](docs/downloader.md), [database](docs/database.md).
 
 ## Layout
 
@@ -18,9 +18,11 @@ src/core/
 ├── docs/                 documentation
 ├── common/               shared types and interfaces (.hpp and .cpp side by side)
 ├── downloader/
+├── database/
 └── tests/                one test executable per module
     ├── common/
     ├── downloader/
+    ├── database/
     └── support/          fakes shared by the tests
 ```
 

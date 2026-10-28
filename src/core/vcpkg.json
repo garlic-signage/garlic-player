@@ -12,7 +12,8 @@
         "openssl"
       ],
       "platform": "!emscripten"
-    }
+    },
+    "sqlite3"
   ],
   "features": {
     "tests": {
