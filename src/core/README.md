@@ -4,7 +4,8 @@ Qt-free rewrite of the garlic-lib in C++23. It provides the player-independent f
 HTTP server, SMIL parser, configuration, logger, system information) to the players (QWidget, QML, Java,
 JavaScript/WASM, ESP32).
 
-See [docs/architecture.md](docs/architecture.md) for the design decisions.
+See [docs/architecture.md](docs/architecture.md) for the design decisions and [docs/downloader.md](docs/downloader.md)
+for the downloader module.
 
 ## Layout
 

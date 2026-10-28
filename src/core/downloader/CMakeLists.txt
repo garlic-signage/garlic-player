@@ -1,5 +1,5 @@
 add_library(garlic_core_downloader STATIC
-    src/downloader.cpp
+    src/http_headers.cpp
 )
 add_library(garlic::core::downloader ALIAS garlic_core_downloader)
 garlic_core_set_options(garlic_core_downloader)
