@@ -48,8 +48,8 @@ FetchContent_Declare(miniz
     SYSTEM
     FIND_PACKAGE_ARGS CONFIG
 )
-# miniz 3.0.2 asks for CMake 3.0, which CMake 4 no longer accepts; only for miniz
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+# miniz 3.0.2 asks for CMake 3.0, which CMake 4 no longer accepts (and warns below 3.10); only for miniz
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 FetchContent_MakeAvailable(miniz)
 unset(CMAKE_POLICY_VERSION_MINIMUM)
 if(NOT TARGET miniz::miniz)

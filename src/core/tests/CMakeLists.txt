@@ -12,7 +12,10 @@ FetchContent_Declare(doctest
     SYSTEM            # warnings of doctest itself are not ours
     FIND_PACKAGE_ARGS CONFIG
 )
+# doctest 2.4.12 asks for an old CMake, which CMake 4 warns about; only for doctest
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 FetchContent_MakeAvailable(doctest)
+unset(CMAKE_POLICY_VERSION_MINIMUM)
 
 # One test executable per module, so every module is tested separately.
 add_subdirectory(common)
