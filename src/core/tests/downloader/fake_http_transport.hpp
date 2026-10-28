@@ -63,6 +63,8 @@ namespace garlic::core::downloader::tests
                 response.status = 404;
                 if (auto it = responses.find({request.method, request.url}); it != responses.end())
                     response = it->second;
+                else if (fallback)
+                    response = *fallback;
 
                 RequestId id = next_id++;
                 active.emplace(id, Active{request.method, std::move(response), &handler});
@@ -89,6 +91,9 @@ namespace garlic::core::downloader::tests
 
             /// Set: start() fails with TransportErrorCode::Busy.
             bool refuse_start = false;
+
+            /// Set: the answer for every URL that has no response of its own (e.g. uploads with random names).
+            std::optional<Response> fallback;
 
         private:
             struct Active

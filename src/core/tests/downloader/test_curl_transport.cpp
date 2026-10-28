@@ -152,6 +152,26 @@ TEST_CASE("CurlTransport: request headers are sent")
     CHECK(server.requests()[0].find("If-None-Match: \"v1\"") != std::string::npos);
 }
 
+TEST_CASE("CurlTransport: PUT sends the body")
+{
+    TestHttpServer server;
+    server.route("PUT", "/reports/system.xml", "HTTP/1.1 201 Created");
+
+    CurlTransport transport;
+    HttpRequest   request{HttpMethod::Put, server.url("/reports/system.xml"), {}, "<report/>"};
+    request.headers.add("Content-Type", "application/xml");
+
+    RecordingHandler handler;
+    REQUIRE(transport.start(request, handler));
+    run(transport, handler);
+
+    CHECK(handler.events.front() == "head 201");
+    REQUIRE(server.requests().size() == 1);
+    CHECK(server.requests()[0].starts_with("PUT /reports/system.xml"));
+    CHECK(server.requests()[0].find("Content-Type: application/xml") != std::string::npos);
+    CHECK(server.bodies()[0] == "<report/>");
+}
+
 TEST_CASE("CurlTransport: HTTP errors arrive as status, not as transport error")
 {
     TestHttpServer server;

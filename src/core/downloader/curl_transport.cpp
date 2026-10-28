@@ -34,6 +34,7 @@ namespace garlic::core::downloader
         bool                 aborted_by_handler = false;
         bool                 cancelled         = false;
         bool                 added             = false; // added to the multi handle
+        std::string          body;                      // of a PUT, must live until the transfer ends
         char                 error[CURL_ERROR_SIZE] = {};
 
         ~Transfer()
@@ -194,6 +195,13 @@ namespace garlic::core::downloader
         curl_easy_setopt(easy, CURLOPT_URL, request.url.c_str());
         if (request.method == HttpMethod::Head)
             curl_easy_setopt(easy, CURLOPT_NOBODY, 1L);
+        else if (request.method == HttpMethod::Put)
+        {
+            t->body = request.body;
+            curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, "PUT");
+            curl_easy_setopt(easy, CURLOPT_POSTFIELDS, t->body.data());
+            curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(t->body.size()));
+        }
         else
             curl_easy_setopt(easy, CURLOPT_HTTPGET, 1L);
         curl_easy_setopt(easy, CURLOPT_HTTPHEADER, t->headers);

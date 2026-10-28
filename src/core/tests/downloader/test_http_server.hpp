@@ -86,6 +86,13 @@ namespace garlic::core::downloader::tests
                 return received;
             }
 
+            /// Received request bodies, in arrival order (empty for GET and HEAD).
+            std::vector<std::string> bodies() const
+            {
+                std::lock_guard lock(mutex);
+                return received_bodies;
+            }
+
         private:
             struct Response
             {
@@ -124,6 +131,19 @@ namespace garlic::core::downloader::tests
                     request.append(buffer, static_cast<std::size_t>(n));
                 }
 
+                // a body (PUT): read as many bytes as Content-Length says
+                std::size_t head_end = request.find("\r\n\r\n") + 4;
+                std::size_t length   = 0;
+                if (auto at = request.find("Content-Length: "); at != std::string::npos && at < head_end)
+                    length = std::stoul(request.substr(at + 16));
+                while (request.size() < head_end + length)
+                {
+                    ssize_t n = ::recv(client, buffer, sizeof(buffer), 0);
+                    if (n <= 0)
+                        return;
+                    request.append(buffer, static_cast<std::size_t>(n));
+                }
+
                 std::string line   = request.substr(0, request.find("\r\n"));
                 std::string method = line.substr(0, line.find(' '));
                 std::string path   = line.substr(line.find(' ') + 1);
@@ -133,6 +153,7 @@ namespace garlic::core::downloader::tests
                 {
                     std::lock_guard lock(mutex);
                     received.push_back(request.substr(0, request.find("\r\n\r\n")));
+                    received_bodies.push_back(request.substr(head_end));
                     if (auto it = routes.find(method + " " + path); it != routes.end())
                         response = it->second;
                 }
@@ -170,6 +191,7 @@ namespace garlic::core::downloader::tests
             mutable std::mutex              mutex;
             std::map<std::string, Response> routes;
             std::vector<std::string>        received;
+            std::vector<std::string> received_bodies;
     };
 }
 

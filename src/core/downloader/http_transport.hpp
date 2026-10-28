@@ -32,7 +32,8 @@ namespace garlic::core::downloader
     enum class HttpMethod
     {
         Head,
-        Get
+        Get,
+        Put // uploads, e.g. the reports to the hub
     };
 
     struct HttpHeader
@@ -61,6 +62,7 @@ namespace garlic::core::downloader
         HttpMethod  method = HttpMethod::Get;
         std::string url;
         HttpHeaders headers; // e.g. If-None-Match, If-Modified-Since, Range, User-Agent
+        std::string body{};  // sent with Put
     };
 
     struct HttpResponseHead

@@ -43,6 +43,7 @@ Rules for every implementation:
   response could be received (DNS, connection, TLS, timeout).
 - **Chunks are not buffered.** The data passed to `onData()` is only valid during the call.
 - **After `cancel()` no callbacks** for that request arrive anymore.
+- **Methods**: `Head`, `Get`, and `Put` with `HttpRequest::body` for uploads (the reports to the hub).
 
 Timeouts for stalled downloads are not part of the transport. The `Downloader` handles them platform-independent via
 the `Clock` interface.

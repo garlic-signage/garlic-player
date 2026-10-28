@@ -27,6 +27,7 @@ std::string ua = config.userAgent();
 | Method                                   | ini key                                   |
 |------------------------------------------|-------------------------------------------|
 | `uuid()`                                 | `uuid`                                    |
+| `createUuid()` (static)                  | a new random UUID v4, e.g. for upload names |
 | `playerName()`, `setPlayerName()`        | `player_name`                             |
 | `indexUri()`, `setIndexUri()`, `determineIndexUri()` | `index_uri`                   |
 | `lastPlayedIndexPath()`, `set…`          | `last_played_index_path`                  |

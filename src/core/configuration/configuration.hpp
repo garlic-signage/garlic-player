@@ -98,6 +98,9 @@ namespace garlic::core::configuration
             /// "linux", "windows", "macOS", "android", "iOS", "wasm", "esp32", …
             static std::string_view os();
 
+            /// A new random UUID (version 4), e.g. for unique upload names of the reports.
+            static std::string createUuid();
+
             /// "GAPI/1.0 (UUID:…; NAME:…) garlic-linux/1.2.3 (MODEL:Garlic)"
             std::string userAgent() const;
 

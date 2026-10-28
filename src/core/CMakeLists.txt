@@ -66,6 +66,7 @@ add_subdirectory(configuration)
 add_subdirectory(rest_api)
 add_subdirectory(smil)
 add_subdirectory(content)
+add_subdirectory(reports)
 
 if(GARLIC_CORE_BUILD_TESTS)
     enable_testing()
@@ -95,6 +96,7 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::rest_api>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::smil>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::content>"
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::reports>"
     )
 
     set_target_properties(garlic_core PROPERTIES

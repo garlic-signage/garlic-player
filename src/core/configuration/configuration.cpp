@@ -35,7 +35,7 @@ namespace garlic::core::configuration
     namespace
     {
         /// Random UUID version 4, lowercase like QUuid.
-        std::string createUuid()
+        std::string newUuid()
         {
             std::random_device                 random;
             std::array<std::uint8_t, 16>       bytes;
@@ -80,6 +80,11 @@ namespace garlic::core::configuration
             }
             return text;
         }
+    }
+
+    std::string Configuration::createUuid()
+    {
+        return newUuid();
     }
 
     Configuration::Configuration(common::FileSystem &f, const common::Clock &c, std::string path)
