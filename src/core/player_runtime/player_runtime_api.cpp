@@ -33,6 +33,7 @@
     #include "system/system_info.hpp"
 #endif
 
+#include <algorithm>
 #include <format>
 #include <limits>
 
@@ -126,6 +127,15 @@ namespace garlic::core
         tasks = std::make_unique<tasks::TaskScheduler>(*queue, fs, *logger, config, settings.cache_dir,
                                                        [this](tasks::TaskAction a) { onTask(std::move(a)); });
         tasks->checkPending();
+
+        // -c config.xml (garlic-lib: setConfigFromExternal before the first index). An index URI of the command line
+        // still wins, a new player name changes the user agent. Missing or broken: an event, the player goes on.
+        if (!settings.configuration_file.empty())
+        {
+            tasks->applyConfigurationFile(settings.configuration_file);
+            config.determineIndexUri(settings.index_uri);
+            queue->setUserAgent(config.userAgent());
+        }
 
         router   = std::make_unique<httpd::Router>();
         rest_api::RestActions actions;
@@ -433,11 +443,51 @@ namespace garlic::core
     /// garlic-lib: LibFacade::timerEvent with the ResourceMonitor
     void PlayerRuntimeApi::logResources()
     {
+        DebugInfo process;
+        trackProcess(process);
         if (!settings.system_info)
             return;
         reports::SystemInfo info = settings.system_info();
-        logger->debug("Develop", std::format("disc {}/{} memory {}/{}", info.free_space.value_or(0),
-                                             info.total_capacity.value_or(0), info.memory_used.value_or(0),
-                                             info.memory_total.value_or(0)));
+        logger->debug("Develop", std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {})",
+                                             info.free_space.value_or(0), info.total_capacity.value_or(0),
+                                             info.memory_used.value_or(0), info.memory_total.value_or(0),
+                                             process.memory_used, memory_max, process.threads, threads_max));
+    }
+
+    /// Memory and threads of the player and their maxima (garlic-lib: ResourceMonitor::refresh).
+    void PlayerRuntimeApi::trackProcess(DebugInfo &info)
+    {
+#if GARLIC_CORE_WITH_SYSTEM
+        system::ProcessInfo process = system::processInfo();
+        info.memory_used            = process.memory;
+        info.threads                = process.threads;
+#endif
+        if (info.memory_used > memory_max)
+        {
+            memory_max      = info.memory_used;
+            memory_max_time = common::isoLocalTime(clock.now());
+        }
+        threads_max          = std::max(threads_max, info.threads);
+        info.memory_max      = memory_max;
+        info.memory_max_time = memory_max_time;
+        info.threads_max     = threads_max;
+    }
+
+    DebugInfo PlayerRuntimeApi::debugInfo()
+    {
+        DebugInfo info;
+        info.index_title = document ? document->head.title : std::string();
+        info.user_agent  = config.userAgent();
+        if (settings.system_info)
+        {
+            reports::SystemInfo system = settings.system_info();
+            info.disk_total            = system.total_capacity;
+            info.disk_free             = system.free_space;
+            info.memory_total          = system.memory_total;
+            if (system.memory_total && system.memory_used)
+                info.memory_free = *system.memory_total - std::min(*system.memory_used, *system.memory_total);
+        }
+        trackProcess(info);
+        return info;
     }
 }

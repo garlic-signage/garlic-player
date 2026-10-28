@@ -44,6 +44,7 @@ while (running)
 | `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
 | `playerSettings()`         | what the settings dialog shows: player name, index URI, HTTP server on/off and port |
 | `changePlayerSettings(s)`  | check and store them; error text of the core if not valid         |
+| `debugInfo()`              | resources and identity for the debug dialog                       |
 | `configuration()`          | read and change any setting                                       |
 | `stop()`                   | stop the playback (standby, quitting); the `StopMedia` come with the next `poll()` |
 
@@ -79,6 +80,8 @@ start()
 ├── inventory database <log_dir>/garlic.db (database_path)
 ├── download queue, IndexManager, MediaManager, Reporter, TaskScheduler (need the loaded configuration)
 ├── tasks.checkPending()            a restart or firmware update from before is confirmed
+├── configuration_file (-c)         applied like the task updateSettings; then the index URI of the command line
+│                                   again (it wins) and the user agent anew; missing or broken: an event only
 ├── HTTP server with the REST API, if httpd/enabled (and built with libmicrohttpd)
 ├── restart schedule
 └── index.start()
@@ -137,6 +140,14 @@ changePlayerSettings({player_name, index_uri, httpd_enabled, httpd_port})
 ```
 
 Running requests of a stopped server get 503, like when the player quits.
+
+## Debug dialog
+
+`debugInfo()` gives what the debug dialog of garlic-lib showed (DebugInfos, ResourceMonitor): title of the index, user
+agent, disk of the cache and memory of the system (from `system_info`), memory and threads of the player
+(`system::processInfo`) with their maxima since the start and the time of the memory maximum. The maxima are updated at
+every call and with the resource log every 5 minutes, which now writes them to debug.log too. Without the system module
+(WASM, ESP32) the player values stay 0 and the others empty, unless the frontend gives a `system_info`.
 
 ## ThreadedRuntime
 

@@ -361,3 +361,89 @@ TEST_CASE("player settings: the HTTP server is switched on and off, a port in us
     REQUIRE(f.runtime->changePlayerSettings(next).has_value());
     CHECK_FALSE(f.runtime->playerSettings().httpd_enabled);
 }
+
+TEST_CASE("debug info: title, user agent, disk and memory of the system, the player with its maxima")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil",
+            indexText("", 60, R"x(<meta name="title" content="lobby"/>)x"), "application/smil+xml");
+    reports::SystemInfo system;
+    system.total_capacity = 1000;
+    system.free_space     = 400;
+    system.memory_total   = 2048;
+    system.memory_used    = 512;
+    f.runtime.reset(); // again with a system info that knows something
+    PlayerRuntimeConfig config;
+    config.ini_path      = "config/garlic-player.ini";
+    config.cache_dir     = "cache";
+    config.log_dir       = "logs";
+    config.index_uri     = "http://hub/index.smil";
+    config.database_path = ":memory:";
+    config.system_info   = [system] { return system; };
+    config.free_space    = [] { return std::uint64_t{1} << 40; };
+    f.runtime            = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+
+    DebugInfo info = f.runtime->debugInfo();
+    CHECK(info.index_title == "lobby");
+    CHECK(info.user_agent == f.runtime->configuration().userAgent());
+    CHECK(info.disk_total == 1000u);
+    CHECK(info.disk_free == 400u);
+    CHECK(info.memory_total == 2048u);
+    CHECK(info.memory_free == 1536u);
+    CHECK(info.memory_max >= info.memory_used); // the test process itself on Linux
+    CHECK(info.threads_max >= info.threads);
+    if (info.memory_used > 0)
+        CHECK_FALSE(info.memory_max_time.empty());
+}
+
+TEST_CASE("-c config.xml: applied before the first index, an index URI of the command line wins")
+{
+    Fixture f;
+    f.write("usb/config.xml", R"(<configuration><prop name="info.playerName" value="Lobby"/>
+        <prop name="content.serverUrl" value="http://hub/from-config.smil"/><prop name="volume" value="40"/></configuration>)");
+    auto with_file = [&](std::string index_uri)
+    {
+        PlayerRuntimeConfig config;
+        config.ini_path           = "config/garlic-player.ini";
+        config.cache_dir          = "cache";
+        config.log_dir            = "logs";
+        config.index_uri          = std::move(index_uri);
+        config.database_path      = ":memory:";
+        config.configuration_file = "usb/config.xml";
+        config.system_info        = [] { return reports::SystemInfo{}; };
+        config.free_space         = [] { return std::uint64_t{1} << 40; };
+        f.runtime                 = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+        REQUIRE(f.runtime->start().has_value());
+        f.run(1s);
+    };
+
+    with_file("");
+    CHECK(f.runtime->configuration().playerName() == "Lobby");
+    CHECK(f.runtime->configuration().value("audio/volume") == "40");
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/from-config.smil");
+    auto first = std::ranges::find(f.transport.requests, std::string("http://hub/from-config.smil"), &downloader::HttpRequest::url);
+    REQUIRE(first != f.transport.requests.end());
+    CHECK(first->headers.find("User-Agent").value_or("").find("NAME:Lobby") != std::string::npos);
+
+    f.runtime.reset();
+    with_file("http://hub/command-line.smil");
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/command-line.smil");
+}
+
+TEST_CASE("-c config.xml missing: an event, the player starts anyway")
+{
+    Fixture f;
+    PlayerRuntimeConfig config;
+    config.ini_path           = "config/garlic-player.ini";
+    config.cache_dir          = "cache";
+    config.log_dir            = "logs";
+    config.index_uri          = "http://hub/index.smil";
+    config.database_path      = ":memory:";
+    config.configuration_file = "usb/missing.xml";
+    config.system_info        = [] { return reports::SystemInfo{}; };
+    f.runtime                 = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.fs.content("logs/event_log.xml").value_or("").find("CONFIGURATION_OPEN_ERROR") != std::string::npos);
+}

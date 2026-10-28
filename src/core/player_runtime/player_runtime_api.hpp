@@ -106,6 +106,7 @@ namespace garlic::core
         std::string version;   // of the player software
         std::string index_uri; // from the command line; empty: the one in the ini
         std::string database_path; // SQLite file of the inventory; empty: <log_dir>/garlic.db like garlic-lib
+        std::string configuration_file; // -c config.xml, e.g. of the launcher: applied at every start; empty: none
 
         content::MediaManager::Supports     supports;    // what the frontend can show; empty: everything
         reports::Reporter::SystemInfoSource system_info; // empty: system::collectSystemInfo where it exists
@@ -123,6 +124,22 @@ namespace garlic::core
         std::string   index_uri;
         bool          httpd_enabled = true;
         std::uint16_t httpd_port    = 8080;
+    };
+
+    /// What the debug dialog of a frontend shows (garlic-lib: DebugInfos, ResourceMonitor). Empty where unknown.
+    struct DebugInfo
+    {
+        std::string                  index_title;
+        std::string                  user_agent;
+        std::optional<std::uint64_t> disk_total;   // of the cache, 96 % of the disk like garlic-lib
+        std::optional<std::uint64_t> disk_free;
+        std::optional<std::uint64_t> memory_total; // of the system
+        std::optional<std::uint64_t> memory_free;
+        std::uint64_t                memory_used = 0; // of the player (resident set size)
+        std::uint64_t                memory_max  = 0; // since the start
+        std::string                  memory_max_time; // ISO 8601, when the maximum was measured
+        int                          threads     = 0;
+        int                          threads_max = 0;
     };
 
     /**
@@ -174,6 +191,9 @@ namespace garlic::core
              */
             std::expected<void, std::string> changePlayerSettings(const PlayerSettings &next);
 
+            /// Resources and identity for the debug dialog; also updates the maxima.
+            DebugInfo debugInfo();
+
             /// Stops the playback, e.g. for standby or before quitting; the StopMedia come with the next poll().
             void stop();
 
@@ -206,6 +226,9 @@ namespace garlic::core
 
             std::optional<std::chrono::steady_clock::time_point> next_reboot;
             std::chrono::steady_clock::time_point                next_resource_log;
+            std::uint64_t                                        memory_max = 0; // of the player since the start
+            std::string                                          memory_max_time;
+            int                                                  threads_max = 0;
 
             void dispatch(const downloader::DownloadResult &result);
             void newIndex(smil::Document document, std::string base);
@@ -214,6 +237,7 @@ namespace garlic::core
             void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
             void logResources();
+            void trackProcess(DebugInfo &info);
             std::expected<void, std::string> restartServer(bool enabled, std::uint16_t port);
     };
 }

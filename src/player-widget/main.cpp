@@ -27,6 +27,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QFileInfo>
 #include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
@@ -43,7 +44,7 @@ namespace
     }
 
     /// The places of garlic-lib, so an existing player keeps its settings, cache and logs.
-    garlic::core::PlayerRuntimeConfig runtimeConfig(const QString &index_uri)
+    garlic::core::PlayerRuntimeConfig runtimeConfig(const QString &index_uri, const QString &configuration_file)
     {
         garlic::core::PlayerRuntimeConfig config;
         config.ini_path = utf8(QSettings(QSettings::IniFormat, QSettings::UserScope, "SmilControl", "garlic-player").fileName());
@@ -55,6 +56,8 @@ namespace
         config.log_dir     = utf8(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs");
         config.version     = PLAYER_VERSION;
         config.index_uri   = utf8(index_uri);
+        if (!configuration_file.isEmpty())
+            config.configuration_file = utf8(QFileInfo(configuration_file).absoluteFilePath());
         config.random_seed = std::random_device{}();
         return config;
     }
@@ -72,6 +75,7 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOptions({
+        {{"c", "config"}, "path to a config.xml, applied at every start (e.g. by a launcher)", "config"},
         {{"m", "windows-mode"}, "fullscreen, bigscreen (over all screens) or windowed", "fullscreen|bigscreen|windowed",
          "windowed"},
         {{"z", "windows-size"}, "size in windows mode, e.g. 980x540", "width x height", "980x540"},
@@ -105,7 +109,7 @@ int main(int argc, char *argv[])
     garlic::core::common::SystemClock        clock;
     garlic::core::downloader::CurlTransport  http;
     player::MainWindow                      *window = nullptr;
-    garlic::core::ThreadedRuntime            runtime(fs, clock, http, runtimeConfig(index_uri), [&window]
+    garlic::core::ThreadedRuntime            runtime(fs, clock, http, runtimeConfig(index_uri, parser.value("config")), [&window]
     {
         // core thread: into the UI thread
         QMetaObject::invokeMethod(window, [&window] { window->takeEvents(); }, Qt::QueuedConnection);

@@ -20,9 +20,11 @@ build/src/player-widget/garlic-player -m fullscreen http://hub/index.smil
 | `-z`, `--windows-size`  | size in windowed mode, default `980x540`                                |
 | `-s`, `--screen-select` | number of the screen to start on                                        |
 | `--media-backend`       | `qtavplayer` (default), `qtmultimedia` or `vlc`; only the ones built in |
+| `-c`, `--config`        | a `config.xml` (e.g. of a launcher), applied by the core at every start before the index; an index on the command line still wins |
 
-Keys: Ctrl+F full screen on/off, Ctrl+B over all screens, Ctrl+S settings, Ctrl+Q quit; other keys go to the core
-as accessKey.
+Keys: Ctrl+F full screen on/off, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit; other
+keys go to the core as accessKey. The debug infos also open after six fast clicks or touches (less than 500 ms apart)
+or one held for 10 s, anywhere in the window (garlic-lib).
 
 Without an index the settings dialog opens at the start; cancelled, the player ends (garlic-lib).
 
@@ -37,6 +39,7 @@ the cache in `CacheLocation` (Windows: `AppLocalDataLocation/cache`), the logs i
 | `main.cpp`                    | command line, PlayerRuntimeConfig, ThreadedRuntime, window mode         |
 | `main_window.hpp/.cpp`        | takes the events of the core and hands them on; keys, screenshot        |
 | `settings_dialog.hpp/.cpp`    | player name, content URL, HTTP server on/off and port                   |
+| `debug_dialog.hpp/.cpp`       | resources from the core and the media that play now, every second       |
 | `region.hpp/.cpp`             | one `<region>`: geometry 0..1 of the window, background, stacked media  |
 | `media.hpp/.cpp`              | `Media` base class, factory by `MediaKind`, brush, command              |
 | `image.hpp/.cpp`              | images with fit and mediaAlign                                          |
@@ -77,6 +80,15 @@ post(mediaFinished / mediaFailed /       ←    end of a video or audio, a file 
 otherwise it shows the error text of the core (invalid URL, port in use). Both calls wait for the core thread
 (`post` with a `std::promise`). A QML frontend gets a dialog of its own on the same two calls.
 
+## Debug dialog
+
+`DebugDialog` refreshes every second: playlist title, user agent, disk and memory of the system, memory and threads of
+the player with their maxima (all from `debugInfo()` of the core, waited for with `post` and a `std::promise`) and the
+media that play now, one line per region with title or src (from the MainWindow; garlic-lib had the code for it but
+did not show it). Buttons: quit the player, close. Clicks and touches are counted by an event filter on the
+application, so web pages and videos count too; an event handed on to the parent widgets counts once (by its
+timestamp). garlic-lib labelled free and total disk space the wrong way round.
+
 ## Media
 
 | Kind          | Class     | Behaviour                                                                       |
@@ -107,7 +119,4 @@ At least one has to be built; `--media-backend` with one that is not built in en
 
 ## Not yet
 
-- Debug infos, network dialog (Ctrl+D of garlic-lib).
 - Launcher/daemon: reboot, software installation, screen off (`adapi:blankScreen`).
-- `-c config.xml` of garlic-lib: the core has `applyConfigurationFile`, but the PlayerRuntimeApi does not offer it yet.
-- Multi-touch counting of garlic-lib (debug infos after several touches).

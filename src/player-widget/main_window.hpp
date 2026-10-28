@@ -50,7 +50,11 @@ namespace player
             void showFullScreenOn(QScreen *screen);
             void showOverAllScreens();
 
+            /// The media that play now, "region: title or src", for the debug dialog.
+            QStringList playingMedia() const;
+
         protected:
+            bool eventFilter(QObject *watched, QEvent *event) override;
             void keyPressEvent(QKeyEvent *event) override;
             void resizeEvent(QResizeEvent *event) override;
 
@@ -69,6 +73,10 @@ namespace player
             std::vector<Region *>                                   regions; // children of this window, by z-index
             std::map<garlic::core::smil::InstanceId, Instance>      instances;
 
+            // touches for the debug dialog (garlic-lib: MainWindow::event)
+            qint64 first_touch = 0, last_touch = 0, last_press = -1;
+            int    count_touch = 0;
+
             void handle(const garlic::core::CoreEvent &event);
             void newLayout(const garlic::core::NewLayout &next);
             void backgroundImage(const garlic::core::BackgroundImage &image);
@@ -77,6 +85,7 @@ namespace player
             void forEach(garlic::core::smil::InstanceId id, void (Media::*action)());
             void screenshot(const std::string &path);
             void clear();
+            void openDebugDialog();
     };
 }
 

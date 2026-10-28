@@ -27,6 +27,7 @@ add_executable(player-widget
     av_media.cpp
     media_player.cpp
     settings_dialog.cpp
+    debug_dialog.cpp
 )
 set_target_properties(player-widget PROPERTIES OUTPUT_NAME garlic-player CXX_EXTENSIONS OFF)
 target_compile_features(player-widget PRIVATE cxx_std_23)

@@ -16,9 +16,12 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "main_window.hpp"
+#include "debug_dialog.hpp"
 #include "settings_dialog.hpp"
 
 #include <QApplication>
+#include <QDateTime>
+#include <QMouseEvent>
 #include <QDebug>
 #include <QKeyEvent>
 #include <QProcess>
@@ -48,6 +51,7 @@ namespace player
         setAttribute(Qt::WA_StyledBackground);
         setBackground(*this, "black", {}, {});
         setWindowTitle("garlic-player");
+        qApp->installEventFilter(this); // clicks and touches anywhere in the window, also on web pages
     }
 
     MainWindow::~MainWindow()
@@ -220,7 +224,8 @@ namespace player
 
     void MainWindow::keyPressEvent(QKeyEvent *event)
     {
-        // Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S settings, Ctrl+Q quit (garlic-lib); others are accessKeys
+        // Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit (garlic-lib);
+        // other keys are accessKeys
         if (event->modifiers().testFlag(Qt::ControlModifier))
         {
             switch (event->key())
@@ -229,6 +234,7 @@ namespace player
                     isFullScreen() ? showWindowed(windowed_size) : showFullScreenOn(screen());
                     return;
                 case Qt::Key_B: showOverAllScreens(); return;
+                case Qt::Key_D: openDebugDialog(); return;
                 case Qt::Key_S:
                 {
                     QCursor hidden = cursor();
@@ -249,6 +255,64 @@ namespace player
             return;
         }
         QWidget::keyPressEvent(event);
+    }
+
+    /**
+     * garlic-lib: the debug dialog after six fast clicks or touches (less than 500 ms apart) or one held for 10 s.
+     * The filter sees an event once per widget it is handed to, so a press counts once by its timestamp.
+     */
+    bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+    {
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (widget == nullptr || widget->window() != this)
+            return false;
+
+        bool press   = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin;
+        bool release = event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::TouchEnd;
+        if (!press && !release)
+            return false;
+        auto timestamp = static_cast<qint64>(static_cast<QInputEvent *>(event)->timestamp());
+        qint64 now     = QDateTime::currentMSecsSinceEpoch();
+
+        if (press && timestamp != last_press)
+        {
+            last_press  = timestamp;
+            first_touch = now;
+            count_touch = now - last_touch < 500 ? count_touch + 1 : 0;
+            if (count_touch > 5)
+            {
+                count_touch = 0;
+                QMetaObject::invokeMethod(this, &MainWindow::openDebugDialog, Qt::QueuedConnection);
+            }
+        }
+        else if (release && now != last_touch)
+        {
+            last_touch = now;
+            if (last_touch - first_touch > 10000)
+                QMetaObject::invokeMethod(this, &MainWindow::openDebugDialog, Qt::QueuedConnection);
+        }
+        return false;
+    }
+
+    void MainWindow::openDebugDialog()
+    {
+        QCursor hidden = cursor();
+        setCursor(Qt::ArrowCursor);
+        DebugDialog(runtime, [this] { return playingMedia(); }, this).exec();
+        setCursor(hidden);
+    }
+
+    QStringList MainWindow::playingMedia() const
+    {
+        QStringList lines;
+        for (const auto &[id, instance] : instances)
+            for (const auto &[region, media] : instance.shown)
+            {
+                const smil::Region &definition = region->definition();
+                lines << qt(definition.region_name.empty() ? definition.id : definition.region_name) + ": " +
+                             media->label();
+            }
+        return lines;
     }
 
     void MainWindow::resizeEvent(QResizeEvent *event)

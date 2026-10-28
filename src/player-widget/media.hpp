@@ -52,6 +52,9 @@ namespace player
             virtual void resume() {}
             virtual void repeat() {} // RepeatMedia: video and audio again from the beginning, an image just stays
 
+            /// For the debug dialog: title, else src of the SMIL (garlic-lib)
+            QString label() const { return QString::fromStdString(smil.title.empty() ? smil.src : smil.title); }
+
         Q_SIGNALS:
             void finished();                      // video, audio: the end of the file
             void failed(const QString &message);  // cannot be played: the core goes on
