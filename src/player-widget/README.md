@@ -111,11 +111,12 @@ exactly one `finished` per run, nothing after `stop()`.
 
 | Backend        | CMake option              | Notes                                                                |
 |----------------|---------------------------|----------------------------------------------------------------------|
-| `qtavplayer`   | `PLAYER_WITH_QTAVPLAYER`  | default; FFmpeg, frames to `QVideoWidget`, sound to `QAVAudioOutput`; downloaded by FetchContent (tag `v2026-10-04`) |
+| `qtavplayer`   | `PLAYER_WITH_QTAVPLAYER`  | default; FFmpeg, frames to `QVideoWidget`, sound to `QAVAudioOutput`; downloaded by FetchContent (tag `v2026-10-04`); needs the private headers of Qt Multimedia, which Debian Trixie does not ship |
 | `qtmultimedia` | `PLAYER_WITH_QTMULTIMEDIA`| `QMediaPlayer` (FFmpeg backend of Qt)                                 |
 | `vlc`          | `PLAYER_WITH_VLC`         | draws into a native window: on Linux X11 (`QT_QPA_PLATFORM=xcb`), not Wayland; one libvlc instance for all; no fit (like garlic-lib); events of libvlc are handed to the UI thread |
 
 At least one has to be built; `--media-backend` with one that is not built in ends with the list of the available.
+Without the option it is `qtavplayer`, or the first one built in.
 
 ## Not yet
 

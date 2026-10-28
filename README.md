@@ -17,6 +17,50 @@ Click on the image to see how a Raspberry Pi 4 playing four videos in zones.
 
 Binaries can be [downloaded](https://garlic-signage.com/garlic-player/downloads/). You will find stable releases and nightly build there.
 
+## Version 2.0 (Beta): the rewrite
+
+Version 2.0 is a rewrite. Everything a player needs besides showing media is now in **garlic-core**
+([src/core](src/core/README.md)), a Qt-free library in C++23: download and cache, SMIL parser and timing engine,
+reports, tasks, REST API, configuration and logs. It runs in a thread of its own and drives the frontend through one
+interface, the `PlayerRuntimeApi`. The frontends only show: regions, images, videos, web pages.
+
+Why:
+ - **One core for every platform.** The old garlic-lib was bound to Qt. The new core also fits frontends in Java
+   (Android), JavaScript/WASM (browsers, Tizen, webOS) and on an ESP32.
+ - **Robust and testable.** The timing engine follows the SMIL standard and is tested with scenario tests; the
+   core has unit tests for every module, run in Debian Trixie with every push (see the badges above).
+ - **Compatible.** Same settings file, cache, logs, reports, REST API and SMIL features as before, so existing
+   installations and CMS keep working. Old bugs were fixed on the way and are documented in the
+   [module docs](src/core/docs).
+
+The first frontend is **player-widget** ([src/player-widget](src/player-widget/README.md)) with Qt 6. Video and audio
+can be played with QtAVPlayer (default), Qt Multimedia or libvlc.
+
+The beta runs on Linux. Windows, macOS, Android and iOS follow. The code of version 1.x (Qt 5, garlic-lib and the
+old frontends) is kept in [legacy](legacy) for reference; it is not built anymore.
+
+## Build (2.0)
+
+Needs CMake 3.25+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.5+ with Widgets, WebEngine and Multimedia, libvlc,
+libcurl, libmicrohttpd, SQLite and libxml2. On Debian Trixie:
+
+```
+apt install cmake ninja-build g++ pkg-config libcurl4-openssl-dev libmicrohttpd-dev libsqlite3-dev libxml2-dev \
+    nlohmann-json3-dev qt6-base-dev qt6-webengine-dev qt6-multimedia-dev libvlc-dev
+
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_WITH_QTAVPLAYER=OFF
+cmake --build build
+build/src/player-widget/garlic-player -m fullscreen https://example.com/index.smil
+```
+
+The media backends are switched with `-DPLAYER_WITH_QTAVPLAYER`, `-DPLAYER_WITH_QTMULTIMEDIA` and `-DPLAYER_WITH_VLC`
+(all `ON` by default, at least one has to stay). Without `--media-backend` the player takes QtAVPlayer, or the first
+one built in.
+
+QtAVPlayer is downloaded by CMake and needs FFmpeg (`libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev
+libswscale-dev libswresample-dev`) and the private headers of Qt Multimedia. Debian Trixie does not ship those, so
+there it is switched off as above; Qt from the Qt installer and Arch Linux have them.
+
 ## Features (master trunk)
  - Support for multiple screens (not on Android)
  - multiple and overlapping zones e.g. splitscreens
@@ -30,14 +74,14 @@ Binaries can be [downloaded](https://garlic-signage.com/garlic-player/downloads/
  - WebWidgets with also support parameters
  - Webserver on port 8080 for Restful Api
 
-## Official Operating Systems Supported
+## Official Operating Systems Supported (1.x)
  - Linux
  - Windows
  - Android
  - macOS
- - iOS in testing: https://testflight.apple.com/join/1Y79ryHC if you want to join
+ - iOS in testing
  
-### Successfully Tested With:
+### Successfully Tested With (1.x):
  - Linux 64Bit: Kde Neon, Kubuntu, Debian, Arch64
  - Raspberry Pi: 3, 4, and 5 for 32 and 64Bit
  - Tinker Board: (Linaro OS 1.8)
@@ -47,30 +91,35 @@ Binaries can be [downloaded](https://garlic-signage.com/garlic-player/downloads/
  - MacOS M1: Big Sur+
  - iOS 14.4.2 (experimental)
 
-
 ## Command Line Options
 
+*garlic-player [options] [SMIL_INDEX]*
+
 | Option | Description |
-|-------------------|----------------------------------------------------------------|
+|-------------------------|------------------------------------------------------------------------------|
 | `-h, --help` | Displays help |
 | `-v, --version` | Displays version information |
-| `-c, --config` | Path to `config.xml` |
-| `-m, --windows-mode` | Full screen, big screen or window mode |
-| `-z, --windows-size` | Window size in window mode, e.g. `980x540` |
-| `-s, --screen-select` | Starts in the selected screen |
+| `-c, --config` | Path to a `config.xml`, applied at every start before the index (e.g. by a launcher) |
+| `-m, --windows-mode` | `fullscreen`, `bigscreen` (one window over all screens) or `windowed` (default) |
+| `-z, --windows-size` | Window size in window mode, e.g. `980x540` (default) |
+| `-s, --screen-select` | Number of the screen to start on |
+| `--media-backend` | Video and audio with `qtavplayer` (default), `qtmultimedia` or `vlc`; only the ones built in |
 
 Arguments:
-SMIL_INDEX        Path to SMIL index
+SMIL_INDEX        URI or path of the SMIL index; without it the one of the settings is used. Without any index the
+                  settings dialog opens.
 
-For Android and iOS player-c2qml is needed, cause only QML based multimedia is supported on this operating systems.
-
-*garlic.sh [options] SMIL_INDEX*
+The index of the command line wins over the one in a `config.xml`. libvlc needs X11 on Linux (`QT_QPA_PLATFORM=xcb`
+under Wayland); positioning on a screen (`-s`, `bigscreen`) needs X11 too.
 
 ## HotKeys
- - toggle fullscreen with Ctrl-F (not in Android)
- - toogle bigscreen with Ctrl-B (not in Android)
+ - toggle fullscreen with Ctrl-F
+ - bigscreen with Ctrl-B
+ - open settings dialog with Ctrl-S: player name, content URL, HTTP server on/off and port
+ - open debug infos with Ctrl-D, or with six fast clicks/touches or one held for 10 seconds: playlist, user agent,
+   disk, memory, threads and the media playing in each region
  - quit app with Ctrl-Q
- - open configuration dialog with Ctrl-S
+ - every other key is an accesskey for the SMIL
 
 ## Currently supported SMIL-Features
 
@@ -102,7 +151,9 @@ For Android and iOS player-c2qml is needed, cause only QML based multimedia is s
 
 #### Attributes for media
 - **region**
-- **fit** fill|meet|meetbest
+- **fit** fill|meet|meetBest|slice
+- **mediaAlign** topLeft|topMid|topRight|midLeft|center|midRight|bottomLeft|bottomMid|bottomRight
+- **soundLevel** for audio and video in %
 
 #### Attributes for mbrush
 - **color** color in CSS Style
@@ -113,7 +164,7 @@ For Android and iOS player-c2qml is needed, cause only QML based multimedia is s
 - **restart** (always|never|whenNotActive|default)
 - **class** stub
 - **xml:lang** stub
-- **repeatCount** (currently only positive integer values)
+- **repeatCount** positive integer values and indefinite
 
 #### Begin and End Attributes
 - **Clock values** like dur
@@ -149,7 +200,7 @@ For Android and iOS player-c2qml is needed, cause only QML based multimedia is s
 ## additional features supported not in w3c standard
  - **shuffle play** in seq container via metadata
  - **automatic refresh** via metatags in SMIL header
- - **Logs/reports** system and inventory-reports, events- and playlogs via subscription meta and delivery by webdav described in [Reporting](https://garlic-signage.com/garlic-player/docs/essentials/logs-reports/)
+ - **Logs/reports** system and inventory-reports, events- and playlogs and the states of tasks via subscription meta and delivery by HTTP PUT described in [Reporting](https://garlic-signage.com/garlic-player/docs/essentials/logs-reports/)
  - **expr-attribute** in media tags [conditional play](https://garlic-signage.com/garlic-player/docs/essentials/conditional-play/)
  - notify network trigger for begin and end attributes
  - REST-API ([documentation](https://garlic-signage.com/garlic-player/docs/rest-api/))
@@ -161,5 +212,6 @@ For Android and iOS player-c2qml is needed, cause only QML based multimedia is s
  - http 301 redirects for index and media
  - change config.xml during playback
  - remote update
+ - removes the longest unused files from the cache when the disk is full
 
-Contact: [Niko Sagiadinos] (mailto:garlic@sagiadinos.de)
+Contact: [Niko Sagiadinos](mailto:garlic@sagiadinos.de)
