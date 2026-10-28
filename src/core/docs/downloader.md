@@ -93,6 +93,9 @@ One job at a time. `on_finished` is called exactly once, always from inside a `p
 loss, timeout, wrong size, no disk space. `Failed` returns the cached copy in `local_path`; `error` and `http_status`
 are for logging.
 
+Without ETag and Last-Modified the downloader cannot tell whether a file changed, so it downloads it again (the new
+file waits as `.ready`). This is the safe choice: a changed file with the same size is never missed.
+
 ### File names
 
 `MD5(original URL) + "." + extension`. The extension comes from the URL; from the content type if the URL has none,
@@ -112,3 +115,22 @@ server, content type, size and state. Implemented by the database module later, 
 - Resume checks with `If-Range` that the file did not change.
 - Idle timeout for stalled downloads.
 - Not ported: computing the MD5 of the local file as ETag when the server changes (`handleDifferentServer`).
+
+## DownloadQueue
+
+Header: `downloader/download_queue.hpp`
+
+```cpp
+DownloadQueue queue{transport, fs, inventory, clock, config, 4, [](const DownloadResult &r) { … }};
+queue.add(index_url, "index.smil");
+queue.add(media_url);
+// host loop: transport.poll(); queue.poll();
+```
+
+- `max_parallel` Downloaders are created once and reused (0 counts as 1).
+- Jobs run in the order they were added.
+- A URL that is waiting or running is ignored when added again; after it finished it can be added again.
+- One callback for all results, exactly once per job, always from inside a `poll()`. Jobs can be added from inside
+  the callback (e.g. after the index was loaded).
+- `clear()` drops waiting jobs and cancels running ones without callbacks.
+- The queue does not call `HttpTransport::poll()`; the host does, so other modules can share the transport.

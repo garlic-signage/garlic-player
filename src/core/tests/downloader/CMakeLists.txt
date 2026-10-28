@@ -1,5 +1,6 @@
 add_executable(garlic_core_downloader_tests
     main.cpp
+    test_download_queue.cpp
     test_downloader.cpp
     test_http_transport.cpp
 )
