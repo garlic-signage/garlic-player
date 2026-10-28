@@ -1,7 +1,9 @@
 find_package(LibXml2 REQUIRED)
 
 add_library(garlic_core_smil STATIC
+    expr.cpp
     parser.cpp
+    wallclock.cpp
 )
 add_library(garlic::core::smil ALIAS garlic_core_smil)
 garlic_core_set_options(garlic_core_smil)

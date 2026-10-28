@@ -19,8 +19,8 @@ disabled.
 that is missing gets the default values of garlic-lib, unknown elements and attributes are ignored. Element names
 are compared without namespace prefix.
 
-Status: the parser is complete. `expr` stays text; evaluating it and calculating when a wallclock fires are
-runtime functions and follow before the engine.
+Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
+follows.
 
 ## How the parser works
 
@@ -30,7 +30,11 @@ runtime functions and follow before the engine.
 |----------------|-------------------------------------------------------------------------|
 | `document.hpp` | the result: plain structs with the defaults of garlic-lib at the fields |
 | `parser.hpp`   | the function `parse()` and `ParseError`                                 |
-| `parser.cpp`   | everything else, the only file that knows libxml2                       |
+| `parser.cpp`   | everything else of the parser                                           |
+| `wallclock.hpp/.cpp` | `wallclockTriggers()`: when a wallclock fires (runtime)           |
+| `expr.hpp/.cpp`      | `evaluateExpr()`: whether an `expr` is true (runtime)             |
+
+libxml2 is only used in `parser.cpp` and `expr.cpp`.
 
 ### Flow
 
@@ -301,3 +305,54 @@ as in garlic-lib; unreadable values are skipped.
 - An empty `src=""` is allowed; garlic-lib crashed on the placeholder check.
 - Not taken over: `zoom_factor`/`extra_js` (never set, dead code), `class`, `xml:lang`, `longdesc`, `alt` (never
   used).
+
+## Runtime functions
+
+The parser only reads. Two questions depend on the current time and are answered at runtime by pure functions: the
+time is a parameter, there is no state, so they are tested without waiting.
+
+### wallclockTriggers
+
+```cpp
+WallclockTriggers t = wallclockTriggers(wallclock, common::toLocalTime(clock.now()));
+t.previous   // last time <= now, if there was one
+t.next       // next time > now, if there is one left
+```
+
+garlic-lib: `WallClock::calculateCurrentTrigger`.
+
+- Times: `start`, `start` + 1 period … `start` + `repeats` periods. `R5` means the start and 5 repeats (6 times);
+  garlic-lib calculated one more. `repeats` -1 is endless, 0 only the start.
+- Everything in local time, so a daily 08:00 stays 08:00 after a daylight saving change. The engine turns
+  `next - toLocalTime(clock.now())` into a waiting time.
+- `previous` is needed for elements that should already be playing: started at 08:00 with `dur="1h"`, the player
+  starts at 08:20, so the element plays at once for the remaining 40 minutes. `previous == now` means "fire now".
+- Months and years like Qt: the day is clamped to the end of the month (31.01. + `P1M` = 28.02.). Every time is
+  calculated from `start`, so the clamping does not add up (the next one is 31.03. again).
+- Short periods over a long time (`PT15S` since 2021) are calculated directly instead of adding period by period.
+
+### evaluateExpr
+
+```cpp
+if (evaluateExpr(media.expr, ExprContext{clock.now(), config.uuid(), config.playerName()}))
+    ... play
+```
+
+garlic-lib: `Expr` and `AdapiWrapper`. The functions are registered as real XPath functions in libxml2 (XPath 1.0),
+not replaced as text:
+
+| Function                               | Result                                     |
+|----------------------------------------|--------------------------------------------|
+| `adapi-date()`                         | local time `2026-10-28T08:00:00`           |
+| `adapi-gmdate()`                       | UTC `2026-10-28T07:00:00Z`                 |
+| `adapi-weekday()`, `adapi-gmweekday()` | 0 = Sunday … 6 = Saturday, local / UTC     |
+| `compare(a, b)`, `adapi-compare(a, b)` | -1, 0, 1 like XPath 2.0 `fn:compare`       |
+| `smil-playerId()`, `smil-playerName()` | from the `ExprContext`                     |
+
+- An empty `expr` is true. Errors, unknown functions and results that are not boolean `true` (e.g. `"1"`) are false,
+  like in garlic-lib. Errors are not printed.
+- garlic-lib used `QXmlQuery` (XPath 2.0), but no other 2.0 function was used than `compare`. If one is needed
+  later, it is registered by hand like `compare`.
+- Fixed: `adapi-gmweekday()` returned the local weekday (garlic-lib replaced `adapi-weekday()` instead), and
+  `smil-playerId()`/`smil-playerName()` were replaced by an empty string, so expressions with them were always false.
+
