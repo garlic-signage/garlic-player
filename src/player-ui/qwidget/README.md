@@ -1,5 +1,8 @@
 # qwidget
 
+The [qml](../qml/README.md) player behaves the same way (command line, menu, dialogs, keys); a feature of one is meant
+for the other too.
+
 The Qt Widgets frontend of the garlic-player on the core. It only shows: timing, downloads, play log, reports, tasks
 and the REST API are in the core (`PlayerRuntimeApi`), which runs in a thread of its own (`ThreadedRuntime`).
 garlic-lib and the old frontend are in `../../legacy` for reference.

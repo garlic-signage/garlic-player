@@ -33,8 +33,11 @@ Why:
    installations and CMS keep working. Old bugs were fixed on the way and are documented in the
    [module docs](src/core/docs).
 
-The first frontend is **qwidget** ([src/player-ui/qwidget](src/player-ui/qwidget/README.md)) with Qt 6. Video and audio
-can be played with QtAVPlayer (default), Qt Multimedia or libvlc.
+The frontends are in [src/player-ui](src/player-ui), both with Qt 6 and operated the same way:
+ - **qwidget** ([src/player-ui/qwidget](src/player-ui/qwidget/README.md)), the desktop player with Qt Widgets. Video
+   and audio can be played with QtAVPlayer (default), Qt Multimedia or libvlc.
+ - **qml** ([src/player-ui/qml](src/player-ui/qml/README.md)) with Qt Quick, meant for iOS; video and audio with Qt
+   Multimedia, web pages with Qt WebView.
 
 The beta runs on Linux. Windows, macOS, Android and iOS follow. The code of version 1.x (Qt 5, garlic-lib and the
 old frontends) is kept in [legacy](legacy) for reference; it is not built anymore.
@@ -52,6 +55,10 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_WITH_QTAVPLAYER
 cmake --build build
 build/src/player-ui/qwidget/garlic-player -m fullscreen https://example.com/index.smil
 ```
+
+The qml player needs in addition `qt6-declarative-dev qt6-webview-dev` and at runtime the `qml6-module-*` packages
+listed in its [README](src/player-ui/qml/README.md); `-DGARLIC_PLAYER_QML=OFF` or `-DGARLIC_PLAYER_QWIDGET=OFF` leave
+a player out.
 
 The media backends are switched with `-DPLAYER_WITH_QTAVPLAYER`, `-DPLAYER_WITH_QTMULTIMEDIA` and `-DPLAYER_WITH_VLC`
 (all `ON` by default, at least one has to stay). Without `--media-backend` the player takes QtAVPlayer, or the first
