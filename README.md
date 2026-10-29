@@ -3,6 +3,9 @@
 [![CI](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml)
 ![coverage](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/coverage.svg)
 
+> This README describes version 2.0 (beta). For version 1.x, the Qt 5 player with garlic-lib and the old launcher,
+> see [README-v1.md](README-v1.md).
+
 The garlic-player is a SMIL 3.0 compatible media player that was developed specifically for the requirements of the digital signage industry. 
 
 It is used in numerous projects as well as on various Android hardware solutions.
@@ -44,7 +47,7 @@ old frontends) is kept in [legacy](legacy) for reference; it is not built anymor
 
 ## Build (2.0)
 
-Needs CMake 3.25+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.5+ with Widgets, WebEngine and Multimedia, libvlc,
+Needs CMake 3.25+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.8+ with Widgets, WebEngine and Multimedia, libvlc,
 libcurl, libmicrohttpd, SQLite and libxml2. On Debian Trixie:
 
 ```
@@ -68,35 +71,24 @@ QtAVPlayer is downloaded by CMake and needs FFmpeg (`libavcodec-dev libavformat-
 libswscale-dev libswresample-dev`) and the private headers of Qt Multimedia. Debian Trixie does not ship those, so
 there it is switched off as above; Qt from the Qt installer and Arch Linux have them.
 
-## Features (master trunk)
- - Support for multiple screens (not on Android)
+## Features
+ - full screen on one screen, one window over all screens (bigscreen) or windowed, start screen selectable
  - multiple and overlapping zones e.g. splitscreens
- - logging
+ - logging: debug, event, play and task logs
  - resume downloads
- - 301 redirect support
- - many video formats 
- - supported SVG 1.2. Tiny Profile, Jpg, Png and Gif
+ - HTTP redirects (up to 5) for index and media
+ - video and audio with QtAVPlayer, Qt Multimedia or libvlc (qwidget), Qt Multimedia (qml)
+ - images in the formats of the Qt image plugins (Jpg, Png, Gif, Svg …)
  - media cache
  - SMIL3 subset, HTML5, HTML5-Widgets and (depending on device) WebGL support
  - WebWidgets with also support parameters
- - Webserver on port 8080 for Restful Api
+ - Webserver on port 8080 (default) for the REST API
 
-## Official Operating Systems Supported (1.x)
- - Linux
- - Windows
- - Android
- - macOS
- - iOS in testing
- 
-### Successfully Tested With (1.x):
- - Linux 64Bit: Kde Neon, Kubuntu, Debian, Arch64
- - Raspberry Pi: 3, 4, and 5 for 32 and 64Bit
- - Tinker Board: (Linaro OS 1.8)
- - Android Armv7 (4.4.1, 5.0.1, 5.1.1, 6.0.2, 7.1, 9 and 10)
- - Windows 64Bit: 7, 8, 10, and 11
- - MacOS 64Bit (Intel): High Sierra+
- - MacOS M1: Big Sur+
- - iOS 14.4.2 (experimental)
+## Operating Systems Supported (2.0)
+ - Linux (beta)
+ - Windows, macOS, Android and iOS follow
+
+The operating systems and devices of version 1.x are listed in [README-v1.md](README-v1.md).
 
 ## Command Line Options
 
@@ -188,7 +180,7 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
 ### Attributes for media and container (Timings and Synchronization)
 - **xml:id** with Fallback for SMIL 2.0 id
 - **title** stub
-- **restart** (always|never|whenNotActive|default)
+- **restart** always|never|whenNotActive|default
 - **class** stub
 - **xml:lang** stub
 - **repeatCount** positive integer values and indefinite
@@ -199,6 +191,7 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
 - **Events** beginEvent, endEvent, activateEvent with additional clock value like id.endEvent+2s
 - **Syncbase values** with additional clock value like id.begin+2s
 - **accesskey** with additional clock value like accesskey('w')+2s
+- **notify** network trigger via the REST API with additional clock value like notify(door_open)+2s
 - **indefinite**
 - **value lists** seperated by ";"
 
@@ -219,8 +212,8 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
 - **height** values in px or %
 - **z-index** integer values
 - **backgroundColor** values are compatible with CSS style
-- **backgroundImage** png and jpg images (not in android player)
-- **backgroundRepeat**  values: repeat | repeatX | repeatY | noRepeat (not in android player)
+- **backgroundImage** png and jpg images
+- **backgroundRepeat**  values: repeat | repeatX | repeatY | noRepeat
 
 <!-- -->  HTML-like comments in SMIL-File are supported and content inside will ignored
 
@@ -229,16 +222,14 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
  - **automatic refresh** via metatags in SMIL header
  - **Logs/reports** system and inventory-reports, events- and playlogs and the states of tasks via subscription meta and delivery by HTTP PUT described in [Reporting](https://garlic-signage.com/garlic-player/docs/essentials/logs-reports/)
  - **expr-attribute** in media tags [conditional play](https://garlic-signage.com/garlic-player/docs/essentials/conditional-play/)
- - notify network trigger for begin and end attributes
  - REST-API ([documentation](https://garlic-signage.com/garlic-player/docs/rest-api/))
- - placeholer in head with status and data tags
+ - placeholders in head with state and data tags
  - http downloads and caching
  - caching of remote SMIL index file
  - caching of remote media files
  - refresh via meta tag in cyclic timer periods
- - http 301 redirects for index and media
- - change config.xml during playback
- - remote update
+ - change config.xml during playback (task `updateSettings`)
+ - remote update (task `firmwareUpdate`; installing is the job of a launcher or daemon)
  - removes the longest unused files from the cache when the disk is full
 
 Contact: [Niko Sagiadinos](mailto:garlic@sagiadinos.de)
