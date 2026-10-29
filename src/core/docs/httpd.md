@@ -98,3 +98,40 @@ Defaults apply only for missing or invalid keys and are not written into the ini
 - `/cache/…` (static files from the cache) is not served; it was not used (the calls in the players were commented
   out).
 - IPv4 only for now.
+
+## Decisions
+
+- **libmicrohttpd, driven by `poll()` without threads.** The handlers run in the core thread and use configuration,
+  SQLite and the file system directly; an upload (up to about 100 MB) arrives in pieces in the core thread and is
+  written through the `FileSystem` like a download. Rejected:
+  - cpp-httplib: worker threads. Every request would have to go through a queue to the core thread and back, and an
+    upload would either stay in RAM or be written by a second thread, which breaks "one thread for the core".
+  - libhttpserver: runs libmicrohttpd with its own threads and throws exceptions.
+  - civetweb: threads. Mongoose: GPLv2 or commercial, GPLv2 does not go with AGPLv3.
+  - An own HTTP parser: smaller, but a security risk for a server in the network.
+
+  The price is the clumsy C API, about 300 lines in `mhd_server.cpp`; the license (LGPL-2.1) goes with AGPL.
+- **Behind the `Server` interface and switchable**, because the library must be replaceable (ESP32:
+  `esp_http_server`) and the server must be able to stay off (build option, `httpd/enabled`).
+- **No `/cache`.** garlic-lib served the cache as static files, but the calls in both players were commented out.
+  Without it the server needs no static files and no range support.
+- **Only five keys of `[httpd]`.** The others belong to the threads and caches of QtWebApp and mean nothing now.
+- **Answers that come later** (`MHD_suspend_connection`) for the screenshot: garlic-lib let its event loop run for
+  one second and sent what was there; the core runs in one thread and the screenshot is made by the frontend, so the
+  connection is held until the frontend reports, at most 5 s.
+- **400 for a form that cannot be parsed.** Found by a test that hung: libmicrohttpd rejects a one-character
+  boundary, and the body went silently to the handler as raw data.
+
+## When something goes wrong
+
+- A server that does not start writes `Httpd not started: …` to `debug.log` (`PlayerRuntimeApi`); the player plays on
+  without REST API.
+- `start()` with `enabled = false` returns success without a server. Restarting the server from the settings dialog
+  therefore sets `enabled` itself (a bug the test found).
+- A changed port from the settings: the new server starts first, then the old one stops; a port in use keeps the old
+  server.
+- While the server runs `nextDeadline()` is at most 100 ms, because libmicrohttpd has to be polled.
+- Uploads lie in the cache directory as `upload-N.tmp` while they arrive; the cache cleanup keeps them.
+- IPv4 only.
+- Tests: `tests/httpd/test_router.cpp`, `test_mhd_server.cpp` (with a raw socket client: forms, multipart, limits,
+  answers that come later).

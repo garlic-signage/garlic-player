@@ -180,6 +180,45 @@ core thread
 - `fs`, `clock` and `transport` are used only by the core thread after `start()`.
 - After `stop()` the events not taken can still be taken; `start()` again creates a new runtime.
 
+## Decisions
+
+- **One class for the frontend.** Every frontend (QWidget, QML, later Java, JS, ESP32) knows only this interface, the
+  logic exists once. In garlic-lib the player did part of it itself: it wrote the play log, put the URL of web pages
+  and widgets together and read fit and volume from the parser objects.
+- **The name.** It is not only a facade: it owns and builds the modules and mediates between them. `Player` would be
+  confused with the frontends, `PlayerApi` with the REST API, so it is `PlayerRuntimeApi`.
+- **One ordered event list** instead of several channels, because the order counts at an index change.
+- **`NewLayout` carries the document as `shared_ptr`.** With the core in its own thread a plain pointer was unsafe: the
+  core could free the old document while the UI thread still read `StartMedia` of it.
+- **Background images in `NewLayout`, later ones as `BackgroundImage`.** A call like `locate()` cannot return a value
+  through `post()`, and at the first index the images are usually not there yet, because the index does not wait for
+  them; without the event the frontend would never get them.
+- **`ThreadedRuntime` comes with the core**, otherwise every native frontend writes the same loop with mutex and wake
+  up, and that is where the bugs are. The price: calls through `post()` are asynchronous, and `wake` runs in the core
+  thread, so the frontend has to move it into its UI thread.
+- **`nextDeadline()` at most 100 ms while downloads run or the HTTP server is on**, because curl and libmicrohttpd run
+  without threads and need `poll()`. Without both an ESP32 can sleep until the next time of the engine.
+- **Settings dialog and debug info in the core.** Reading, checking and storing exists once; every frontend has its
+  own dialog on the same two calls (garlic-lib had one dialog for QWidget and QML). Standby and restarts stay with
+  the CMS; the HTTP server got its two fields (on, port; 8080 and on by default). A port in use stores nothing and
+  keeps the old server. OK loads the index again, like garlic-lib.
+- **`-c config.xml` at every start**, before the first index, and an index URI of the command line still wins, the
+  order of garlic-lib. So the file overwrites what was changed in the dialog meanwhile, like before. A missing or
+  broken file is an event now instead of silence.
+- **`system_info` and `free_space` can be given**, so WASM and ESP32 (no system module) fill them themselves.
+
+## When something goes wrong
+
+- `debug.log`: `Httpd not started: …`, and every 5 minutes one line of category `Develop` with disk, memory, player
+  memory and threads with their maxima.
+- **Nothing plays after a new index**: `SMIL_OPEN_ERROR` (the old index plays on), or the frontend dropped the
+  document of the last `NewLayout` too early.
+- **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their
+  results come with the events after the wake.
+- **A pending restart or firmware** is confirmed by `tasks.checkPending()` in `start()` ([tasks](tasks.md)).
+- Tests: `tests/player_runtime/test_player_runtime_api.cpp` (the whole runtime on fakes, database `:memory:`),
+  `test_reboot_schedule.cpp`, `test_threaded_runtime.cpp` (real clock, also run under ThreadSanitizer).
+
 ## Not yet
 
 - Windows and macOS: `platform_windows.cpp` and `platform_apple.cpp` are not compiled yet.

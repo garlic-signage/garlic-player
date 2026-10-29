@@ -65,3 +65,29 @@ writing it again gives the identical file.
 - The ini path and the cache/log directories come from the frontend instead of QStandardPaths.
 - `api_access_token_expire` is written in UTC (garlic-lib: local time). Old values stay valid until they expire.
 - Time zone and start time move to the system information module.
+
+## Decisions
+
+- **One central module, the structs stay with their modules.** garlic is an application with a fixed set of modules,
+  no plugin system, so one place reads the ini and hands ready values to the others. The struct (e.g. `HttpdSettings`)
+  lives in the module that uses it, so one sees there what it can set, and the module knows nothing about the ini and
+  is tested with plain structs. The price: a new setting touches two places, the struct and the mapping here.
+- **Compatible with the existing `garlic-player.ini`** (same keys, same QSettings format). An installed player keeps
+  its settings, above all its `uuid`, which identifies it in the hub. The test reads a real ini of a garlic-lib player
+  and writes it back byte for byte.
+- **The frontend gives the path.** QSettings wrote to `SmilControl/` (the name of 2016) at a different place per OS;
+  the core does not decide paths any more. Moving an old ini to a new place is the business of the Qt frontends, the
+  only ones with old paths: a new path without the old file creates a new `uuid`, and the player shows up in the hub
+  as a new device.
+- **Defaults only for missing keys, never written.** garlic-lib's `initDefaultSettings()` wrote the defaults on every
+  start, so a port changed in the ini was overwritten again.
+- **Every change is written at once, through a temporary file and rename,** so a power cut never leaves a half
+  written ini. A failing write never stops the player.
+
+## When something goes wrong
+
+- Write errors are only in `lastError()`; the player goes on with the values in memory.
+- A player that suddenly appears as a new device in the hub has lost its `uuid`: wrong ini path or an unreadable ini.
+- Keys the core does not know stay in the file, so an old QtWebApp key in `[httpd]` is no error.
+- Tests: `tests/configuration/test_ini_file.cpp` (QSettings format, round trip of a real ini),
+  `test_configuration.cpp`.

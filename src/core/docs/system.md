@@ -33,3 +33,22 @@ auto self = system::processInfo();          // for the debug display of a fronte
   `parseProcStatus`, `normalizeLocale`, `zoneName`) is in `system_info.cpp` and tested on every platform.
 - `platform_windows.cpp` and `platform_apple.cpp` have not been compiled yet; they are checked with the first
   Windows and Apple build.
+
+## Decisions
+
+- **Memory used from `MemAvailable`**, not `MemFree`: with `MemFree` the file cache of the kernel counts as used and a
+  device looks nearly full all the time. The hub sees lower values than with garlic-lib.
+- **96 % of the disk as total**, like garlic-lib: 4 % stay for the operating system, also for the cache cleanup.
+- **One file per platform, chosen by CMake**, instead of `#ifdef` chains; the text parsing is in pure functions that
+  are tested on every platform with fixed texts.
+- **Not built for WASM and ESP32**: there the values are very different, the host fills `reports::SystemInfo`.
+- Network interfaces like garlic-lib (`isRealInterface`, loopback included, the type names of Qt), so the system
+  report looks the same to the hub.
+
+## When something goes wrong
+
+- Empty values in the system report: the platform file has no source for them (`platform_none.cpp` gives nothing),
+  or the host gives its own `system_info`.
+- `platform_windows.cpp` and `platform_apple.cpp` have not been compiled yet.
+- Tests: `tests/system/test_system_info.cpp` (`parseMeminfo`, `parseProcStatus`, `normalizeLocale`, `zoneName` with
+  fixed texts, and real values on Linux).

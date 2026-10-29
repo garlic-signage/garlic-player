@@ -83,3 +83,35 @@ are escaped.
 Disk, memory and network depend on the platform (ESP32 is very different from Linux), so the host gives them as a
 `SystemInfo` function. Unknown values stay empty. On the native platforms `system::collectSystemInfo()` fills it
 ([system](system.md)); on WASM and ESP32 the host does.
+
+## Decisions
+
+- **The formats of garlic-lib**, so the hub reads them as before; without line breaks, because the hub reads the
+  reports with an XML parser.
+- **An unchanged subscription keeps its schedule.** garlic-lib created all report managers again with every index and
+  sent at once (the head parser did that, commented there as "Violation SRP").
+- **`retryInterval` is used** after a failure (adapi: the waiting time until the next try); garlic-lib read it and
+  waited for the next `refreshInterval`.
+- **`refreshInterval` 0 sends once.** garlic-lib started a timer of 0 ms, which fired all the time.
+- **Logs are uploaded as `<log>.sending`**, so a rotation of the logger during the upload cannot move the file, and it
+  is deleted only after success. What was good in garlic-lib stays: rotate before sending, delete after success, so
+  nothing is lost and nothing is sent twice.
+- **The log lines are wrapped, not parsed.** garlic-lib parsed them; one unescaped `&` gave an empty report, and the
+  file was deleted afterwards.
+- **`SystemInfo` comes from the host**, because disk, memory and network are very different per platform (ESP32 and
+  Linux).
+- **`TaskExecutionReport`**: the hub gives one fixed file per player and overwrites it with every upload, so the
+  report holds the last state of every task, read from the task log. The log is the only source: a `pending` survives a
+  restart without anything stored in the database, and the log is not deleted after sending. Namespace gapi like the
+  other reports (the adapi namespace of the standard is not needed by the hub).
+
+## When something goes wrong
+
+- `debug.log`, category `Reporting`: `upload not started: …` (transport refused) and `upload failed: <action>` (no
+  answer or status not 2xx).
+- A `play_log.xml.sending` or `event_log.xml.sending` in the log directory is a failed upload; it goes first at the
+  next try.
+- No reports at all: the index has no `<subscription>`, or its `action` is wrong (values are trimmed, so line breaks
+  around the URL do no harm).
+- A task missing in the `TaskExecutionReport`: its rotated log file is gone.
+- Tests: `tests/reports/test_report_xml.cpp` (formats byte for byte), `test_reporter.cpp` (schedule, retry, `.sending`).

@@ -21,7 +21,8 @@ are compared without namespace prefix.
 
 Status: the parser is complete, and so are the runtime functions `wallclockTriggers` and `evaluateExpr`. The engine
 plays everything the parser reads: media, `seq`, `par`, `excl`, `begin`/`end` with offsets, wallclock, syncbase,
-events, accesskey and notify, `restart` and `expr`. The integration (index manager, media manager, reports) follows.
+events, accesskey and notify, `restart` and `expr`. The integration is in [content](content.md), [reports](reports.md)
+and [player_runtime](player_runtime.md).
 
 ## How the parser works
 
@@ -430,9 +431,9 @@ body ─────────────────────────
 Schedule: [ 10 s: v SimpleEnd ] …
 ```
 
-- Every node has a small `Runtime`: state (Idle, Active, Ended), remaining repeats, the instance of a medium, the
+- Every node has a small `Runtime`: state (Idle, Waiting, Active, Ended), remaining repeats, the instance of a medium, the
   next child of a container. The tree stays unchanged.
-- One schedule (priority queue: time → node → event) replaces all QTimers of garlic-lib. `poll()` works off what is
+- One schedule (a heap in a `std::vector`: time → node → event) replaces all QTimers of garlic-lib. `poll()` works off what is
   due and collects the commands. Events of a node that has ended since are ignored (generation counter).
 - Calls of the player (`mediaFinished` …) only change the state; their commands come with the next `poll()`.
 
@@ -573,3 +574,84 @@ another plays, the priorityClass of the **playing** one decides: `peers` if the 
   ignored (garlic-lib). Every wallclock event remembers the time it stands for, so the next one comes after it even
   if the event fired a little early compared to the system time. A wallclock in `end` plans only its next time.
 
+
+## Decisions
+
+Most rules above say where they come from (garlic-lib, the SMIL standard or a fix). These are the decisions behind
+the structure, and the behaviour decisions that were taken explicitly.
+
+**Structure**
+
+- **Parser and engine are separate.** In garlic-lib every element parsed itself and played itself, with its own
+  `QTimer`s and signals to other elements. Now the parser only reads, so it is tested without any timing, and the
+  engine only plays, so it is tested without XML. The price is two structures, the tree and the runtime state. It also
+  keeps the door open for another signage format: a second parser would build the same tree, as long as no libxml2 or
+  SMIL details (raw attribute texts) end up in it.
+- **Exactly what garlic-lib could, nothing more.** The behaviour of the old code is rebuilt element by element, not
+  invented anew; garlic-lib had become stable in the field over years. New SMIL features (`switch`, transitions,
+  animations) come later; `switch` would be another `ContainerKind`.
+- **No signals.** The parser is a function (text in, tree or error out); the engine takes method calls and returns a
+  list of commands per `poll()`. Java, JS and the ESP32 have no Qt signals anyway; the frontend handles the commands in
+  one `switch`.
+- **No class per tag.** Few structs with a kind enum, behaviour in the engine with a `switch` per kind. A new tag is an
+  enum value and some cases, and the compiler warns at every `switch` where the case is missing.
+- **`parse()` is a free function**: no state survives the call; the class `Parser` in `parser.cpp` only counts the
+  generated ids.
+- **One schedule instead of many timers.** garlic-lib's timers and signals ran in an order that depended on the event
+  loop, which made errors hard to follow and hard to reproduce. One schedule on the `Clock` gives one clear order, and
+  scenario tests run hours of playlist in milliseconds, the same every time.
+- **The engine controls the player.** The player gets complete commands (path or URL, regions, fit, volume) and only
+  reports what it observes (end, error, input). The play log is written by the engine, because it knows when an
+  instance starts and ends.
+- **Commands are about instances, not regions**, and the commands are a `std::variant`. For transitions later two
+  instances play in one region for a moment, and animations become another command type.
+- **The engine keeps a pointer to the document, no copy**: a copy would double the memory of the tree on the ESP32.
+  The index manager swaps document and engine together.
+- **`RepeatMedia`** instead of stop and start for `repeatCount`: a stop and start would make an image flicker.
+- **`mediaFailed` is an early end**, so an element with `dur` keeps its time ("4s nothing" in `body/simple.smil`).
+- **Own Fisher-Yates with `std::mt19937`**, because `std::shuffle` gives a different order with every standard library,
+  and the scenario tests with a fixed seed must be the same on every platform.
+- **`expr` with libxml2 and registered functions** instead of the string replacement with `QXmlQuery`; no `smil-cache`
+  (the player caches anyway, it only appeared at a `<prefetch>` of a SignApp template). Another XPath 2.0 function is
+  registered by hand if it is ever needed.
+- **libxml2 2.9 to 2.15**: `xmlXPathSetErrorHandler` exists from 2.13 on; before, the error callback is set directly
+  (Trixie has 2.9). The callback takes a `const xmlError *` from 2.12 on.
+
+**Behaviour, decided explicitly**
+
+| Question                                              | Decision                                   |
+|-------------------------------------------------------|--------------------------------------------|
+| `pickNumber`: shuffle every round or once?            | once per engine, then the same order: deliberate in garlic-lib |
+| skipped elements                                      | 100 ms like garlic-lib (`skipElement`), they count as ended |
+| `pickNumber="0"`                                      | must not exist, read as 1                  |
+| unknown elements (`TUnknown`, 100 ms in garlic-lib)   | left out of the tree, take no time         |
+| container cut by its `dur`, then repeated             | stop everything, start clean               |
+| `restart`                                             | new instance per interval (standard), `repeatCount` keeps the instance |
+| `end` before later begin times, negative `begin` with positive `end`, `begin="0s"` with negative `end` | SMIL standard |
+| `never` in an `excl`                                  | like a begin ignored by `restart`; garlic-lib let the `dur` run invisibly |
+| start and stop in the same `poll()`                   | not handed to the player, no play log      |
+| several listeners of one trigger, `repeatCount` and begin triggers, negative trigger offsets | SMIL standard |
+| triggers and wallclock at `seq` children              | SMIL standard: only one non-negative offset as `begin` |
+| background images                                     | no waiting (standard)                      |
+| wallclock with time zone                              | converted to local time                    |
+| `R5`                                                  | start and 5 repeats                        |
+
+## When something goes wrong
+
+- **A broken index**: `parse()` returns the line and the message of libxml2; the index manager writes
+  `SMIL_OPEN_ERROR` with both and leaves the old index playing.
+- **An element that never plays**: `expr` is false (errors and unknown functions are false and are not logged), the
+  medium is not in the cache yet (skipped, tried again in the next run), a trigger or wallclock at a `seq` child (read
+  as `0s`), or the begin times are all in the past without rest of `dur`.
+- **An `expr` in question**: test it in `tests/smil/test_expr.cpp` with a fixed `ExprContext` (time, player id and
+  name). The examples of the documentation are there as tests; an unescaped `<` in the attribute is broken XML, it has
+  to be written as `&lt;`.
+- **Wrong timing**: rebuild the case as a scenario. `tests/smil/engine_runner.hpp` runs the engine on the `FakeClock`,
+  plays the ends of videos and failed media and writes a time line like
+  `0s start img_begin | 1s stop img_begin | …`. The test files are in `tests/data/smil`; most say in a comment what
+  should happen.
+- **Sensitive spots in `engine.cpp`**: the two counters `activation` (makes the begin and end times of an activation
+  void) and `generation` (makes the `dur` times of an interval void), and the schedule as an own heap, so the events of
+  a paused subtree can be taken out and planned again with their rest.
+- Tests: `test_head.cpp`, `test_media.cpp`, `test_containers.cpp`, `test_excl.cpp`, `test_triggers.cpp` (parser),
+  `test_wallclock.cpp`, `test_expr.cpp` (runtime functions), `test_engine*.cpp` (engine scenarios).

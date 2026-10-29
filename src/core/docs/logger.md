@@ -56,3 +56,23 @@ again.
 - Qt's own messages (`qt.*`, `qtdebug.log`) belong to the Qt frontends now.
 - Free text in event categories (`qWarning(MediaControl) << "text"`) becomes a regular event or a debug.log entry
   when the callers are ported.
+
+## Decisions
+
+- **No singleton.** garlic-lib's logger was one (global state); now it is passed to the modules like everything else,
+  so tests give each module its own logger on a `MemoryFileSystem`.
+- **Same files and formats as garlic-lib**, because the hub reads them.
+- **Append and close per entry**, so nothing is lost on a crash or a power cut.
+- **XML values escaped.** One `&` in a URL made the event log invalid XML; garlic-lib's report then went out empty and
+  the file was deleted afterwards, so the entries were lost.
+- **`min_debug_severity`** to spare the flash of the ESP32; **`mirror`** so a frontend sees every entry on its console
+  or logcat.
+- **Task states in the words of the standard** (`pending`, `completed`, `aborted`), the way the hub expects them in
+  the `TaskExecutionReport`.
+
+## When something goes wrong
+
+- Write errors are ignored: no log at all means the log directory is wrong or not writable.
+- Only 30 rotated files are kept; older entries are gone. Event and play logs are deleted after a successful upload
+  ([reports](reports.md)), so on a device with reports they only hold what was not sent yet.
+- Tests: `tests/logger/test_logger.cpp` compares the entries character by character with the garlic-lib formats.

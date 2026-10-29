@@ -74,7 +74,6 @@ of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
 - The token is `MD5(expire)` in uppercase: garlic-lib passed its never-set username/password members to the hash.
   Since `expires_in` is in the answer, the token can be guessed.
 - The 403 body is no valid JSON (single quotes).
-- No check of free disk space before an upload yet (garlic-lib: `FreeDiscSpace`); comes with the disk space module.
 
 ## Small differences to garlic-lib (no client can rely on the old behaviour)
 
@@ -85,3 +84,31 @@ of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
   `application/json`.
 - A POST to `/v2/files/{id}` without file no longer crashes (garlic-lib dereferenced a null pointer).
 - `createdDate` is the modification time of the cache file (garlic-lib: birth time, often not available on Linux).
+
+## Decisions
+
+- **1:1, nothing visible to clients changes.** Clients rely on the API as it is; security comes much later. So the
+  fixed login, the guessable token, status 200 with errors and the invalid 403 body stay, and every one of these
+  details is pinned by a test, so it cannot get lost by accident. Changed was only what crashed or never worked (see
+  the small differences above).
+- **The REST API does not know the `PlayerRuntimeApi`**; what it cannot do itself comes as functions (`RestActions`).
+  So it is tested without the runtime.
+- **Nothing prepared for a v3 or another login.** The router works by paths, a v3 would be another class registering
+  `/v3/…` routes on the same router (the 404 fallback then moves to the host). The whole token check is in two places,
+  `validToken()` and `token()`; another login becomes a small interface there when it is needed.
+- **nlohmann/json**: the C++ standard, header-only, parsed without exceptions (`parse(…, nullptr, false)`, types
+  checked before access). yyjson would be smaller, but its API is much more clumsy.
+- **The screenshot answer is held back** until the frontend has saved the JPEG, at most 5 s (see
+  [httpd](httpd.md#answers-that-come-later)).
+- **`app/exec` plays a temporary index** until `app/start`, `app/switch` or a restart; garlic-lib's mix of
+  downloading it as `index.smil` and switching back at once is gone.
+
+## When something goes wrong
+
+- **403 although the login worked**: the token is valid one day (`api_access_token_expire`, UTC) and is checked against
+  the ini.
+- **404 with text** `The URL is wrong, no such document.`: unknown path; under `/v2/system`, `/v2/app` and `/v2/task`
+  an unknown name is 403 without and 404 with a valid token, like garlic-lib.
+- **Errors come with status 200** and `{"error":"…"}`; a client that checks only the status sees no error.
+- **Screenshot answers `file not created.`**: the frontend did not report `screenshotTaken()` within 5 s.
+- Tests: `tests/rest_api/test_rest_api.cpp`, one test per endpoint and per quirk.

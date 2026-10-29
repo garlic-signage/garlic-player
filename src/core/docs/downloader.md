@@ -158,3 +158,61 @@ CurlTransport transport;                       // or CurlTransport{{.ca_bundle =
 
 Tests (`tests/downloader/test_curl_transport.cpp`) run against a small HTTP server on `127.0.0.1` inside the test
 (POSIX only), including a complete download through the `Downloader` with a redirect. No internet is needed.
+
+## Decisions
+
+- **The player keeps playing.** The most important rule of the module: on any error the cached file is neither
+  deleted nor overwritten, and `Failed` carries the cached copy so the player plays it on. garlic-lib got there by
+  treating every status except 200 as "not modified", which also hid errors (a file deleted on the server went
+  unnoticed). Now the error is visible inside (`Failed`, HTTP status, text), the behaviour for the player is the same.
+  The same holds for the index.
+- **Three layers, only the transport is platform specific.** curl, Fetch, ESP32, Tizen and webOS are only another
+  `HttpTransport`; cache validation, redirects and file names exist once and are tested with a fake transport.
+- **Transport rules** (see above) and why: no callbacks from `start()`, so a handler can start the GET after the HEAD
+  without nested calls; no redirects in the transport, so the downloader sees every hop; status codes are no transport
+  errors, so the downloader decides what a 404 means; chunks are not buffered, so a video of several GB fits through
+  an ESP32; nothing after `cancel()`, so the caller can clean up safely.
+- **libcurl** for the native platforms: redirects, ranges, proxies, TLS, `curl_multi` without threads, decades in use.
+  cpp-httplib blocks, Boost.Beast brings its own asynchronous model against the `poll()` design, cpr is only a
+  wrapper of libcurl.
+- **The downloader decides the file name, not the caller.** Only it sees the content type after the HEAD, so a URL
+  like `file.php?id=xyz` gets the right extension (an open todo in garlic-lib's `media_model.cpp`), and everything
+  about the cache layout (directory, name, `.part`, `.ready`) is in one place. The price: the path is known only in
+  the result.
+  - The hash is of the **original** URL, not of a redirect target: targets change (CDNs with signed links), the name
+    stays stable.
+  - The extension of the URL comes first, so existing playlists keep their file names; the content type only helps
+    when the URL has none, is a script or says `application/octet-stream`.
+  - Rejected: a name from a hash of the content (known only after the download, resume gets hard) and names without
+    extension (Qt Multimedia, WebViews and browsers recognise the format by the extension).
+- **Up to 5 redirects** (garlic-lib: one), the limit stops redirect loops.
+- **Resume with `If-Range`.** garlic-lib appended to a `.part` with `Range` alone; if the file had changed on the
+  server meanwhile, the result was a mix of two versions.
+- **Idle timeout** on the monotonic clock: in garlic-lib a stalled download could block a slot for good.
+- **Without ETag and Last-Modified the file is downloaded again**, so a changed file with the same size is never
+  missed.
+- **Files with a fixed name take any content type** (index, task list, configuration, firmware): a firmware comes as
+  `application/octet-stream` and was rejected otherwise. Side effect: an index the server sends as `text/html` is
+  taken too.
+- **Compression off**, so the size check against `Content-Length` holds.
+- **`setUserAgent()`**: the user agent was copied once at the start, so a new player name from the settings dialog
+  or a `config.xml` never reached the downloads.
+
+## When something goes wrong
+
+- **Failed media downloads are not logged.** Status, `error` and `http_status` are only in the `DownloadResult`; the
+  media manager only notes uncacheable URLs. A failed index download writes `index download failed: …` to
+  `debug.log`. In a test the reason is in the result.
+- **A medium that never shows**: `resolve()` finds no inventory row or no file. Check `garlic.db` and the cache
+  directory; leftover `<name>.part` means the download broke off, `<name>.ready` that an update waits until the file
+  is no longer played.
+- **Every HTTPS download fails on Android, iOS, macOS or Windows**: no `ca_bundle` given (OpenSSL finds the system
+  certificates only on Linux).
+- **Everything is downloaded again**: the inventory is empty (see [database](database.md)), or the server sends
+  neither ETag nor Last-Modified.
+- **Sensitive spot in `CurlTransport`**: libcurl forbids changing handles inside its callbacks, so `start()`/`cancel()`
+  from a handler are applied in the next `poll()` (`in_perform`). A change there easily breaks HEAD → GET.
+- Tests: `test_downloader.cpp` has one test per error case that the old file stays and is returned (404, 500, 503,
+  connection loss, broken GET, short file, empty file, no space, timeout); `test_download_queue.cpp`;
+  `test_http_transport.cpp` checks the transport rules; `test_curl_transport.cpp` runs against a small HTTP server on
+  `127.0.0.1` (POSIX only), no internet needed.

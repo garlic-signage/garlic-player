@@ -11,7 +11,7 @@ to the `Downloader` / `DownloadQueue`.
 
 ```cpp
 InventoryTable inventory{clock};
-if (auto opened = inventory.open(cache_dir + "/garlic.db"); !opened)
+if (auto opened = inventory.open(log_dir + "/garlic.db"); !opened)
     log(opened.error());
 DownloadQueue queue{transport, fs, inventory, clock, config, 4, on_finished};
 ```
@@ -55,3 +55,26 @@ another URL, the old entry is removed first.
 - Prepared statements instead of string concatenation: URLs with quotes work, no SQL injection.
 - `last_update` in ISO 8601 instead of `QDateTime::toString()`, so sorting by it works.
 - Not ported: `deleteByResourceURI` and `updateFileStatusAndSize` (no longer used).
+
+## Decisions
+
+- **Same file and table as garlic-lib, rewritten on the SQLite C API**, because the old code was built on QtSql. The
+  used functions are ported 1:1.
+- **`save()` is one upsert.** garlic-lib's `replace()` had insert and update swapped, so nothing was ever stored. That
+  also means: the old downloader practically never had an ETag and always fell back to size and date.
+- **Prepared statements**, because the old SQL was put together as strings: a URL with an apostrophe broke the query,
+  and through the REST API it was an SQL injection.
+- **New column `last_modified`, an old table is dropped.** The downloader needs the Last-Modified of the server.
+  Dropping loses nothing, the old tables were empty because of the `replace()` bug.
+- **`last_update` in ISO 8601**, so sorting by it is right.
+- **A broken database never stops downloading or playing**: only `open()` returns an error, the rest gives empty
+  results.
+
+## When something goes wrong
+
+- The file is `<log_dir>/garlic.db` (`PlayerRuntimeConfig::database_path` can change it; tests use `:memory:`).
+- Without inventory rows the downloader cannot send conditional requests, so it downloads every medium again. This
+  happens once at the first start after garlic-lib (the old table is dropped) and after a `ClearCaches` task.
+- Errors after `open()` are only in `lastError()`.
+- Tests: `tests/database/test_inventory_table.cpp`, among them a second `save()` that really updates and a URL with
+  `' OR 1=1--`.
