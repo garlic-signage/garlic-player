@@ -25,7 +25,7 @@ index. In `<timedTaskList>` every task has an `id` and runs once.
 | `updateSettings` | loads `sourceURI` as `configuration.xml`, checks, applies the props | `ApplyConfiguration` (load the index again) | `completed` |
 | `firmwareUpdate` | loads `sourceURI` as `garlic-player.apk/.exe/.dmg/.tar.xz/.zip` (by OS), checks | `InstallSoftware{path}` | `pending` |
 | `shutdownPlayer` | –                                                               | `Reboot`                  | `pending`   |
-| `applyCommand`   | `clear_all_caches`, `clear_playercache`/`clear_cache`, `clear_webcache` | `ClearCaches{player, web}`, then restart | `pending` |
+| `applyCommand`   | `clear_all_caches`, `clear_playercache`/`clear_cache`, `clear_webcache` | `ClearCaches{player, web}`, then `Reboot` | `pending` |
 
 The core restarts no device and installs nothing; the supervisor (launcher, daemon, service) does it, through
 [player_runtime](player_runtime.md#supervisor).

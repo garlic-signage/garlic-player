@@ -26,7 +26,6 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QWindow>
-#include <QProcess>
 #include <QScreen>
 #include <QWebEngineProfile>
 
@@ -87,17 +86,26 @@ namespace player
                        },
                        [this](const NewLayout &e) { newLayout(e); },
                        [this](const BackgroundImage &e) { backgroundImage(e); },
-                       [](const tasks::ClearCaches &e)
-                       {
-                           if (e.web)
-                               QWebEngineProfile::defaultProfile()->clearHttpCache();
-                           qInfo() << "caches cleared, restart";
-                           QProcess::startDetached(QApplication::applicationFilePath(), QApplication::arguments().mid(1));
-                           QApplication::quit();
-                       },
+                       [this](const tasks::ClearCaches &e) { clearCaches(e); },
                        [this](const Screenshot &e) { screenshot(e.path); },
                    },
                    event);
+    }
+
+    /// The web cache if asked, then cachesCleared(): the core restarts the device through the supervisor.
+    void MainWindow::clearCaches(const tasks::ClearCaches &clear)
+    {
+        auto done = [this] { runtime.post([](PlayerRuntimeApi &r) { r.cachesCleared(); }); };
+        if (!clear.web)
+            return done();
+        QWebEngineProfile *profile = QWebEngineProfile::defaultProfile();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+        connect(profile, &QWebEngineProfile::clearHttpCacheCompleted, this, done, Qt::SingleShotConnection);
+        profile->clearHttpCache();
+#else
+        profile->clearHttpCache(); // no completion signal before Qt 6.7
+        done();
+#endif
     }
 
     /// A new index: the old media are stopped already (StopMedia come first), so only the regions go.

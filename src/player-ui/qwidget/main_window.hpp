@@ -88,6 +88,7 @@ namespace player
             void stop(garlic::core::smil::InstanceId id);
             void forEach(garlic::core::smil::InstanceId id, void (Media::*action)());
             void screenshot(const std::string &path);
+            void clearCaches(const garlic::core::tasks::ClearCaches &clear);
             void clear();
             bool isInThisWindow(QObject *watched) const;
             void openMenu();

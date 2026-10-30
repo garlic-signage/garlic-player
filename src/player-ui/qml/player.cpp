@@ -23,7 +23,6 @@
 #include <QGuiApplication>
 #include <QLocale>
 #include <QPointerEvent>
-#include <QProcess>
 #include <QQuickWindow>
 #include <QScreen>
 #include <QUrl>
@@ -150,14 +149,10 @@ namespace player
                        },
                        [this](const NewLayout &e) { newLayout(e); },
                        [this](const BackgroundImage &e) { backgroundImage(e); },
-                       [](const tasks::ClearCaches &)
-                       {
-                           // Qt WebView has no cache API; the system WebView keeps its cache
-                           qInfo() << "caches cleared, restart";
-                           QProcess::startDetached(QGuiApplication::applicationFilePath(),
-                                                   QGuiApplication::arguments().mid(1));
-                           QGuiApplication::quit();
-                       },
+                       // Qt WebView has no cache API, the system WebView keeps its cache; the core restarts the
+                       // device through the supervisor
+                       [this](const tasks::ClearCaches &)
+                       { runtime.post([](PlayerRuntimeApi &r) { r.cachesCleared(); }); },
                        [this](const Screenshot &e) { screenshot(e.path); },
                    },
                    event);

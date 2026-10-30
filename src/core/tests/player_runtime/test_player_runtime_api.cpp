@@ -212,7 +212,7 @@ TEST_CASE("input of the frontend goes to the engine: end of a video, a key")
     CHECK(f.seen() == "layout No Title | start v | stop | start v | start k");
 }
 
-TEST_CASE("a task from the hub: clearing the player cache is done by the core, the frontend restarts")
+TEST_CASE("a task from the hub: the core clears the player cache, restarts when the frontend has cleared its cache")
 {
     Fixture f;
     f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="indefinite"/>)x", 60,
@@ -226,6 +226,11 @@ TEST_CASE("a task from the hub: clearing the player cache is done by the core, t
     f.run(5s);
 
     CHECK(f.seen().find("clear player") != std::string::npos);
+    CHECK(f.seen().find("reboot") == std::string::npos); // waits for the frontend
+    f.runtime->cachesCleared();
+    CHECK(f.seen().ends_with("clear player | reboot c1"));
+    f.runtime->cachesCleared(); // once only
+    CHECK(f.seen().ends_with("clear player | reboot c1"));
     CHECK_FALSE(f.fs.exists("cache/index.smil"));
 }
 

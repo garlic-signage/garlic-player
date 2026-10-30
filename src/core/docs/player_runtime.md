@@ -43,6 +43,7 @@ while (running)
 | `accessKey(key)`           | a key was pressed                                                 |
 | `notify(name)`             | a notification for `notify(…)` triggers                           |
 | `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
+| `cachesCleared()`          | a `ClearCaches` event is handled (web cache cleared, if asked): the core restarts |
 | `playerSettings()`         | what the settings dialog shows: player name, index URI, HTTP server on/off and port |
 | `changePlayerSettings(s)`  | check and store them; error text of the core if not valid         |
 | `debugInfo()`              | resources and identity for the debug dialog                       |
@@ -56,7 +57,7 @@ while (running)
 | `StartMedia`, `StopMedia`, `RepeatMedia`, `PauseMedia`, `ResumeMedia` | from the engine ([smil](smil.md#engine)) |
 | `NewLayout{document, backgrounds}`      | a new index: build the regions anew (`document->head`); background images that are there |
 | `BackgroundImage{src, path}`            | a background image of the current layout is downloaded      |
-| `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache and restarts |
+| `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache if `web`, then always `cachesCleared()` |
 | `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
 
 ## Supervisor
@@ -68,7 +69,7 @@ it and passes it on. Given as `config.supervisor`, it must outlive the runtime a
 
 | Core → supervisor        | When                                                                        |
 |--------------------------|-----------------------------------------------------------------------------|
-| `reboot(task_id)`        | restart the device: task `shutdownPlayer` (its id), the schedule (`"DailyReboot"`), REST `/v2/task/reboot` (`"httpd: <local time>"`) |
+| `reboot(task_id)`        | restart the device: task `shutdownPlayer` (its id), after `applyCommand` (its id, like garlic-lib, otherwise a black screen), the schedule (`"DailyReboot"`), REST `/v2/task/reboot` (`"httpd: <local time>"`) |
 | `installSoftware(path)`  | task `firmwareUpdate`: the downloaded and checked software is in the cache  |
 
 Without a supervisor (`nullptr`) both only write a warning of category `Supervisor` to `debug.log`.
@@ -116,7 +117,9 @@ new valid index
 
 - **Tasks**: `ApplyConfiguration` loads the index again and plans the restart anew (the core does it).
   `ClearCaches` with `player`: the core empties the cache directory and the inventory table, then the event goes to
-  the frontend. `InstallSoftware` and `Reboot` go to the supervisor.
+  the frontend. It clears the web cache and calls `cachesCleared()`, only then the core restarts through the
+  supervisor, like garlic-lib, which deleted the web cache before the restart. `InstallSoftware` and `Reboot` go to
+  the supervisor.
 - **Restart schedule** like garlic-lib (`tools/reboot`): `schedule/reboot_days` English weekdays separated by spaces,
   `schedule/reboot_time` `HH:mm:ss` (03:00 if missing), the next time within a week (`nextReboot()`, tested).
 - **nextDeadline()**: the earliest time of engine, index, reports, restart and resource log. While downloads run or
@@ -236,6 +239,8 @@ core thread
 - **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their
   results come with the events after the wake.
 - **A pending restart or firmware** is confirmed by `tasks.checkPending()` in `start()` ([tasks](tasks.md)).
+- **No restart after `applyCommand`**: the frontend did not call `cachesCleared()` (the QWidget player waits for
+  `clearHttpCacheCompleted` from Qt 6.7 on).
 - **No restart, no installation**: without a supervisor `debug.log` has `Supervisor` `none, no restart: <task_id>` or
   `none, software not installed: <path>`. With one, the counterpart of the platform did not pass it on.
 - Tests: `tests/player_runtime/test_player_runtime_api.cpp` (the whole runtime on fakes, database `:memory:`),

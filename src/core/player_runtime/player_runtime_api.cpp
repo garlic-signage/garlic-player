@@ -259,6 +259,12 @@ namespace garlic::core
             rest_api->screenshotTaken(path);
     }
 
+    void PlayerRuntimeApi::cachesCleared()
+    {
+        if (auto task_id = std::exchange(reboot_after_clear, std::nullopt))
+            reboot(*task_id);
+    }
+
     void PlayerRuntimeApi::stop()
     {
         if (!engine)
@@ -401,11 +407,14 @@ namespace garlic::core
         auto &clear = std::get<tasks::ClearCaches>(action);
         if (clear.player)
         {
-            // garlic-lib: FreeDiscSpace::clearPlayerCache; the frontend restarts afterwards
+            // garlic-lib: FreeDiscSpace::clearPlayerCache
             inventory->clear();
             (void)fs.removeAll(settings.cache_dir);
             (void)fs.createDirectories(settings.cache_dir);
         }
+        // garlic-lib: applyCommand restarts after clearing, "otherwise a black screen"; first the frontend clears the
+        // web cache, cachesCleared() then restarts
+        reboot_after_clear = clear.task_id;
         events.emplace_back(std::move(clear));
     }
 

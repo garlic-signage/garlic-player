@@ -182,6 +182,9 @@ namespace garlic::core
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
+            /// The frontend has handled a ClearCaches event (web cache cleared, if asked): now the core restarts.
+            void cachesCleared();
+
             configuration::Configuration &configuration() noexcept { return config; }
 
             PlayerSettings playerSettings() const;
@@ -227,6 +230,7 @@ namespace garlic::core
             std::set<std::string, std::less<>> missing_backgrounds; // of the current layout, not there yet
 
             std::optional<std::chrono::steady_clock::time_point> next_reboot;
+            std::optional<std::string>                           reboot_after_clear; // task id until cachesCleared()
             std::chrono::steady_clock::time_point                next_resource_log;
             std::uint64_t                                        memory_max = 0; // of the player since the start
             std::string                                          memory_max_time;
