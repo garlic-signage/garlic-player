@@ -34,7 +34,7 @@
 
 namespace garlic::core::tasks
 {
-    // What the host has to do: the core restarts no device and installs nothing.
+    // What the player has to do: the core restarts no device and installs nothing, the supervisor does.
     struct ApplyConfiguration // settings changed: load the index again
     {
     };

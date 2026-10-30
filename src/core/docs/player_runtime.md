@@ -16,6 +16,7 @@ config.version   = "2.0";
 config.index_uri = command_line_uri;                          // empty: the one in the ini
 config.supports  = [](const smil::Media &m) { return …; };    // what the frontend can show
 config.random_seed = std::random_device{}();
+config.supervisor  = &supervisor;                             // launcher, daemon, service; nullptr: none
 
 PlayerRuntimeApi runtime(fs, clock, http, config);
 if (auto started = runtime.start(); !started) … started.error()
@@ -55,10 +56,22 @@ while (running)
 | `StartMedia`, `StopMedia`, `RepeatMedia`, `PauseMedia`, `ResumeMedia` | from the engine ([smil](smil.md#engine)) |
 | `NewLayout{document, backgrounds}`      | a new index: build the regions anew (`document->head`); background images that are there |
 | `BackgroundImage{src, path}`            | a background image of the current layout is downloaded      |
-| `InstallSoftware{path}`                 | a firmware update is ready ([tasks](tasks.md))              |
-| `Reboot{task_id}`                       | restart the device: a task, or `"DailyReboot"` from the schedule |
-| `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the host clears the web cache and restarts |
+| `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache and restarts |
 | `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
+
+## Supervisor
+
+`player_runtime/supervisor.hpp`. What stands over the player and may do what the player may not: the launcher on
+Android (or the display firmware, e.g. Philips over SICP), garlic-daemon on Unix, a service on Windows. garlic-lib:
+`Launcher`. The core decides what has to be done and calls the interface, the platform part of the player implements
+it and passes it on. Given as `config.supervisor`, it must outlive the runtime and is called in the thread of the core.
+
+| Core → supervisor        | When                                                                        |
+|--------------------------|-----------------------------------------------------------------------------|
+| `reboot(task_id)`        | restart the device: task `shutdownPlayer` (its id), the schedule (`"DailyReboot"`), REST `/v2/task/reboot` (`"httpd: <local time>"`) |
+| `installSoftware(path)`  | task `firmwareUpdate`: the downloaded and checked software is in the cache  |
+
+Without a supervisor (`nullptr`) both only write a warning of category `Supervisor` to `debug.log`.
 
 One list instead of several, because the order counts: at a new index first the `StopMedia` of the old one, then
 `NewLayout`, then the `StartMedia` of the new one.
@@ -89,7 +102,7 @@ start()
 poll()
 ├── transport, download queue       results: index → IndexManager, task files → TaskScheduler, else → MediaManager
 ├── IndexManager, Reporter, HTTP server
-├── scheduled restart due?          → Reboot{"DailyReboot"}
+├── scheduled restart due?          → supervisor.reboot("DailyReboot")
 ├── every 5 minutes                 disk and memory to debug.log (garlic-lib: ResourceMonitor)
 └── engine                          → StartMedia …
 
@@ -103,7 +116,7 @@ new valid index
 
 - **Tasks**: `ApplyConfiguration` loads the index again and plans the restart anew (the core does it).
   `ClearCaches` with `player`: the core empties the cache directory and the inventory table, then the event goes to
-  the host. `InstallSoftware` and `Reboot` go to the host.
+  the frontend. `InstallSoftware` and `Reboot` go to the supervisor.
 - **Restart schedule** like garlic-lib (`tools/reboot`): `schedule/reboot_days` English weekdays separated by spaces,
   `schedule/reboot_time` `HH:mm:ss` (03:00 if missing), the next time within a week (`nextReboot()`, tested).
 - **nextDeadline()**: the earliest time of engine, index, reports, restart and resource log. While downloads run or
@@ -119,7 +132,7 @@ new valid index
 - Playlists from the hub repeat their body (`repeatCount="indefinite"`): media that are still downloading at the
   first start are skipped and follow in a later run, like in garlic-lib.
 
-- **REST API**: its actions go to the runtime: `notify` to the engine, `reboot` and `screenshot` as events,
+- **REST API**: its actions go to the runtime: `notify` to the engine, `reboot` to the supervisor, `screenshot` as event,
   `app/start` and `app/switch` load the stored index again, `app/exec` plays a temporary index
   ([rest_api](rest_api.md)).
 
@@ -206,6 +219,13 @@ core thread
   order of garlic-lib. So the file overwrites what was changed in the dialog meanwhile, like before. A missing or
   broken file is an event now instead of silence.
 - **`system_info` and `free_space` can be given**, so WASM and ESP32 (no system module) fill them themselves.
+- **A `Supervisor` interface instead of events for restart and installation.** Launcher, daemon and service get the
+  same commands; only the way to them differs (JNI and broadcasts, SICP, a socket, a pipe). So the core decides once
+  what has to be done, and every player has one counterpart per platform that passes it on. The core knows no
+  platform: Java and SICP stay in the player. The name: "host" already means what calls `poll()`.
+- **Only what all supervisors share is in the interface.** The exchange of uuid, player name and content URL with the
+  Android launcher is a matter of the launcher alone (the daemon and the service set nothing), so it stays in its
+  counterpart in the player.
 
 ## When something goes wrong
 
@@ -216,6 +236,8 @@ core thread
 - **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their
   results come with the events after the wake.
 - **A pending restart or firmware** is confirmed by `tasks.checkPending()` in `start()` ([tasks](tasks.md)).
+- **No restart, no installation**: without a supervisor `debug.log` has `Supervisor` `none, no restart: <task_id>` or
+  `none, software not installed: <path>`. With one, the counterpart of the platform did not pass it on.
 - Tests: `tests/player_runtime/test_player_runtime_api.cpp` (the whole runtime on fakes, database `:memory:`),
   `test_reboot_schedule.cpp`, `test_threaded_runtime.cpp` (real clock, also run under ThreadSanitizer).
 

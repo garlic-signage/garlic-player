@@ -13,21 +13,22 @@ tasks.subscribe(document.head.subscriptions); // with every new index
 | File                      | Content                                                          |
 |---------------------------|------------------------------------------------------------------|
 | `task_list.hpp/.cpp`      | `parseTaskList()`, `parseSettings()`: the two XML files as data |
-| `task_scheduler.hpp/.cpp` | `TaskScheduler`: loads, checks, applies, hands actions to the host |
+| `task_scheduler.hpp/.cpp` | `TaskScheduler`: loads, checks, applies, hands actions to the runtime |
 
 ## Flow
 
 The task list (`task_scheduler.xml`) is loaded with every new index, no refresh of its own: a new playlist is a new
 index. In `<timedTaskList>` every task has an `id` and runs once.
 
-| Task             | The core does                                                   | Action for the host       | Task log    |
+| Task             | The core does                                                   | Action                    | Task log    |
 |------------------|-----------------------------------------------------------------|---------------------------|-------------|
 | `updateSettings` | loads `sourceURI` as `configuration.xml`, checks, applies the props | `ApplyConfiguration` (load the index again) | `completed` |
 | `firmwareUpdate` | loads `sourceURI` as `garlic-player.apk/.exe/.dmg/.tar.xz/.zip` (by OS), checks | `InstallSoftware{path}` | `pending` |
 | `shutdownPlayer` | –                                                               | `Reboot`                  | `pending`   |
 | `applyCommand`   | `clear_all_caches`, `clear_playercache`/`clear_cache`, `clear_webcache` | `ClearCaches{player, web}`, then restart | `pending` |
 
-The core restarts no device and installs nothing; the host (launcher, daemon) does it.
+The core restarts no device and installs nothing; the supervisor (launcher, daemon, service) does it, through
+[player_runtime](player_runtime.md#supervisor).
 
 - **Done**: the id is stored after success, per kind as a list (`update_settings_task_ids` …, the last 20) and the
   last one under the old key of garlic-lib (`update_settings_task_id`, `firmware_update_task_id`,
@@ -73,7 +74,7 @@ and garlic-daemon:
 | ini key                                   | used by                                                                  |
 |-------------------------------------------|--------------------------------------------------------------------------|
 | `player_name`, `index_uri`                | the core                                                                 |
-| `schedule/reboot_days`, `schedule/reboot_time` | the core plans the restart and hands `Reboot{"DailyReboot"}` to the host |
+| `schedule/reboot_days`, `schedule/reboot_time` | the core plans the restart and calls `reboot("DailyReboot")` of the supervisor |
 | `standby_mode`                            | the frontend at `<ref src="adapi:blankScreen">`: `partially` switches the screen off, `deep` starts the deep standby until the next end time, both through the launcher, `no_standby` does nothing. garlic-lib: `PlayerRefCommand::play()`. The new frontends have no launcher yet, the screen stays on |
 | `audio/volume`                            | nobody. The player never read it, it plays every medium with its SMIL `soundLevel` (medium before region). The master volume was meant for the launcher |
 | `display/brightness`                      | nobody. The Android launcher stores `volume` and `brightness` from the `configuration.xml`, but never calls `SystemSettings.configMasterVolume()`/`configBrightness()` (brightness needs device owner); `MainConfiguration.getBrightness()` reads the key `volume` |
@@ -100,7 +101,7 @@ So for a launcher, daemon or Windows service: master volume, brightness, screen 
   task twice.
 - **Restarts and commands count as done when they are handed over**, otherwise they would restart the player again and
   again.
-- **The core restarts nothing and installs nothing;** the host (launcher, daemon) does.
+- **The core restarts nothing and installs nothing;** the supervisor (launcher, daemon, service) does.
 - **`pending` and `checkPending()`** instead of an answer of the launcher: the id is stored as pending before a
   restart or an installation is handed over; a player that starts again proves the restart, a firmware update is
   checked by its version. The price: a restart that never happens stays `pending` for good, the core cannot tell it

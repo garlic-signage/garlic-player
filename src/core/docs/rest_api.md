@@ -30,7 +30,7 @@ The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it g
 | `/v2/app/exec`        | any    | like `start`, but play `uri` for a while; `index_uri` stays       |
 | `/v2/app/switch`      | any    | `mode=start`: play the stored index again                         |
 | `/v2/task/notify`     | any    | `smilEvent`: `notify(…)` triggers of the engine                    |
-| `/v2/task/reboot`     | any    | restart the device (`Reboot{"httpd: <local time>"}` to the host)  |
+| `/v2/task/reboot`     | any    | restart the device (`reboot("httpd: <local time>")` of the supervisor)  |
 | `/v2/task/screenshot` | any    | the frontend saves a JPEG; the answer waits for it                |
 
 All calls except the token need `access_token` (URL or form); parameters come as form, URL or JSON
@@ -51,7 +51,7 @@ of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
   `index.smil` and set the source back to `index_uri` at once, so the temporary content stayed until the stored
   index changed.
 - `task/notify` answers `{}`, without `smilEvent` `{"error":" No SmilEvent exists"}` (with the space of garlic-lib).
-- `task/reboot` answers an empty body (JSON headers) and hands `Reboot{"httpd: 2026-10-28T08:00:00"}` to the host.
+- `task/reboot` answers an empty body (JSON headers) and calls `reboot("httpd: 2026-10-28T08:00:00")` of the supervisor.
 - `task/screenshot`: the host gets `Screenshot{path}` with `path` = `<log dir>/yyyyMMddhhmmss.jpg` and calls
   `screenshotTaken(path)` when the JPEG is saved. The answer is held back meanwhile (`Response::later`, the server
   serves other requests); then `image/jpeg`, or `file not created.` / `file not readable.` like garlic-lib. Without

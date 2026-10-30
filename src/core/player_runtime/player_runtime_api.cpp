@@ -140,7 +140,7 @@ namespace garlic::core
         router   = std::make_unique<httpd::Router>();
         rest_api::RestActions actions;
         actions.notify        = [this](std::string_view name) { notify(name); };
-        actions.reboot        = [this](std::string task_id) { events.emplace_back(tasks::Reboot{std::move(task_id)}); };
+        actions.reboot        = [this](std::string task_id) { reboot(task_id); };
         actions.reloadIndex   = [this] { index->start(); };
         actions.playTemporary = [this](std::string uri) { index->startTemporary(std::move(uri)); };
         actions.screenshot    = [this](std::string path) { events.emplace_back(Screenshot{std::move(path)}); };
@@ -181,7 +181,7 @@ namespace garlic::core
         auto now = clock.monotonic();
         if (next_reboot && now >= *next_reboot)
         {
-            events.emplace_back(tasks::Reboot{"DailyReboot"}); // garlic-lib: reboot::Timer
+            reboot("DailyReboot"); // garlic-lib: reboot::Timer
             planReboot(std::chrono::minutes(1));
         }
         if (now >= next_resource_log)
@@ -385,19 +385,36 @@ namespace garlic::core
             index->start(); // the index URI may have changed
             return;
         }
-        if (const auto *clear = std::get_if<tasks::ClearCaches>(&action); clear && clear->player)
+        if (const auto *task = std::get_if<tasks::Reboot>(&action))
         {
-            // garlic-lib: FreeDiscSpace::clearPlayerCache; the host restarts afterwards
+            reboot(task->task_id);
+            return;
+        }
+        if (const auto *install = std::get_if<tasks::InstallSoftware>(&action))
+        {
+            if (settings.supervisor)
+                settings.supervisor->installSoftware(install->path);
+            else
+                logger->warning("Supervisor", "none, software not installed: " + install->path);
+            return;
+        }
+        auto &clear = std::get<tasks::ClearCaches>(action);
+        if (clear.player)
+        {
+            // garlic-lib: FreeDiscSpace::clearPlayerCache; the frontend restarts afterwards
             inventory->clear();
             (void)fs.removeAll(settings.cache_dir);
             (void)fs.createDirectories(settings.cache_dir);
         }
-        std::visit([this](auto &a)
-                   {
-                       if constexpr (!std::is_same_v<std::decay_t<decltype(a)>, tasks::ApplyConfiguration>)
-                           events.emplace_back(std::move(a));
-                   },
-                   action);
+        events.emplace_back(std::move(clear));
+    }
+
+    void PlayerRuntimeApi::reboot(const std::string &task_id)
+    {
+        if (settings.supervisor)
+            settings.supervisor->reboot(task_id);
+        else
+            logger->warning("Supervisor", "none, no restart: " + task_id);
     }
 
     /// The background images of the layout that are there now: into found (NewLayout) or as BackgroundImage events.

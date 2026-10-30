@@ -87,9 +87,6 @@ namespace player
                        },
                        [this](const NewLayout &e) { newLayout(e); },
                        [this](const BackgroundImage &e) { backgroundImage(e); },
-                       // no launcher yet: garlic-lib did nothing on the desktop either
-                       [](const tasks::InstallSoftware &e) { qWarning() << "install software: no launcher" << qt(e.path); },
-                       [](const tasks::Reboot &e) { qWarning() << "reboot: no launcher" << qt(e.task_id); },
                        [](const tasks::ClearCaches &e)
                        {
                            if (e.web)

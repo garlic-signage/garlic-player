@@ -40,6 +40,16 @@ namespace
                std::string(head) + "</head><body repeatCount=\"indefinite\">" + std::string(body) + "</body></smil>";
     }
 
+    /// Records the calls in the log of the fixture, like the platform part of a player would pass them on.
+    struct FakeSupervisor : Supervisor
+    {
+        std::vector<std::string> &log;
+
+        explicit FakeSupervisor(std::vector<std::string> &l) : log(l) {}
+        void reboot(const std::string &task_id) override { log.push_back("reboot " + task_id); }
+        void installSoftware(const std::string &path) override { log.push_back("install " + path); }
+    };
+
     struct Fixture
     {
         FakeClock                            clock;
@@ -49,6 +59,7 @@ namespace
         std::vector<std::string>             log; // what the frontend saw
         std::map<std::string, smil::InstanceId> instances; // last instance per id
         NewLayout                            layout;    // kept until the next one, like a frontend
+        FakeSupervisor                       supervisor{log};
 
         explicit Fixture(std::string ini = "[httpd]\nenabled=false\n")
         {
@@ -62,6 +73,7 @@ namespace
             config.database_path = ":memory:";
             config.system_info = [] { return reports::SystemInfo{}; };
             config.free_space  = [] { return std::uint64_t{1} << 40; };
+            config.supervisor  = &supervisor;
             runtime            = std::make_unique<PlayerRuntimeApi>(fs, clock, transport, config);
         }
 
@@ -117,12 +129,8 @@ namespace
             }
             else if (const auto *background = std::get_if<BackgroundImage>(&event))
                 log.push_back("background " + background->src);
-            else if (const auto *reboot = std::get_if<tasks::Reboot>(&event))
-                log.push_back("reboot " + reboot->task_id);
             else if (const auto *clear = std::get_if<tasks::ClearCaches>(&event))
                 log.push_back(std::string("clear ") + (clear->player ? "player" : "") + (clear->web ? " web" : ""));
-            else if (std::holds_alternative<tasks::InstallSoftware>(event))
-                log.push_back("install");
         }
 
         std::string seen() const
@@ -204,7 +212,7 @@ TEST_CASE("input of the frontend goes to the engine: end of a video, a key")
     CHECK(f.seen() == "layout No Title | start v | stop | start v | start k");
 }
 
-TEST_CASE("a task from the hub: restart goes to the host, clearing the player cache is done by the core")
+TEST_CASE("a task from the hub: clearing the player cache is done by the core, the frontend restarts")
 {
     Fixture f;
     f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="indefinite"/>)x", 60,
@@ -219,6 +227,46 @@ TEST_CASE("a task from the hub: restart goes to the host, clearing the player ca
 
     CHECK(f.seen().find("clear player") != std::string::npos);
     CHECK_FALSE(f.fs.exists("cache/index.smil"));
+}
+
+TEST_CASE("tasks from the hub: restart and installation go to the supervisor")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText("", 60,
+                                          R"x(<metadata><subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/fw", "binary", "application/octet-stream");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI>
+                                        <version>2.1</version></firmwareUpdate><shutdownPlayer id="r1"/>
+                                        </timedTaskList></s>)x",
+            "application/xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+
+    CHECK(f.seen().find("reboot r1") != std::string::npos);
+    CHECK(f.seen().find("install cache/garlic-player.") != std::string::npos);
+}
+
+TEST_CASE("without a supervisor a restart is only written to debug.log")
+{
+    TimeZone tz("UTC");
+    Fixture  f("[httpd]\nenabled=false\n[schedule]\nreboot_days=thursday\nreboot_time=00:00:30\n");
+    PlayerRuntimeConfig config;
+    config.ini_path      = "config/garlic-player.ini";
+    config.cache_dir     = "cache";
+    config.log_dir       = "logs";
+    config.version       = "2.0";
+    config.index_uri     = "http://hub/index.smil";
+    config.database_path = ":memory:";
+    config.system_info   = [] { return reports::SystemInfo{}; };
+    config.free_space    = [] { return std::uint64_t{1} << 40; };
+    f.runtime            = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    f.serve("http://hub/index.smil", indexText(""), "application/smil+xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(40s);
+
+    CHECK(f.seen().find("reboot") == std::string::npos);
+    CHECK(f.fs.readFile("logs/debug.log").value_or("").find("none, no restart: DailyReboot") != std::string::npos);
 }
 
 TEST_CASE("scheduled restart from the configuration")

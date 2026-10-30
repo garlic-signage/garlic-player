@@ -23,6 +23,7 @@
 #include "configuration/configuration.hpp"
 #include "content/cache_space.hpp"
 #include "content/media_manager.hpp"
+#include "player_runtime/supervisor.hpp"
 #include "downloader/http_transport.hpp"
 #include "reports/reporter.hpp"
 #include "smil/engine.hpp"
@@ -95,8 +96,7 @@ namespace garlic::core
 
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, BackgroundImage, tasks::InstallSoftware, tasks::Reboot, tasks::ClearCaches,
-                                   Screenshot>;
+                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot>;
 
     struct PlayerRuntimeConfig
     {
@@ -112,6 +112,8 @@ namespace garlic::core
         reports::Reporter::SystemInfoSource system_info; // empty: system::collectSystemInfo where it exists
         content::CacheSpace::FreeSpace      free_space;  // free bytes of the cache; empty: system::diskSpace where it
                                                          // exists, otherwise the cache is never cleaned up
+        Supervisor *supervisor = nullptr; // restarts and installations; must outlive the runtime. nullptr: none, they
+                                          // are only written to debug.log
 
         std::uint32_t random_seed        = 0; // for <seq> with pickNumber; pass a random value
         std::size_t   parallel_downloads = 2;
@@ -236,6 +238,7 @@ namespace garlic::core
             void collectEngine();
             void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
+            void reboot(const std::string &task_id);
             void logResources();
             void trackProcess(DebugInfo &info);
             std::expected<void, std::string> restartServer(bool enabled, std::uint16_t port);
