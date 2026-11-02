@@ -17,3 +17,8 @@ if(GARLIC_CORE_WITH_CURL)
     target_sources(garlic_core_downloader PRIVATE curl_transport.cpp)
     target_link_libraries(garlic_core_downloader PUBLIC CURL::libcurl)
 endif()
+
+# fetch() of the browser
+if(EMSCRIPTEN)
+    target_sources(garlic_core_downloader PRIVATE fetch_transport.cpp)
+endif()

@@ -54,7 +54,7 @@ the `Clock` interface.
 |---------------------|-----------------------------------------|----------|
 | `FakeHttpTransport` | tests (`tests/downloader`)              | done     |
 | `CurlTransport`     | Linux, Windows, macOS, Android, iOS     | done     |
-| `FetchTransport`    | browser (WASM)                          | planned  |
+| `FetchTransport`    | browser (WASM)                          | done     |
 | Tizen, webOS        | via JS bridge                           | planned  |
 | ESP32               | `esp_http_client`                       | planned  |
 
@@ -158,6 +158,36 @@ CurlTransport transport;                       // or CurlTransport{{.ca_bundle =
 
 Tests (`tests/downloader/test_curl_transport.cpp`) run against a small HTTP server on `127.0.0.1` inside the test
 (POSIX only), including a complete download through the `Downloader` with a redirect. No internet is needed.
+
+## FetchTransport
+
+Header: `downloader/fetch_transport.hpp`, only built for WASM (`EMSCRIPTEN`).
+
+```cpp
+FetchTransport transport;
+```
+
+- `fetch()` of the browser, with a small JS part (`EM_JS`) in `fetch_transport.cpp`. The requests run in the event
+  loop of the browser; JS never calls into C++, `poll()` asks what has arrived and passes it on.
+- **Streaming:** the body is read with a `ReadableStream` reader in chunks. The reader reads ahead until 1 MiB is
+  waiting and then pauses until `poll()` has taken data, so the speed does not depend on how often `poll()` is
+  called and a video is never held completely in memory. `emscripten_fetch` is not used: it is based on XHR and
+  holds the whole response in memory in Chrome.
+- **User-Agent:** a script may not set it, the browser always sends its own. The transport sends a `User-Agent`
+  header of the request as `X-Garlic-User-Agent`; the hub reads the player from there.
+- **Redirects** are followed by the browser (`fetch()` cannot stop at a 3xx), the final response arrives.
+- **No browser cache** (`cache: 'no-store'`): the `Downloader` validates the cache itself, as on the other platforms.
+- **CORS:** every server the player loads from must allow it, including the preflight for `If-None-Match`,
+  `If-Modified-Since` and `X-Garlic-User-Agent`. `ETag` and `Last-Modified` are only visible to the player if the
+  server lists them in `Access-Control-Expose-Headers`; without them every check downloads the file again.
+- **Errors:** the browser does not say why a request failed (DNS, connection, TLS and CORS all look the same), so
+  every failure is `ConnectionFailed` with the text of the browser. A URL that is no URL is `InvalidRequest` at
+  `start()`.
+- `cancel()` aborts the request (`AbortController`).
+
+There are no unit tests yet, the tests are not built for WASM. It was tested by hand in Node against a local HTTP
+server: GET of 5 MiB (content checked), HEAD, 404, PUT, redirect, abort from the handler, `cancel()`, connection
+refused, invalid URL, `User-Agent` arriving as `X-Garlic-User-Agent`.
 
 ## Decisions
 
