@@ -21,6 +21,7 @@
 #include "media.hpp"
 
 #include <QWebEngineView>
+#include <QDir>
 
 namespace player
 {

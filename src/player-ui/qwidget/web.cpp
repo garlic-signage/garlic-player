@@ -60,8 +60,19 @@ namespace player
 
     void Web::start()
     {
-        browser.load(QUrl::fromUserInput(source, {}, QUrl::AssumeLocalFile));
-    }
+        QUrl url;
+        qsizetype query_start = source.indexOf(QLatin1Char('?'));
+        if (QDir::isAbsolutePath(source) && query_start >= 0)
+        {
+            // a local path with an already encoded query: fromLocalFile would encode the "?" and the "%" again
+            url = QUrl::fromLocalFile(source.left(query_start));
+            url.setQuery(source.mid(query_start + 1), QUrl::TolerantMode);
+        }
+        else
+        {
+            url = QUrl::fromUserInput(source, {}, QUrl::AssumeLocalFile);
+        }
+        browser.load(url);    }
 
     void Web::stop()
     {
