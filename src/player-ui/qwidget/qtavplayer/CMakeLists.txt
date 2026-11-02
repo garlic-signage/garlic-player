@@ -13,7 +13,10 @@ FetchContent_MakeAvailable(qtavplayer_source)
 
 # QtAVPlayer hands its frames to Qt Multimedia through private headers; that is known and wanted
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Multimedia MultimediaPrivate)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Multimedia OPTIONAL_COMPONENTS MultimediaPrivate)
+if(NOT TARGET Qt6::MultimediaPrivate)
+    message(FATAL_ERROR "Qt6::MultimediaPrivate not found")
+endif()
 
 set(QT_AVPLAYER_DIR ${qtavplayer_source_SOURCE_DIR}/src/QtAVPlayer)
 set(QT_AVPLAYER_MULTIMEDIA ON CACHE BOOL "" FORCE) # QAVAudioOutput and QVideoFrame for QVideoWidget
