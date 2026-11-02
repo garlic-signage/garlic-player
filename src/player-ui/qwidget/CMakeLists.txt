@@ -37,7 +37,6 @@ endif()
 # QT_NO_KEYWORDS: the core has members like "slots", which the Qt macros would replace
 target_compile_definitions(qwidget PRIVATE PLAYER_VERSION="${PROJECT_VERSION}-beta" QT_NO_KEYWORDS)
 target_link_libraries(qwidget PRIVATE garlic::core Qt6::Widgets Qt6::WebEngineWidgets)
-qt_add_resources(qwidget fonts PREFIX "/" FILES fonts/DejaVuSans.ttf)
 if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(qwidget PRIVATE $<$<CONFIG:Release>:-s>)
 endif()
