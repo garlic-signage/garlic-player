@@ -22,6 +22,7 @@
 #include "database/inventory_table.hpp"
 #include "downloader/download_queue.hpp"
 #include "httpd/router.hpp"
+#include "httpd/server.hpp"
 #include "logger/logger.hpp"
 #include "player_runtime/reboot_schedule.hpp"
 #include "rest_api/rest_api.hpp"

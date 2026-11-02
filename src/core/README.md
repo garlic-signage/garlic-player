@@ -86,6 +86,15 @@ git clone https://github.com/emscripten-core/emsdk ~/emsdk
 source ~/emsdk/emsdk_env.sh
 ```
 
+The WASM presets take the libraries from vcpkg (triplet `wasm32-emscripten`) and build the core with Emscripten
+(`VCPKG_CHAINLOAD_TOOLCHAIN_FILE`; the triplet alone only builds the libraries for WASM). `emcc` must be in `PATH`
+or `EMSDK` set:
+
+```sh
+cmake --preset wasm-debug
+cmake --build --preset wasm-debug
+```
+
 ### Tests
 
 The tests use [doctest](https://github.com/doctest/doctest). It is taken from vcpkg or the system if available,

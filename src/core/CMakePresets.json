@@ -33,6 +33,33 @@
         "GARLIC_CORE_BUILD_TESTS": "OFF",
         "VCPKG_MANIFEST_FEATURES": ""
       }
+    },
+    {
+      "name": "wasm",
+      "hidden": true,
+      "inherits": "vcpkg",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "wasm32-emscripten",
+        "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/toolchains/emscripten.cmake",
+        "VCPKG_MANIFEST_FEATURES": "",
+        "GARLIC_CORE_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "wasm-debug",
+      "displayName": "WASM Debug",
+      "inherits": "wasm",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "wasm-release",
+      "displayName": "WASM Release",
+      "inherits": "wasm",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -43,6 +70,14 @@
     {
       "name": "linux-release",
       "configurePreset": "linux-release"
+    },
+    {
+      "name": "wasm-debug",
+      "configurePreset": "wasm-debug"
+    },
+    {
+      "name": "wasm-release",
+      "configurePreset": "wasm-release"
     }
   ],
   "testPresets": [
