@@ -9,6 +9,14 @@ project(garlic-core
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(GarlicCoreOptions)
 
+# WASM: only the emsdk version pinned in emsdk-version, so every machine builds with the same compiler
+if(EMSCRIPTEN)
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/emsdk-version" _garlic_core_emsdk_version LIMIT_COUNT 1)
+    if(NOT EMSCRIPTEN_VERSION VERSION_EQUAL _garlic_core_emsdk_version)
+        message(FATAL_ERROR "Emscripten ${EMSCRIPTEN_VERSION} found, emsdk-version asks for ${_garlic_core_emsdk_version}")
+    endif()
+endif()
+
 # WASM and ESP32: no shared library (the static modules are linked directly), no libcurl, no libmicrohttpd
 if(EMSCRIPTEN OR ESP_PLATFORM)
     set(_garlic_core_native OFF)

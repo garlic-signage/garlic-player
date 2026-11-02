@@ -19,7 +19,8 @@ See [docs/architecture.md](docs/architecture.md) for the design decisions. Modul
 src/core/
 ├── CMakeLists.txt        options, modules, tests, shared library 'core'
 ├── CMakePresets.json     build presets per platform
-├── vcpkg.json            dependencies (vcpkg manifest mode)
+├── vcpkg.json            dependencies (vcpkg manifest mode, versions pinned by builtin-baseline)
+├── emsdk-version         Emscripten version for the WASM build
 ├── cmake/                CMake helpers
 ├── docs/                 documentation
 ├── common/               shared types and interfaces (.hpp and .cpp side by side)
@@ -67,6 +68,22 @@ Requirements: CMake ≥ 3.25, Ninja, a C++23 compiler (GCC ≥ 12, Clang ≥ 16 
 cmake --preset linux-debug
 cmake --build --preset linux-debug
 ctest --preset linux-debug
+```
+
+### Pinned versions
+
+So that Arch, Debian and the CI build with the same compiler and libraries, the versions are kept in the repo:
+
+- **vcpkg:** `builtin-baseline` in `vcpkg.json` is a commit of the vcpkg repository and fixes the versions of all
+  ports. To update, set it to a newer commit (`git -C $VCPKG_ROOT rev-parse HEAD` after `git pull`).
+- **Emscripten:** `emsdk-version` holds the emsdk version. The distribution packages are not used (Debian Bookworm
+  ships 3.1.6 with LLVM 15, whose libc++ has no `std::expected`). CMake stops if another version is active.
+
+```sh
+git clone https://github.com/emscripten-core/emsdk ~/emsdk
+~/emsdk/emsdk install $(cat emsdk-version)
+~/emsdk/emsdk activate $(cat emsdk-version)
+source ~/emsdk/emsdk_env.sh
 ```
 
 ### Tests

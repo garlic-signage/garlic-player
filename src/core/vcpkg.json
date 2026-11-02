@@ -4,6 +4,7 @@
   "version-semver": "0.1.0",
   "description": "Qt-free core library of the garlic-player",
   "license": "AGPL-3.0-only",
+  "builtin-baseline": "080c143a31f5a773e45ab6c161dace7804d4e939",
   "dependencies": [
     {
       "name": "curl",
