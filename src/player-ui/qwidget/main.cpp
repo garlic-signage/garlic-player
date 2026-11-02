@@ -26,6 +26,7 @@
 #include "player_runtime/threaded_runtime.hpp"
 
 #include <QApplication>
+#include <QFontDatabase>
 #include <QCommandLineParser>
 #include <QFileInfo>
 #include <QScreen>
@@ -70,7 +71,13 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName("garlic-player");
     QApplication::setApplicationVersion(PLAYER_VERSION);
-
+    int id = QFontDatabase::addApplicationFont(":/fonts/DejaVuSans.ttf");
+    if (id >= 0)
+    {
+        QFont font = QApplication::font();
+        font.setFamily(QFontDatabase::applicationFontFamilies(id).value(0));
+        QApplication::setFont(font);
+    }
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
