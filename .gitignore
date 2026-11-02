@@ -13,3 +13,5 @@ libios
 ./*.bat
 !legacy/build_scripts/
 .idea
+/.qtcreator/CMakeLists.txt.user
+/src/player-ui/qwidget/.qtcreator/CMakeLists.txt.user
