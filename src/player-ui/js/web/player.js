@@ -16,6 +16,7 @@ const ROOT = '/garlic'; // configuration, cache and logs in the file system of t
 
 class GarlicPlayer {
     #params = new URLSearchParams(location.search);
+    #preview = this.#params.has('uuid'); // preview of a player in garlic-hub: no menu, of the keys only the debug infos
     #storage = null;
     #player = null; // Player of bindings.cpp
     #stage = null;
@@ -79,6 +80,8 @@ class GarlicPlayer {
             quit: () => this.#quit(),
             changed,
         });
+        if (this.#preview)
+            return;
         this.#menu = new Menu(document.getElementById('menu'), {
             settings: () => this.#settings.open(),
             debug: () => this.#debug.open(),
@@ -138,7 +141,7 @@ class GarlicPlayer {
 
     #keyPressed(event) {
         if (event.ctrlKey && !event.altKey && !event.metaKey) {
-            const actions = {
+            const actions = this.#preview ? { d: () => this.#debug.open() } : {
                 f: () => this.#toggleFullScreen(),
                 b: () => this.#toggleFullScreen(), // over all screens is not possible in the browser
                 s: () => this.#settings.open(),
@@ -159,7 +162,7 @@ class GarlicPlayer {
     }
 
     #dialogOpen() {
-        return this.#settings.isOpen || this.#debug.isOpen || this.#menu.isOpen;
+        return this.#settings.isOpen || this.#debug.isOpen || (this.#menu?.isOpen ?? false);
     }
 
     #toggleFullScreen() {

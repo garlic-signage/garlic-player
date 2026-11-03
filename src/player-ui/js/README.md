@@ -24,7 +24,8 @@ on localhost: the service worker for web pages and widgets needs a secure origin
 - `index=<URI>`: the SMIL index, like `SMIL_INDEX` on the command line; empty: the one in the settings.
 - `storage=memory`: the cache only in memory, gone with the page (e.g. for a preview). Default: kept in IndexedDB.
 - `uuid=<uuid>&name=<player name>`: preview of a player. They are written into the configuration before the start, so
-  the player asks the hub as this player and gets its playlist; everything else works as in the standalone player.
+  the player asks the hub as this player and gets its playlist. In the preview there is no menu (neither ten clicks nor
+  holding) and of the shortcuts only Ctrl+D (debug infos); accesskeys and clicks on media work as in the player.
 
 ## Preview in garlic-hub
 
