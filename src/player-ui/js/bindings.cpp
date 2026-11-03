@@ -281,6 +281,8 @@ namespace player
                 val result = val::object();
                 result.set("type", std::string("layout"));
                 result.set("title", head.title);
+                result.set("rootWidth", head.root_layout.width);
+                result.set("rootHeight", head.root_layout.height);
                 result.set("rootColor", head.root_layout.background_color);
                 result.set("rootImageSrc", head.root_layout.background_image);
                 result.set("rootImage", background(head.root_layout.background_image));
