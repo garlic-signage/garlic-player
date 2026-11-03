@@ -12,12 +12,28 @@ scripts/player-builds/wasm.sh release ~/garlic-hub      # and copies it to <hub>
 
 cd src/player-ui/js                                     # or by hand
 cmake --preset wasm-release && cmake --build --preset wasm-release
-python3 -m http.server -d build/wasm-release 8800      # any web server; file:// does not work
 ```
 
-Then open `http://localhost:8800/` (or with `?index=https://hub/index.smil`). `build/wasm-release` holds everything to
-deploy: `index.html`, `player.css`, the modules `*.js`, `sw.js`, `garlic-core.js`, `garlic-core.wasm`. Over https or
-on localhost: the service worker for web pages and widgets needs a secure origin.
+`build/wasm-release` holds everything to deploy: `index.html`, `player.css`, the modules `*.js`, `sw.js`,
+`garlic-core.js`, `garlic-core.wasm`.
+
+### Running it
+
+The player needs a web server; from `file://` the browser loads neither the modules nor the WASM. Any server for
+static files will do, e.g.:
+
+```
+npx serve build/wasm-release -l 8800                   # Node
+php -S localhost:8800 -t build/wasm-release            # PHP
+python3 -m http.server -d build/wasm-release 8800      # Python
+```
+
+Then open `http://localhost:8800/` (or with `?index=https://hub/index.smil`). garlic-hub, nginx or Apache serve it as
+well; `.wasm` should come as `application/wasm`, otherwise the browser compiles it more slowly.
+
+**A secure origin is needed: `https://` or `localhost`.** Only there the browser starts the service worker, which
+serves web pages and widgets from the cache. Over plain `http://` with an IP address or a host name (e.g. a NAS in the
+local network) the player runs, but shows no widgets and no web pages from the cache.
 
 ## URL parameters, menu, keys
 
