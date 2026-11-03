@@ -37,7 +37,7 @@ body.hide-cursor {
     display: none;
 }
 
-.stopped {
+.message {
     color: #888;
     display: grid;
     place-items: center;

@@ -102,8 +102,6 @@ namespace player
                 config.version       = PLAYER_VERSION;
                 config.index_uri     = options["index"].as<std::string>();
                 config.random_seed   = options["seed"].as<std::uint32_t>();
-                // widgets are directories in the cache, their relative links cannot be loaded from it yet
-                config.supports = [](const smil::Media &media) { return media.kind != smil::MediaKind::Widget; };
             }
 
             /// Empty, or the error text.

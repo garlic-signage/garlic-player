@@ -13,7 +13,8 @@ python3 -m http.server -d build/wasm-release 8800      # any web server; file://
 ```
 
 Then open `http://localhost:8800/` (or with `?index=https://hub/index.smil`). `build/wasm-release` holds everything to
-deploy: `index.html`, `player.js`, `player.css`, `garlic-core.js`, `garlic-core.wasm`.
+deploy: `index.html`, `player.css`, the modules `*.js`, `sw.js`, `garlic-core.js`, `garlic-core.wasm`. Over https or
+on localhost: the service worker for web pages and widgets needs a secure origin.
 
 ## URL parameters, menu, keys
 
@@ -33,8 +34,14 @@ dialog opens at the start; cancelled, the player ends.
 | `CMakeLists.txt`   | the module `garlic-core.js` (ES module, `createGarlicCore`), copies `web/` next to it |
 | `CMakePresets.json`| `wasm-debug`, `wasm-release`; the vcpkg manifest of the core                          |
 | `web/index.html`   | stage, menu, settings and debug dialog                                               |
-| `web/player.js`    | the player: loop, regions, media, menu, dialogs, keys, IndexedDB                     |
+| `web/player.js`    | `GarlicPlayer`: start, loop, keys, cursor, end                                       |
+| `web/stage.js`     | `Stage`, `Region`, `Media`: what is shown                                            |
+| `web/dialogs.js`   | `Menu` with its gesture, `SettingsDialog`, `DebugDialog`                             |
+| `web/storage.js`   | `Storage`: file system of the core, IndexedDB, URLs of the cached files              |
+| `web/sw.js`        | service worker: the cache for web pages and widgets                                  |
 | `web/player.css`   |                                                                                      |
+
+The JS is ECMAScript 2022 modules, classes with private fields and methods.
 
 ## Flow
 
@@ -46,7 +53,7 @@ player.js                          bindings.cpp (WASM)
 tick() → player.poll()        →    PlayerRuntimeApi::poll() → events as JS objects
   ├── layout      regions anew: divs placed in %, background color and image
   ├── background  a background image that was not there yet
-  ├── start       an element per region of the instance: img, video, audio, iframe, div (brush)
+  ├── start       an element per region of the instance: img, video, audio, iframe (web, widget), div (brush)
   ├── stop        the elements go, blob URLs are released
   ├── pause/resume, repeat
   ├── clearCaches → cachesCleared()
@@ -55,11 +62,15 @@ mediaFinished / mediaFailed /  →   the end of a video or audio, a file that ca
 activated / accessKey
 ```
 
-- **Files of the cache**: the core gives local paths of its file system (`/garlic/cache/…`). `player.js` reads the
-  file from there into a blob and shows it with a blob URL; URLs (uncachable media) are used as they are.
+- **Files of the cache**: the core gives local paths of its file system (`/garlic/cache/…`). Images, video and audio
+  are read from there into a blob and shown with a blob URL. Web pages and widgets need their relative links (scripts,
+  styles, images of the extracted widget), so they get `garlic-fs/garlic/cache/…/index.html?query`: the service worker
+  (`sw.js`) answers these requests and asks the player page for the file through a `MessageChannel`. URLs (uncachable
+  media) are used as they are.
 - **Storage**: `/garlic` (configuration, cache, logs, inventory database) is IDBFS: the files are in memory and are
-  written to IndexedDB every 10 s, after the settings and when the page goes. At the start they are read back, so the
-  cache and the settings survive a reload.
+  written to IndexedDB at the start, every 10 s, after the settings and when the page goes. At the start they are read
+  back, so the cache and the settings survive a reload. A file downloaded in the last 10 s before the browser is
+  killed is loaded again at the next start.
 - **Like the other players**: only the topmost medium with a picture is visible, audio covers nothing; a StartMedia is
   shown in all regions with its name, only the first one reports end and errors; fit and mediaAlign as `object-fit`
   and `object-position` (meetBest: `scale-down`).
@@ -74,8 +85,6 @@ expose `ETag` and `Last-Modified` (`Access-Control-Expose-Headers`); see
 
 ## Not yet
 
-- **Widgets** (`application/widget`): they are directories in the cache whose relative links cannot be loaded from
-  blob URLs; the core skips them (`supports`).
 - **Sound**: browsers block it without a user gesture; a video then plays muted. A kiosk browser can allow it
   (Chromium: `--autoplay-policy=no-user-gesture-required`).
 - **Memory**: IDBFS keeps all files in memory as well; many large videos need a lot of it. OPFS would avoid that, but

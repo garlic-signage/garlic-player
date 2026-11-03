@@ -34,10 +34,13 @@ target_link_options(js PRIVATE
     -sFORCE_FILESYSTEM
 )
 
-# the page next to garlic-core.js and garlic-core.wasm
-set(web_files index.html player.js player.css)
+# the page next to garlic-core.js and garlic-core.wasm, copied again when a file changed
+set(web_files index.html player.css player.js stage.js dialogs.js storage.js sw.js)
+set(web_outputs)
 foreach(file IN LISTS web_files)
-    add_custom_command(TARGET js POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/web/${file}
-                $<TARGET_FILE_DIR:js>/${file})
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/web/${file} ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/web/${file})
+    list(APPEND web_outputs ${CMAKE_CURRENT_BINARY_DIR}/${file})
 endforeach()
+add_custom_target(js_web ALL DEPENDS ${web_outputs})
