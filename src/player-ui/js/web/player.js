@@ -4,7 +4,8 @@
 // 10 s, settings, debug infos, shortcuts.
 //
 // URL parameters: index=<SMIL index> (like SMIL_INDEX on the command line), storage=memory (no IndexedDB: the cache
-// is gone with the page, e.g. for a preview).
+// is gone with the page), uuid=<uuid>&name=<player name> (preview of a player in garlic-hub: the player plays as
+// that one and gets its playlist).
 
 import createGarlicCore from './garlic-core.js';
 import { DebugDialog, Menu, SettingsDialog } from './dialogs.js';
@@ -28,6 +29,12 @@ class GarlicPlayer {
         const core = await createGarlicCore();
         this.#storage = new Storage(core, ROOT, this.#params.get('storage') !== 'memory');
         await this.#storage.open();
+        const uuid = this.#params.get('uuid');
+        if (uuid) {
+            const name = this.#params.get('name') ?? '';
+            this.#storage.presetConfig(uuid, name);
+            document.title = `garlic-player preview: ${name || uuid}`;
+        }
 
         this.#player = new core.Player({
             root: ROOT,

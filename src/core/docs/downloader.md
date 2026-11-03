@@ -174,11 +174,11 @@ FetchTransport transport;
   called and a video is never held completely in memory. `emscripten_fetch` is not used: it is based on XHR and
   holds the whole response in memory in Chrome.
 - **User-Agent:** a script may not set it, the browser always sends its own. The transport sends a `User-Agent`
-  header of the request as `X-Garlic-User-Agent`; the hub reads the player from there.
+  header of the request as `X-Signage-Agent`, which garlic-hub reads instead of `User-Agent`.
 - **Redirects** are followed by the browser (`fetch()` cannot stop at a 3xx), the final response arrives.
 - **No browser cache** (`cache: 'no-store'`): the `Downloader` validates the cache itself, as on the other platforms.
 - **CORS:** every server the player loads from must allow it, including the preflight for `If-None-Match`,
-  `If-Modified-Since` and `X-Garlic-User-Agent`. `ETag` and `Last-Modified` are only visible to the player if the
+  `If-Modified-Since` and `X-Signage-Agent`. `ETag` and `Last-Modified` are only visible to the player if the
   server lists them in `Access-Control-Expose-Headers`; without them every check downloads the file again.
 - **Errors:** the browser does not say why a request failed (DNS, connection, TLS and CORS all look the same), so
   every failure is `ConnectionFailed` with the text of the browser. A URL that is no URL is `InvalidRequest` at
@@ -187,7 +187,7 @@ FetchTransport transport;
 
 There are no unit tests yet, the tests are not built for WASM. It was tested by hand in Node against a local HTTP
 server: GET of 5 MiB (content checked), HEAD, 404, PUT, redirect, abort from the handler, `cancel()`, connection
-refused, invalid URL, `User-Agent` arriving as `X-Garlic-User-Agent`.
+refused, invalid URL, `User-Agent` arriving as `X-Signage-Agent`.
 
 ## Decisions
 

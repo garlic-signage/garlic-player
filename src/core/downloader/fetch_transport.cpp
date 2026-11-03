@@ -261,11 +261,11 @@ namespace garlic::core::downloader
                                                                    HttpResponseHandler &handler)
     {
         // The browser does not let a script set User-Agent, it always sends its own. The hub reads the one of the
-        // player from X-Garlic-User-Agent instead.
+        // player from X-Signage-Agent instead.
         std::string headers;
         for (const auto &header : request.headers.all())
         {
-            headers += equalsIgnoreCase(header.name, "User-Agent") ? "X-Garlic-User-Agent" : header.name;
+            headers += equalsIgnoreCase(header.name, "User-Agent") ? "X-Signage-Agent" : header.name;
             headers += '\n';
             headers += header.value;
             headers += '\n';

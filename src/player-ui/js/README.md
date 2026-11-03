@@ -7,7 +7,10 @@ The browser frontend of the garlic-player on the core. The core runs as WebAssem
 Only with Emscripten (see [the core](../../core/README.md#pinned-versions)) and vcpkg:
 
 ```
-cd src/player-ui/js
+src/player-ui/js/build.sh                               # release; debug: build.sh debug
+src/player-ui/js/build.sh release ~/garlic-hub          # and copies it to <hub>/public/player-preview/
+
+cd src/player-ui/js                                     # or by hand
 cmake --preset wasm-release && cmake --build --preset wasm-release
 python3 -m http.server -d build/wasm-release 8800      # any web server; file:// does not work
 ```
@@ -20,6 +23,17 @@ on localhost: the service worker for web pages and widgets needs a secure origin
 
 - `index=<URI>`: the SMIL index, like `SMIL_INDEX` on the command line; empty: the one in the settings.
 - `storage=memory`: the cache only in memory, gone with the page (e.g. for a preview). Default: kept in IndexedDB.
+- `uuid=<uuid>&name=<player name>`: preview of a player. They are written into the configuration before the start, so
+  the player asks the hub as this player and gets its playlist; everything else works as in the standalone player.
+
+## Preview in garlic-hub
+
+garlic-hub opens the preview from the context menu of its player list ("Preview", only for a player with a playlist)
+in a new tab: `/player-preview/index.html?index=<hub>/smil-index&uuid=…&name=…&storage=memory`. The files of
+`build/wasm-release` go to `public/player-preview/` of the hub. Index and media come from the same origin, so CORS
+plays no part; the agent goes in `X-Signage-Agent`, which the hub reads for `/smil-index` and `delivery.php`. The page
+is a static file, the headers of the hub (CSP without `wasm-unsafe-eval`) do not apply to it. The hub counts the
+preview as the player itself (last access, reports).
 
 Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s open the menu with Settings, Debug infos and
 Exit. Keys: Ctrl+F full screen, Ctrl+B full screen too (over all screens is not possible in a browser), Ctrl+S
@@ -78,10 +92,10 @@ activated / accessKey
 ## Requirements of the servers
 
 The page and the content come from different origins, so every server the player loads from (index, media, reports)
-must allow CORS, including the preflight for `If-None-Match`, `If-Modified-Since` and `X-Garlic-User-Agent`, and should
+must allow CORS, including the preflight for `If-None-Match`, `If-Modified-Since` and `X-Signage-Agent`, and should
 expose `ETag` and `Last-Modified` (`Access-Control-Expose-Headers`); see
 [FetchTransport](../../core/docs/downloader.md#fetchtransport). The player identifies itself with
-`X-Garlic-User-Agent`, the browser does not let it set `User-Agent`.
+`X-Signage-Agent`, the browser does not let it set `User-Agent`.
 
 ## Not yet
 

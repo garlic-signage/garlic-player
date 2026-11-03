@@ -38,6 +38,15 @@ export class Storage {
         await this.#startServiceWorker();
     }
 
+    /// For the preview of a player: the configuration (garlic-player.ini of bindings.cpp) gets its uuid and name, so
+    /// the hub serves the playlist of that player. The other keys keep their defaults.
+    presetConfig(uuid, name) {
+        const quoted = (value) => `"${value.replace(/[\x00-\x1f]/g, '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+        this.#core.FS.mkdirTree(`${this.#root}/config`);
+        this.#core.FS.writeFile(`${this.#root}/config/garlic-player.ini`,
+            `[General]\nuuid=${quoted(uuid)}\nplayer_name=${quoted(name)}\n`);
+    }
+
     /// populate: read from IndexedDB, else write to it
     sync(populate = false) {
         if (!this.#persistent || this.#syncing)
