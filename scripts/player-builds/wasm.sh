@@ -3,7 +3,7 @@
 #
 #   scripts/player-builds/wasm.sh                  release
 #   scripts/player-builds/wasm.sh debug            debug
-#   scripts/player-builds/wasm.sh release <hub>    and copies it as preview into <hub>/public/player-preview/ (garlic-hub)
+#   scripts/player-builds/wasm.sh release <hub>    and copies it as preview into <hub>/public/js/player/preview/ (garlic-hub)
 set -euo pipefail
 
 type=${1:-release}
@@ -42,7 +42,7 @@ files=(index.html player.css player.js stage.js dialogs.js storage.js sw.js garl
 echo "built: $output"
 
 if [[ -n $hub ]]; then
-    target=$hub/public/player-preview
+    target=$hub/public/js/player/preview
     mkdir -p "$target"
     for file in "${files[@]}"; do
         cp "$output/$file" "$target/"

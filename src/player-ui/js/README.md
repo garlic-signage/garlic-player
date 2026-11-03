@@ -8,7 +8,7 @@ Only with Emscripten (see [the core](../../core/README.md#pinned-versions)) and 
 
 ```
 scripts/player-builds/wasm.sh                           # release; debug: wasm.sh debug
-scripts/player-builds/wasm.sh release ~/garlic-hub      # and copies it to <hub>/public/player-preview/
+scripts/player-builds/wasm.sh release ~/garlic-hub      # and copies it to <hub>/public/js/player/preview/
 
 cd src/player-ui/js                                     # or by hand
 cmake --preset wasm-release && cmake --build --preset wasm-release
@@ -29,8 +29,8 @@ on localhost: the service worker for web pages and widgets needs a secure origin
 ## Preview in garlic-hub
 
 garlic-hub opens the preview from the context menu of its player list ("Preview", only for a player with a playlist)
-in a new tab: `/player-preview/index.html?index=<hub>/smil-index&uuid=…&name=…&storage=memory`. The files of
-`build/wasm-release` go to `public/player-preview/` of the hub. Index and media come from the same origin, so CORS
+in a new tab: `/js/player/preview/index.html?index=<hub>/smil-index&uuid=…&name=…&storage=memory`. The files of
+`build/wasm-release` go to `public/js/player/preview/` of the hub. Index and media come from the same origin, so CORS
 plays no part; the agent goes in `X-Signage-Agent`, which the hub reads for `/smil-index` and `delivery.php`. The page
 is a static file, the headers of the hub (CSP without `wasm-unsafe-eval`) do not apply to it. The hub counts the
 preview as the player itself (last access, reports).
