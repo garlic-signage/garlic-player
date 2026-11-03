@@ -1,0 +1,136 @@
+/* garlic-player in the browser: the stage covers the window, regions and media are placed by player.js */
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: black;
+    font-family: system-ui, sans-serif;
+}
+
+body.hide-cursor {
+    cursor: none;
+}
+
+#stage {
+    position: absolute;
+    inset: 0;
+    background-color: black;
+    background-position: left top;
+}
+
+.region {
+    position: absolute;
+    overflow: hidden;
+    background-position: left top;
+}
+
+.media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.media[hidden] {
+    display: none;
+}
+
+.stopped {
+    color: #888;
+    display: grid;
+    place-items: center;
+    height: 100%;
+}
+
+/* the menu: ten fast clicks or one held for 10 s */
+#menu {
+    position: fixed;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    padding: 4px 0;
+    background: #f4f4f4;
+    border: 1px solid #aaa;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+#menu[hidden] {
+    display: none;
+}
+
+#menu button {
+    display: flex;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 6px 12px;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+#menu button:hover, #menu button:focus {
+    background: #dde6f5;
+}
+
+.keys {
+    opacity: 0.6;
+}
+
+dialog {
+    width: min(600px, calc(100vw - 32px));
+    border: 1px solid #aaa;
+    padding: 16px;
+}
+
+dialog#debug {
+    width: min(680px, calc(100vw - 32px));
+}
+
+dialog h1 {
+    margin: 0 0 12px;
+    font-size: 1.1em;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 12px;
+    align-items: center;
+}
+
+.grid input:not([type=checkbox]) {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.wrap {
+    word-break: break-all;
+}
+
+.lines {
+    white-space: pre-line;
+}
+
+.error {
+    color: red;
+}
+
+dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+dialog footer .left {
+    margin-right: auto;
+}
+
+dialog footer .default {
+    font-weight: bold;
+}

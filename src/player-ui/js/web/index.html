@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- garlic-player in the browser: the core as WebAssembly (garlic-core.js/.wasm), the player in player.js -->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>garlic-player</title>
+    <link rel="stylesheet" href="player.css">
+    <script type="module" src="player.js"></script>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="menu" hidden>
+    <button data-action="settings"><span>Settings</span><span class="keys">Ctrl+S</span></button>
+    <button data-action="debug"><span>Debug infos</span><span class="keys">Ctrl+D</span></button>
+    <button data-action="exit"><span>Exit</span><span class="keys">Ctrl+Q</span></button>
+</div>
+
+<dialog id="settings">
+    <form method="dialog">
+        <h1>garlic-player settings</h1>
+        <p class="error" hidden></p>
+        <div class="grid">
+            <label for="player-name">Player name</label>
+            <input id="player-name" name="playerName">
+            <label for="index-uri">Content URL</label>
+            <input id="index-uri" name="indexUri" placeholder="e.g. https://indexes.smil-control.com">
+            <label for="httpd-enabled">HTTP server</label>
+            <span><input id="httpd-enabled" name="httpdEnabled" type="checkbox" disabled> active
+                <small>(not in the browser)</small></span>
+            <label for="httpd-port">Port</label>
+            <input id="httpd-port" name="httpdPort" type="number" min="1" max="65535" disabled>
+        </div>
+        <footer>
+            <button value="ok" class="default">OK</button>
+            <button value="cancel" formnovalidate>Cancel</button>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="debug">
+    <form method="dialog">
+        <h1>Information</h1>
+        <div class="grid">
+            <span>Playlist</span><span data-info="title"></span>
+            <span>User agent</span><span data-info="userAgent" class="wrap"></span>
+            <span>Disk (cache)</span><span data-info="disk"></span>
+            <span>System memory</span><span data-info="memory"></span>
+            <span>Player memory</span><span data-info="playerMemory"></span>
+            <span>Threads</span><span data-info="threads"></span>
+            <span>Playing</span><span data-info="playing" class="lines"></span>
+        </div>
+        <footer>
+            <button value="quit" class="left">Quit player</button>
+            <button value="close" class="default">Close</button>
+        </footer>
+    </form>
+</dialog>
+</body>
+</html>
