@@ -7,8 +7,8 @@ The browser frontend of the garlic-player on the core. The core runs as WebAssem
 Only with Emscripten (see [the core](../../core/README.md#pinned-versions)) and vcpkg:
 
 ```
-src/player-ui/js/build.sh                               # release; debug: build.sh debug
-src/player-ui/js/build.sh release ~/garlic-hub          # and copies it to <hub>/public/player-preview/
+scripts/player/build-wasm.sh                            # release; debug: build-wasm.sh debug
+scripts/player/build-wasm.sh release ~/garlic-hub       # and copies it to <hub>/public/player-preview/
 
 cd src/player-ui/js                                     # or by hand
 cmake --preset wasm-release && cmake --build --preset wasm-release
