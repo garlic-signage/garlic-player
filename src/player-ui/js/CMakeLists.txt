@@ -18,7 +18,8 @@ add_executable(js bindings.cpp)
 set_target_properties(js PROPERTIES OUTPUT_NAME garlic-core CXX_EXTENSIONS OFF SUFFIX ".js")
 target_compile_features(js PRIVATE cxx_std_23)
 target_compile_options(js PRIVATE -Wall -Wextra -Wpedantic -fno-exceptions)
-target_compile_definitions(js PRIVATE PLAYER_VERSION="${PROJECT_VERSION}-beta")
+include(${CMAKE_CURRENT_SOURCE_DIR}/../player_version.cmake)
+garlic_player_version(js)
 target_link_libraries(js PRIVATE garlic::core::player_runtime)
 
 # garlic-core.js as ES module (createGarlicCore); FS and IDBFS: the cache in IndexedDB
