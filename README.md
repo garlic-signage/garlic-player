@@ -71,6 +71,19 @@ QtAVPlayer is downloaded by CMake and needs FFmpeg (`libavcodec-dev libavformat-
 libswscale-dev libswresample-dev`) and the private headers of Qt Multimedia. Debian Trixie does not ship those, so
 there it is switched off as above; Qt from the Qt installer and Arch Linux have them.
 
+### Version
+
+The version of all players (qwidget, qml, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION), e.g.
+`2.0.0-beta.900`. It goes into the user agent and into `--version`. A build server writes its version there before
+building:
+
+```
+echo "2.0.0-beta.$BUILD_NUMBER" > src/player-ui/VERSION
+```
+
+The number after the last dot is the build: garlic-hub gives the full index (multizone, prefetch, priority classes)
+only from build 566 on. CMake configures again by itself when the file changes.
+
 ## Features
  - full screen on one screen, one window over all screens (bigscreen) or windowed, start screen selectable
  - multiple and overlapping zones e.g. splitscreens
