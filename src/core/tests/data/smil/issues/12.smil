@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+  <head />
+  <body>
+    <seq repeatCount="indefinite">
+		<!-- not existing video in infinity loop without timer should not crash--> 
+		<video src="../videos/not_exist.mp4" /> 	
+    </seq>
+  </body>
+</smil> 

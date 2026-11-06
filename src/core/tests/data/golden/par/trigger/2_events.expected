@@ -1,0 +1,11 @@
+0s start begin
+0s start img_25_6
+1s stop img_25_6
+1s start img_26_7
+2s stop img_26_7
+2s start img_27_8
+3s stop img_27_8
+3s start img_28_9
+4s stop img_28_9
+4s start end
+4s stop begin

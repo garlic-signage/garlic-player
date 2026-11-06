@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Simple SMIL for testing media in body" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen1" top="0" left="0" width="960" height="540" z-index="1" backgroundColor="#f00" />
+			<region regionName="screen2" top="0" left="960" width="960" height="540" z-index="1" backgroundColor="#0f0" />
+			<region regionName="screen3" top="540" left="0" width="960" height="540" z-index="1" backgroundColor="#00f" />
+			<region regionName="screen4" top="540" left="960" width="960" height="540" z-index="1" backgroundColor="#0ff" />
+		</layout>
+	</head>
+	<body>
+	
+	<!--
+		
+	sequence up left is 1,2,3,4,6,7,8,9 10,11,12,13,14,15 repeated indefinite starts at second 00
+	ignore second sequence as period has an error
+	-->
+		<par xml:id="par1" >
+			<seq xml:id="seq1" repeatCount="indefinite">
+				<img region="screen1" xml:id="Aimg0001" src="../images/0001.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0002" src="../images/0002.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0003" src="../images/0003.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0004" src="../images/0004.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0005" src="../images/0005.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0006" src="../images/0006.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0007" src="../images/0007.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0008" src="../images/0008.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0009" src="../images/0009.jpg" dur="1s" fit="meet" />
+				<img region="screen1" xml:id="Aimg0010" src="../images/0010.jpg" dur="1s" fit="meet" />
+			</seq>
+			<seq xml:id="seq2" begin="wallclock(R/2022-03-29T07:00:00/P0H)" end="wallclock(R/2022-03-29T22:00:00/P0H)">
+				<img region="screen2" xml:id="imgAbegin" src="../images/begin.jpg" dur="1s" fit="meet" />
+				<img region="screen2" xml:id="imgA0001" src="../images/0001.jpg" dur="1s" fit="meet" />
+				<img region="screen2" xml:id="imgA0002" src="../images/0002.jpg" dur="1s" fit="meet" />
+				<img region="screen2" xml:id="imgA0003" src="../images/0003.jpg" dur="1s" fit="meet" />
+				<img region="screen2" xml:id="imgAend" src="../images/end.jpg" dur="1s"  fit="meet" />
+			</seq>
+		</par>	
+	</body>
+</smil>

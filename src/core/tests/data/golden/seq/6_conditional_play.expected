@@ -1,0 +1,10 @@
+0s start img_begin
+1s stop img_begin
+1s start img0001
+2s stop img0001
+2.100s start img0002
+3.100s stop img0002
+3.200s start img0004
+4.200s stop img0004
+4.200s start img_end
+5.200s stop img_end

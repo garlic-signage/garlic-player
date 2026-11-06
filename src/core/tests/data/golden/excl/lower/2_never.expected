@@ -1,0 +1,26 @@
+0s start img begin
+1s stop img begin
+1s start imgA0002
+2s stop imgA0002
+2s start imgA0005
+3s stop imgA0005
+3s start imgB0002
+4s stop imgB0002
+4.010s start imgB010
+5.010s stop imgB010
+6s start imgC0001
+7s stop imgC0001
+7s start imgC0002
+8s stop imgC0002
+8s start imgC0006
+9s stop imgC0006
+9s start imgC0007
+10s stop imgC0007
+10s start imgC0008
+11s stop imgC0008
+11s start imgC0009
+12s stop imgC0009
+12s start imgC0010
+13s stop imgC0010
+13s start img_end
+14s stop img_end

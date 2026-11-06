@@ -1,0 +1,4 @@
+0s start img_begin
+2s stop img_begin
+2s start img_end
+4s stop img_end

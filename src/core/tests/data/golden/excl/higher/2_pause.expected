@@ -1,0 +1,32 @@
+0s start img begin
+1s stop img begin
+1s start imgA0010
+2s stop imgA0010
+2s start imgA0009
+3s stop imgA0009
+3s start imgA0008
+4s stop imgA0008
+4s start imgA0005
+5s pause imgA0005
+5s start imgA0004
+6s pause imgA0004
+6s start imgA0003
+7s pause imgA0003
+7s start imgA0002
+8s pause imgA0002
+8s start imgA0001
+9s stop imgA0001
+9s resume imgA0002
+10s stop imgA0002
+10s resume imgA0003
+11s stop imgA0003
+11s resume imgA0004
+12s stop imgA0004
+12s resume imgA0005
+13s stop imgA0005
+13s start imgA0007
+14s stop imgA0007
+14s start imgA0006
+15s stop imgA0006
+15s start img_end
+16s stop img_end

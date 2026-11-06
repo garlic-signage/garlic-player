@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Hammering Test " />
+		<meta http-equiv="Refresh" content="30" />
+		<layout>
+            <root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen0" top="0" left="0" width="90%" height="100%" z-index="1" background-color="transparent" />
+			<region regionName="screen1" top="0" left="90%" width="10%" height="100%" z-index="2" background-color="transparent" />
+		</layout>
+		</head>
+	<body>
+	<!--
+
+		build 534 hammered the prefetch on server because blocker seq ignored timings when empty
+
+		The correct behaviour is:
+		Left zone: shows video image
+		right Zone: 1, 2, 3, 4, 5, the 5s black then repeat count to 5
+	-->
+
+		<par id="global">
+			<seq id="media" repeatCount="indefinite">
+				<img region="screen0" src="../../../images/video.jpg" dur="10s" fit="meet" />
+			</seq>
+
+			<par id="wrap_prefetch" repeatCount="indefinite">
+				<seq id="blocker" dur="10s"/>
+				<seq id="prefetch">
+					<img region="screen1" src="../../../images/0001.jpg" dur="1s" fit="meet" />
+					<img region="screen1" src="../../../images/0002.jpg" dur="1s" fit="meet" />
+					<img region="screen1" src="../../../images/0003.jpg" dur="1s" fit="meet" />
+					<img region="screen1" src="../../../images/0004.jpg" dur="1s" fit="meet" />
+					<img region="screen1" src="../../../images/0005.jpg" dur="1s" fit="meet" />
+				</seq>
+			</par>
+		</par>
+	</body>
+</smil>

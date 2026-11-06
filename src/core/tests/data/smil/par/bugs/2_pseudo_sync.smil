@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing wallclock" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen1" top="0" left="0" width="960" height="540" z-index="1" backgroundColor="#f00" />
+			<region regionName="screen2" top="0" left="960" width="960" height="540" z-index="1" backgroundColor="#0f0" />
+			<region regionName="screen3" top="540" left="0" width="960" height="540" z-index="1" backgroundColor="#00f" />
+			<region regionName="screen4" top="540" left="960" width="960" height="540" z-index="1" backgroundColor="#0ff" />
+			
+		</layout>
+	</head>
+	<body>
+	<!--
+	
+		sequence should displayed parallel 
+		upper left zone: 1, 2, 3, 4, 6 every for 10s. 
+			The sequence start number depends on the 1/6 interval of a minute.
+			For example: No 4 displayed between 30s-40s of a minute
+
+		lower right zone:1, 2, 3, 4, 6 every for 10s. 
+			the sequence starts always with 1 on begin (0s) of every minute
+		
+	-->
+
+		<par xml:id="par1" repeatCount="indefinite">
+                <img region="screen1" xml:id="imgA1" src="../../../images/0001.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:00/PT1M)" fit="meet"/>
+				<img region="screen1" xml:id="imgA2" src="../../../images/0002.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:10/PT1M)" fit="meet"/>
+				<img region="screen1" xml:id="imgA3" src="../../../images/0003.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:20/PT1M)" fit="meet"/>
+				<img region="screen1" xml:id="imgA4" src="../../../images/0004.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:30/PT1M)" fit="meet"/>
+				<img region="screen1" xml:id="imgA5" src="../../../images/0005.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:40/PT1M)" fit="meet"/>
+				<img region="screen1" xml:id="imgA6" src="../../../images/0006.jpg" dur="10s" begin="wallclock(R/2021-04-01T00:00:50/PT1M)" fit="meet"/>
+				
+				<seq xml:id="seq1" begin="wallclock(R/2021-04-01T00:00:00/PT1M)" repeatCount="indefinite">
+					<img region="screen4" xml:id="imgB1" src="../../../images/0001.jpg" dur="10s" fit="meet" />
+					<img region="screen4" xml:id="imgB2" src="../../../images/0002.jpg" dur="10s" fit="meet" />
+					<img region="screen4" xml:id="imgB3" src="../../../images/0003.jpg" dur="10s" fit="meet" />
+					<img region="screen4" xml:id="imgB4" src="../../../images/0004.jpg" dur="10s" fit="meet" />
+					<img region="screen4" xml:id="imgB5" src="../../../images/0005.jpg" dur="10s" fit="meet" />
+					<img region="screen4" xml:id="imgB6" src="../../../images/0006.jpg" dur="10s" fit="meet" />
+				</seq>
+		</par>   
+	</body>
+</smil>
