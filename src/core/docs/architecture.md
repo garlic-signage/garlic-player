@@ -54,6 +54,33 @@ ESP32-S3 is the reference for memory consumption:
 - large data is passed as views (`std::string_view`, `std::span`)
 - planned: SMIL and download state persisted and restored, because deep sleep loses the RAM
 
+## Code quality
+
+Three rules, each checked in the CI (`.github/workflows/ci.yml`) on every push:
+
+- **No memory leaks.** All tests run a second time with AddressSanitizer (contains LeakSanitizer) and UBSan
+  (job `sanitizers`). A leak or undefined behavior fails the build. Leaks are found only in code the tests run, so
+  new code comes with tests.
+- **No duplicated code.** `jscpd` with `.jscpd.json` (job `duplicates`): 10 or more equal lines outside of
+  `tests/` fail the build. Shared helpers go into `common`.
+- **SOLID, kept simple.** A class has one task, the host-specific parts are behind the interfaces above, and new
+  abstractions come only when there is a second implementation. A tool cannot decide that, so it stays a matter of
+  review. `clang-tidy` with `.clang-tidy` gives hints (functions too long or too complex, classes with open members,
+  incomplete copy/move rules, common bugs) and only warns.
+
+Locally:
+
+```sh
+cmake -S . -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DGARLIC_CORE_BUILD_TESTS=ON \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+      "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
+      -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined \
+      -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,undefined
+cmake --build build/asan && ctest --test-dir build/asan --output-on-failure
+npx -y jscpd@4.3.0 .
+run-clang-tidy -quiet -p build/asan '/src/core/(?!tests/).*\.cpp$'
+```
+
 ## Downloader
 
 The download queue does not know the HTTP library. It handles order, retries, cache validation (Last-Modified,

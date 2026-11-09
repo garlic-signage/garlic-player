@@ -1,5 +1,6 @@
 # Tests of the core in Debian Trixie with line coverage. On master the coverage badge is committed to the branch
 # "badges" (an SVG made here, no external service); the README shows it from there.
+# Besides: the tests under sanitizers (leaks), clang-tidy (warnings only) and the check for duplicated code.
 # The builds of the old player on the own runners are in build.yml.
 name: CI
 
@@ -81,3 +82,60 @@ jobs:
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -q -m "coverage badge for ${GITHUB_SHA::7}"
           git push -q origin badges
+
+  # Memory errors and leaks: all tests again with AddressSanitizer (contains LeakSanitizer) and UBSan. Every leak
+  # fails the build. clang-tidy runs on the same build and only warns.
+  sanitizers:
+    name: Core tests with sanitizers (Debian Trixie)
+    runs-on: ubuntu-latest
+    container: debian:trixie
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake ninja-build g++ pkg-config python3 tzdata clang-tidy \
+            libcurl4-openssl-dev libmicrohttpd-dev libsqlite3-dev libxml2-dev nlohmann-json3-dev doctest-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S src/core -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DGARLIC_CORE_BUILD_TESTS=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined
+          -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,undefined
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build --output-on-failure
+
+      - name: clang-tidy (warnings only)
+        working-directory: src/core
+        run: |
+          find . -path ./build -prune -o -path ./tests -prune -o -name '*.cpp' -print \
+            | xargs -P"$(nproc)" -n1 clang-tidy -p ../../build --quiet 2>/dev/null \
+            | grep -E "warning:" | sort -u | sed 's#.*/src/core/##' > tidy.txt || true
+          echo "clang-tidy: $(wc -l < tidy.txt) warnings"
+          cat tidy.txt
+
+  # Duplicated code: jscpd with src/core/.jscpd.json (at least 10 equal lines, tests excluded) fails the build.
+  duplicates:
+    name: Duplicated code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: jscpd
+        working-directory: src/core
+        run: npx -y jscpd@4.3.0 .

@@ -1,0 +1,7 @@
+{
+  "minLines": 10,
+  "formatsExts": { "cpp": ["cpp", "hpp", "h"] },
+  "ignore": ["**/tests/**", "**/build/**", "**/docs/**"],
+  "reporters": ["console"],
+  "exitCode": 1
+}

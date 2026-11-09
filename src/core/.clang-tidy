@@ -1,0 +1,21 @@
+# Only warns, the CI does not fail on it. Hints for SOLID (functions that do too much, classes with open members or
+# incomplete copy/move rules) and common bugs. Left out: noise without findings in this code (integer promotion of
+# uint8_t in bit operations, explicit (void) casts, swappable parameters, exceptions are off).
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -bugprone-signed-bitwise,
+  -bugprone-unused-return-value,
+  readability-function-cognitive-complexity,
+  readability-function-size,
+  misc-non-private-member-variables-in-classes,
+  cppcoreguidelines-special-member-functions
+CheckOptions:
+  readability-function-cognitive-complexity.Threshold: 25
+  readability-function-size.LineThreshold: 80
+  readability-function-size.ParameterThreshold: 6
+  misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic: true
+  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
+HeaderFilterRegex: '.*/src/core/(?!tests/).*'
