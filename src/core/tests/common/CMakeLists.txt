@@ -3,6 +3,7 @@ add_executable(garlic_core_common_tests
     test_clock.cpp
     test_file_system.cpp
     test_md5.cpp
+    test_text.cpp
     test_time_format.cpp
     test_version.cpp
 )

@@ -18,18 +18,14 @@
 // macOS and iOS - not compiled on the development machine yet, to be checked with the first Apple build
 #include "system/platform.hpp"
 
+#include "system/ifaddrs_network.hpp"
+
 #include <CoreFoundation/CoreFoundation.h>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
 #include <mach/mach.h>
 #include <net/if.h>
 #include <net/if_dl.h>
 #include <net/if_types.h>
-#include <netinet/in.h>
 #include <sys/sysctl.h>
-
-#include <format>
-#include <map>
 
 namespace garlic::core::system::platform
 {
@@ -42,18 +38,6 @@ namespace garlic::core::system::platform
             char buffer[256] = {};
             if (!CFStringGetCString(text, buffer, sizeof(buffer), kCFStringEncodingUTF8))
                 return {};
-            return buffer;
-        }
-
-        std::string address(const sockaddr *sa)
-        {
-            char buffer[INET6_ADDRSTRLEN] = {};
-            if (sa == nullptr)
-                return {};
-            if (sa->sa_family == AF_INET)
-                inet_ntop(AF_INET, &reinterpret_cast<const sockaddr_in *>(sa)->sin_addr, buffer, sizeof(buffer));
-            else if (sa->sa_family == AF_INET6)
-                inet_ntop(AF_INET6, &reinterpret_cast<const sockaddr_in6 *>(sa)->sin6_addr, buffer, sizeof(buffer));
             return buffer;
         }
 
@@ -111,54 +95,15 @@ namespace garlic::core::system::platform
         return info;
     }
 
-    /// getifaddrs: the MAC comes with AF_LINK, the addresses with AF_INET and AF_INET6.
+    /// The MAC comes with AF_LINK.
     std::vector<reports::NetworkInterface> network()
     {
-        ifaddrs *list = nullptr;
-        if (getifaddrs(&list) != 0)
-            return {};
-
-        std::vector<reports::NetworkInterface> interfaces;
-        std::map<std::string, std::size_t>     index;
-        auto entry = [&](const std::string &name) -> reports::NetworkInterface &
+        return ifaddrsNetwork(AF_LINK, [](const ifaddrs &ifa, reports::NetworkInterface &item)
         {
-            auto [it, added] = index.try_emplace(name, interfaces.size());
-            if (added)
-                interfaces.push_back({name, {}, "unknown", {}});
-            return interfaces[it->second];
-        };
-
-        for (ifaddrs *ifa = list; ifa != nullptr; ifa = ifa->ifa_next)
-        {
-            if (ifa->ifa_addr == nullptr || ifa->ifa_name == nullptr)
-                continue;
-            std::string name   = ifa->ifa_name;
-            int         family = ifa->ifa_addr->sa_family;
-            if (family == AF_LINK)
-            {
-                const auto *dl   = reinterpret_cast<const sockaddr_dl *>(ifa->ifa_addr);
-                auto       &item = entry(name);
-                item.type        = typeName(dl->sdl_type);
-                const auto *mac  = reinterpret_cast<const unsigned char *>(LLADDR(dl));
-                std::string text;
-                for (int i = 0; i < dl->sdl_alen; ++i)
-                    text += std::format("{}{:02X}", i ? ":" : "", mac[i]);
-                item.mac = text;
-            }
-            else if (family == AF_INET || family == AF_INET6)
-            {
-                reports::NetworkAddress a;
-                a.family  = family == AF_INET ? reports::NetworkAddress::Family::V4 : reports::NetworkAddress::Family::V6;
-                a.ip      = address(ifa->ifa_addr);
-                a.netmask = address(ifa->ifa_netmask);
-                if (family == AF_INET && (ifa->ifa_flags & IFF_BROADCAST))
-                    a.broadcast = address(ifa->ifa_dstaddr);
-                entry(name).addresses.push_back(std::move(a));
-            }
-        }
-        freeifaddrs(list);
-        std::erase_if(interfaces, [](const auto &i) { return i.mac.empty() || i.addresses.empty(); });
-        return interfaces;
+            const auto *dl = reinterpret_cast<const sockaddr_dl *>(ifa.ifa_addr);
+            item.type      = typeName(dl->sdl_type);
+            item.mac       = macText(reinterpret_cast<const unsigned char *>(LLADDR(dl)), dl->sdl_alen);
+        });
     }
 
     std::string timeZone()

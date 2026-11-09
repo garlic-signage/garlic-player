@@ -111,6 +111,7 @@ namespace garlic::core::tests
         std::size_t size = 0;
         REQUIRE(mz_zip_writer_finalize_heap_archive(&zip, &data, &size));
         std::string result(static_cast<const char *>(data), size);
+        mz_free(data); // the archive buffer belongs to the caller
         mz_zip_writer_end(&zip);
         return result;
     }

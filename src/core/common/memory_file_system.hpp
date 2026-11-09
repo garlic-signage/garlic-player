@@ -37,6 +37,7 @@ namespace garlic::core::common
         public:
             explicit MemoryFileSystem(const Clock &c) : clock(c) {}
 
+            // jscpd:ignore-start - the FileSystem interface, the same in every implementation
             bool exists(std::string_view path) const override;
             FileSystemResult<std::uint64_t> fileSize(std::string_view path) const override;
             FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const override;
@@ -48,6 +49,7 @@ namespace garlic::core::common
             FileSystemResult<void> remove(std::string_view path) override;
             FileSystemResult<void> removeAll(std::string_view path) override;
             FileSystemResult<void> createDirectories(std::string_view path) override;
+            // jscpd:ignore-end
 
             /// Content of a file as string, std::nullopt if it does not exist.
             std::optional<std::string> content(std::string_view path) const;

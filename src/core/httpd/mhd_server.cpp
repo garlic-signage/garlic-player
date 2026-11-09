@@ -17,6 +17,8 @@
 */
 #include "httpd/mhd_server.hpp"
 
+#include "common/text.hpp"
+
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
@@ -77,17 +79,7 @@ namespace garlic::core::httpd
     namespace
     {
         using Connection = MhdServer::Connection;
-
-        std::string toLower(std::string_view text)
-        {
-            std::string result(text);
-            for (char &c : result)
-            {
-                if (c >= 'A' && c <= 'Z')
-                    c = static_cast<char>(c - 'A' + 'a');
-            }
-            return result;
-        }
+        using common::toLower;
 
         MHD_Result collectValue(void *cls, MHD_ValueKind kind, const char *key, const char *value)
         {

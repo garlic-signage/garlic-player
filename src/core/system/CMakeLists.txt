@@ -1,10 +1,10 @@
 # Only on the native platforms; on WASM and ESP32 the host fills reports::SystemInfo itself.
 if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(_garlic_core_system_platform platform_linux.cpp)
+    set(_garlic_core_system_platform platform_linux.cpp ifaddrs_network.cpp)
 elseif(WIN32)
     set(_garlic_core_system_platform platform_windows.cpp)
 elseif(APPLE)
-    set(_garlic_core_system_platform platform_apple.cpp)
+    set(_garlic_core_system_platform platform_apple.cpp ifaddrs_network.cpp)
 else()
     set(_garlic_core_system_platform platform_none.cpp)
 endif()
