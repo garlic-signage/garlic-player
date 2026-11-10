@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+	<DisplayName>Microsoft XAudio 2 Redistributable</DisplayName>
+	<Description>Installs the XAudio 2 Redistributable redistributables</Description>
+	<Version>14.0.24215</Version>
+	<ReleaseDate>2010-07-01</ReleaseDate>
+	<Script>install.js</Script>
+        <AutoDependOn>com.sagiadinos.garlic.x64</AutoDependOn>
+        <Virtual>true</Virtual>
+</Package>

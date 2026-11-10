@@ -1,0 +1,10 @@
+Package: garlic-player
+Version: 2.0.0-dev
+Section: non-free
+Priority: extra
+Architecture: amd64
+Depends: libnss3, libxdmcp6, libx11-6, libbsd0, libxext6,libsndio6.1, libgpg-error0, libffi6, libgcc1, libegl1-mesa, libva1, libstdc++6, libwayland-cursor0, libre2-3, libxss1, libxcb-present0, libnspr4, libxslt1.1, libxcb1, libxml2, libxtst6, libsdl2-2.0-0, libxau6, libgl1-mesa-glx, libevent-2.0-5, libpng16-16, libxcb-glx0, libpcre3, libxcb-xfixes0, libfontconfig1, zlib1g, libasyncns0, libvdpau1, libexpat1, libxxf86vm1, libxcb-dri2-0, libdbus-1-3, libwayland-client0, libwayland-server0, libsnappy1v5, libxcursor1, libxfixes3, libglapi-mesa, libuuid1, libxv1, libxrandr2, libcap2, libxinerama1, libbz2-1.0, libselinux1, libvorbisenc2, libc6, liblzma5, libxshmfence1, libogg0, libxrender1, libvorbis0a, libdrm2, libasound2, libicu57, libgcrypt20, libsystemd0, libxi6, libxkbcommon0, libx11-xcb1, libxdamage1, libice6, libsndfile1, libfreetype6, libxcb-sync1, libflac8, libxcb-dri3-0, liblz4-1, libva-x11-1, libwayland-egl1-mesa, libpulse0, libsm6, libva-drm1, libgbm1, libwrap0, libxcomposite1
+Installed-Size: 212653
+Maintainer: Nikolaos Sagiadinos <ns@smil-control.com>
+Homepage: garlic-signage.com
+Description: SMIL based media player for digital signage

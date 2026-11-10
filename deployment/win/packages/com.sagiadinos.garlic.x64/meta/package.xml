@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+    <DisplayName>garlic-player (requires license agreement)</DisplayName>
+    <Description>SMIL player for Digital Signage</Description>
+    <ReleaseDate>2017-04-06</ReleaseDate>
+    <Version>0.1.0</Version>
+    <Default>true</Default>
+    <Script>install.js</Script>
+    <Licenses>
+        <License name="GNU AFFERO GENERAL PUBLIC LICENSE" file="agpl-3.0.txt"/>
+    </Licenses>
+</Package>

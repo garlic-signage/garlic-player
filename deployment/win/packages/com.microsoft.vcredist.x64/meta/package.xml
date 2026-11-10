@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+	<DisplayName>Microsoft Visual C++ 2015 Redistributable (x64)</DisplayName>
+	<Description>Installs the Visual C++ redistributables for x64</Description>
+	<Version>14.0.24215</Version>
+	<ReleaseDate>2016-10-23</ReleaseDate>
+	<Script>install.js</Script>
+        <AutoDependOn>com.sagiadinos.garlic.x64</AutoDependOn>
+        <Virtual>true</Virtual>
+</Package>

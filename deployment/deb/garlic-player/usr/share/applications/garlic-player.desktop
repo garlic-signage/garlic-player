@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Garlic Player
+Comment=Digital Signage Media Player based on SMIL
+Exec=garlic-player
+Icon=garlic-player
+Categories=Qt;AudioVideo;Player;

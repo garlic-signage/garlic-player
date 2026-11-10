@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>Garlic Player for SMIL</Name>
+    <Version>0.6.0</Version>
+    <Title>Garlic Player Installer</Title>
+    <Publisher>Nikolaos Sagiadinos</Publisher>
+    <ProductUrl>http://www.garlic-player.com</ProductUrl>
+    <StartMenuDir>garlic-player</StartMenuDir>
+    <TargetDir>@ApplicationsDir@/garlic-player</TargetDir>
+    <ControlScript>controllerScript.js</ControlScript>
+</Installer>
