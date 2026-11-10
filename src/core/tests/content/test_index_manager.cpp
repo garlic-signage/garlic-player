@@ -74,6 +74,57 @@ TEST_CASE("first start: download, hand on, remember as last played")
     CHECK(f.events().find("<eventName>SMIL_LOADED</eventName>") != std::string::npos);
 }
 
+TEST_CASE("SMIL_LOADED tells size and modification time of the index")
+{
+    Fixture f;
+    std::string text = indexText("first");
+    f.serve("http://hub/player/index.smil?id=1", text, "application/smil+xml");
+    f.index.start();
+    f.runUntilIdle();
+
+    CHECK(f.events().find("<meta name=\"contentLength\" content=\"" + std::to_string(text.size()) + "\"/>") !=
+          std::string::npos);
+    CHECK(f.events().find("<meta name=\"lastModifiedTime\"") != std::string::npos);
+}
+
+TEST_CASE("https and ftp are downloaded like http")
+{
+    for (std::string uri : {"https://hub/index.smil", "ftp://hub/index.smil"})
+    {
+        CAPTURE(uri);
+        Fixture f(uri);
+        f.serve(uri, indexText("remote"), "application/smil+xml");
+        f.index.start();
+        f.runUntilIdle();
+        CHECK(f.titles == std::vector<std::string>{"remote"});
+        CHECK(f.config.lastPlayedIndexPath() == "cache/index.smil");
+    }
+}
+
+TEST_CASE("base: a query with slashes is cut before")
+{
+    Fixture f("http://hub/player/index.smil?file=a/b.smil");
+    f.serve("http://hub/player/index.smil?file=a/b.smil", indexText("first"), "application/smil+xml");
+    f.index.start();
+    f.runUntilIdle();
+    CHECK(f.bases == std::vector<std::string>{"http://hub/player/"});
+}
+
+TEST_CASE("the last played index keeps its refresh time when the download fails")
+{
+    Fixture f;
+    writeFile(f.fs, "cache/index.smil", indexText("cached", 300));
+    f.config.setLastPlayedIndexPath("cache/index.smil");
+    downloader::tests::FakeHttpTransport::Response offline;
+    offline.error = downloader::TransportError{downloader::TransportErrorCode::ConnectionFailed, "offline"};
+    f.transport.respond(downloader::HttpMethod::Head, "http://hub/player/index.smil?id=1", offline);
+
+    f.index.start();
+    f.runUntilIdle();
+    REQUIRE(f.index.nextDeadline().has_value());
+    CHECK(*f.index.nextDeadline() - f.clock.monotonic() == 300s); // not the 60 s of a missing index
+}
+
 TEST_CASE("the last played index plays at once, also offline")
 {
     Fixture f;
@@ -122,6 +173,10 @@ TEST_CASE("a broken update is deleted, the current index plays on")
     CHECK(f.fs.content("cache/index.smil")->find("good") != std::string::npos);
     CHECK_FALSE(f.fs.exists("cache/index.smil.ready"));
     CHECK(f.events().find("<eventName>SMIL_OPEN_ERROR</eventName>") != std::string::npos);
+
+    f.serve("http://hub/player/index.smil?id=1", indexText("fixed", 60), "application/smil+xml", "v3");
+    f.wait(60s); // checked again after the broken one
+    CHECK(f.titles == std::vector<std::string>{"good", "fixed"});
 }
 
 TEST_CASE("without a valid index: try again every 60 s (garlic-lib restarted the player)")
@@ -156,6 +211,26 @@ TEST_CASE("local index: read directly, base is its directory")
     CHECK(f.bases == std::vector<std::string>{"/usb/show/"});
     CHECK(f.index.url().empty());
     CHECK(f.transport.requests.empty());
+}
+
+TEST_CASE("local index with file://, and a local temporary index after a remote one")
+{
+    Fixture f("file:///usb/show/index.smil");
+    writeFile(f.fs, "/usb/show/index.smil", indexText("usb"));
+    f.index.start();
+    CHECK(f.titles == std::vector<std::string>{"usb"});
+    CHECK(f.bases == std::vector<std::string>{"/usb/show/"});
+
+    Fixture remote;
+    remote.serve("http://hub/player/index.smil?id=1", indexText("hub", 60), "application/smil+xml");
+    remote.index.start();
+    remote.runUntilIdle();
+    writeFile(remote.fs, "/usb/event.smil", indexText("event"));
+    remote.index.startTemporary("/usb/event.smil");
+    CHECK(remote.titles == std::vector<std::string>{"hub", "event"});
+    CHECK(remote.bases.back() == "/usb/"); // not the directory of the remote index
+    CHECK(remote.index.url().empty());
+    CHECK_FALSE(remote.index.nextDeadline().has_value());
 }
 
 TEST_CASE("a temporary index (app/exec): own file, not remembered, start() goes back")

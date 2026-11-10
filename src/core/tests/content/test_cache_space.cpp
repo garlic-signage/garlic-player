@@ -132,6 +132,74 @@ TEST_CASE("kept: the index, running downloads and uploads; not enough space is F
     CHECK(f.events().find("Only 20 bytes from needed 40 bytes") != std::string::npos);
 }
 
+TEST_CASE("kept as well: the temporary index and the QtWebEngine widget")
+{
+    SpaceFixture f;
+    f.cached("temporary.smil", 20);
+    f.cached("QtWebEngine.wgt", 20);
+    f.cached("old.jpg", 20);
+    f.disk = 20; // 0 free
+
+    CHECK_FALSE(f.space.makeSpace(40)); // 50 needed, only old.jpg can go
+    CHECK(f.fs.exists("cache/temporary.smil"));
+    CHECK(f.fs.exists("cache/QtWebEngine.wgt"));
+    CHECK_FALSE(f.fs.exists("cache/old.jpg"));
+}
+
+TEST_CASE("a file and its update count as one: the newest access of both decides, both go together")
+{
+    SpaceFixture f;
+    f.cached("old.jpg", 10);
+    writeFile(f.fs, "cache/old.jpg.ready", std::string(10, 'r'));
+    f.clock.advance(1min);
+    f.cached("new.jpg", 10);
+    (void)f.fs.readFile("cache/old.jpg"); // played again: newer than new.jpg, its update is not
+
+    REQUIRE(f.space.makeSpace(80)); // 70 free, 20 needed
+    CHECK_FALSE(f.fs.exists("cache/new.jpg"));
+    CHECK(f.fs.exists("cache/old.jpg"));
+    CHECK(f.fs.exists("cache/old.jpg.ready"));
+
+    REQUIRE(f.space.makeSpace(90)); // 80 free, 20 needed: the file and its update together
+    CHECK_FALSE(f.fs.exists("cache/old.jpg"));
+    CHECK_FALSE(f.fs.exists("cache/old.jpg.ready"));
+}
+
+TEST_CASE("a running download protects the older version of its file")
+{
+    SpaceFixture f;
+    f.cached("loading.mp4", 20);
+    writeFile(f.fs, "cache/loading.mp4.part", std::string(20, 'p'));
+    f.clock.advance(1min);
+    f.cached("old.jpg", 20);
+
+    CHECK_FALSE(f.space.makeSpace(200)); // more than there is: everything that may go, goes
+    CHECK_FALSE(f.fs.exists("cache/old.jpg"));
+    CHECK(f.fs.exists("cache/loading.mp4"));
+    CHECK(f.fs.exists("cache/loading.mp4.part"));
+}
+
+TEST_CASE("a left over widget directory .part does not protect the widget")
+{
+    SpaceFixture f;
+    f.cached("w.wgt", 30);
+    writeFile(f.fs, "cache/w.part/index.html", std::string(10, 'h')); // extraction broken off
+
+    REQUIRE(f.space.makeSpace(70)); // 60 free, 20 needed
+    CHECK_FALSE(f.fs.exists("cache/w.wgt"));
+    CHECK_FALSE(f.fs.exists("cache/w.part/index.html"));
+}
+
+TEST_CASE("without a function for the free space: always enough, nothing is removed")
+{
+    ContentFixture f;
+    writeFile(f.fs, "cache/old.jpg", "x");
+    CacheSpace space{f.fs, f.inventory, f.logger, "cache", nullptr};
+    CHECK(space.needed(1'000'000) == 0);
+    CHECK(space.makeSpace(1'000'000));
+    CHECK(f.fs.exists("cache/old.jpg"));
+}
+
 TEST_CASE("an empty cache: false, nothing to remove")
 {
     SpaceFixture f;
