@@ -19,6 +19,7 @@
 
 #include "common/std_file_system.hpp"
 #include "httpd/mhd_server.hpp"
+#include "raw_http.hpp"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -33,56 +34,13 @@
 
 using namespace garlic::core::httpd;
 using garlic::core::common::StdFileSystem;
+using garlic::core::tests::bodyOf;
+using garlic::core::tests::sendRaw;
+using garlic::core::tests::statusOf;
 using namespace std::chrono_literals;
 
 namespace
 {
-    /// Sends a raw HTTP request and returns the raw response (blocking, runs in its own thread).
-    std::string sendRaw(std::uint16_t port, const std::string &request)
-    {
-        int         fd = ::socket(AF_INET, SOCK_STREAM, 0);
-        timeval     limit{10, 0}; // a server that never answers fails the test instead of hanging it
-        ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &limit, sizeof(limit));
-        sockaddr_in address{};
-        address.sin_family      = AF_INET;
-        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        address.sin_port        = htons(port);
-        if (::connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0)
-        {
-            ::close(fd);
-            return "connect failed";
-        }
-
-        std::size_t sent = 0;
-        while (sent < request.size())
-        {
-            ssize_t n = ::send(fd, request.data() + sent, request.size() - sent, MSG_NOSIGNAL);
-            if (n <= 0)
-                break;
-            sent += static_cast<std::size_t>(n);
-        }
-
-        std::string response;
-        char        buffer[4096];
-        ssize_t     n;
-        while ((n = ::recv(fd, buffer, sizeof(buffer), 0)) > 0)
-            response.append(buffer, static_cast<std::size_t>(n));
-        ::close(fd);
-        return response;
-    }
-
-    int statusOf(const std::string &response)
-    {
-        auto space = response.find(' ');
-        return space == std::string::npos ? 0 : std::stoi(response.substr(space + 1, 3));
-    }
-
-    std::string bodyOf(const std::string &response)
-    {
-        auto end = response.find("\r\n\r\n");
-        return end == std::string::npos ? "" : response.substr(end + 4);
-    }
-
     struct Fixture
     {
         StdFileSystem fs;

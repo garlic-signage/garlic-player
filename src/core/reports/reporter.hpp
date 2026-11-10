@@ -71,7 +71,11 @@ namespace garlic::core::reports
             /// Starts the uploads that are due. The host polls the transport too.
             void poll();
 
+            /// The next due upload; running uploads have none, see isBusy().
             std::optional<std::chrono::steady_clock::time_point> nextDeadline() const;
+
+            /// An upload is running: the transport has to be polled until it is done.
+            bool isBusy() const;
 
         private:
             enum class Kind

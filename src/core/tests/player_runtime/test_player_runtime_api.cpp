@@ -22,8 +22,10 @@
 #include "fake_http_transport.hpp"
 #include "httpd/mhd_server.hpp"
 #include "player_runtime/player_runtime_api.hpp"
+#include "raw_http.hpp"
 #include "time_zone.hpp"
 
+#include <future>
 #include <map>
 
 using namespace garlic::core;
@@ -64,19 +66,42 @@ namespace
         explicit Fixture(std::string ini = "[httpd]\nenabled=false\n")
         {
             write("config/garlic-player.ini", ini);
-            PlayerRuntimeConfig config;
-            config.ini_path    = "config/garlic-player.ini";
-            config.cache_dir   = "cache";
-            config.log_dir     = "logs";
-            config.version     = "2.0";
-            config.index_uri   = "http://hub/index.smil";
-            config.database_path = ":memory:";
-            config.system_info = [] { return reports::SystemInfo{}; };
-            config.free_space  = [] { return std::uint64_t{1} << 40; };
-            config.supervisor  = &supervisor;
-            runtime            = std::make_unique<PlayerRuntimeApi>(fs, clock, transport, config);
+            runtime = std::make_unique<PlayerRuntimeApi>(fs, clock, transport, base());
         }
 
+        /// The configuration of the fixture, to change before a runtime of its own.
+        PlayerRuntimeConfig base()
+        {
+            PlayerRuntimeConfig config;
+            config.ini_path      = "config/garlic-player.ini";
+            config.cache_dir     = "cache";
+            config.log_dir       = "logs";
+            config.version       = "2.0";
+            config.index_uri     = "http://hub/index.smil";
+            config.database_path = ":memory:";
+            config.system_info   = [] { return reports::SystemInfo{}; };
+            config.free_space    = [] { return std::uint64_t{1} << 40; };
+            config.supervisor    = &supervisor;
+            return config;
+        }
+
+        std::string debugLog() const { return fs.content("logs/debug.log").value_or(""); }
+
+        /// A request to the HTTP server of the runtime, polled here like the frontend does; the clock goes on.
+        std::string http(std::uint16_t port, const std::string &request,
+                         std::chrono::milliseconds step = std::chrono::milliseconds(0))
+        {
+            auto client = std::async(std::launch::async, [port, request] { return tests::sendRaw(port, request); });
+            auto end    = std::chrono::steady_clock::now() + 5s;
+            while (client.wait_for(1ms) != std::future_status::ready && std::chrono::steady_clock::now() < end)
+            {
+                for (const CoreEvent &event : runtime->poll())
+                    record(event);
+                clock.advance(step);
+            }
+            REQUIRE(client.wait_for(0s) == std::future_status::ready);
+            return client.get();
+        }
         void write(const std::string &path, std::string_view text)
         {
             auto file = fs.openForWrite(path, common::WriteMode::Truncate);
@@ -129,6 +154,8 @@ namespace
             }
             else if (const auto *background = std::get_if<BackgroundImage>(&event))
                 log.push_back("background " + background->src);
+            else if (const auto *shot = std::get_if<Screenshot>(&event))
+                log.push_back("screenshot " + shot->path);
             else if (const auto *clear = std::get_if<tasks::ClearCaches>(&event))
                 log.push_back(std::string("clear ") + (clear->player ? "player" : "") + (clear->web ? " web" : ""));
         }
@@ -499,4 +526,381 @@ TEST_CASE("-c config.xml missing: an event, the player starts anyway")
     f.runtime                 = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
     REQUIRE(f.runtime->start().has_value());
     CHECK(f.fs.content("logs/event_log.xml").value_or("").find("CONFIGURATION_OPEN_ERROR") != std::string::npos);
+}
+
+// ------------------------------------------------------------------ start, poll and nextDeadline
+
+TEST_CASE("start: the version is in the user agent of the downloads")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(""), "application/smil+xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    REQUIRE_FALSE(f.transport.requests.empty());
+    CHECK(f.transport.requests[0].headers.find("User-Agent").value_or("").contains("/2.0 (MODEL:Garlic)"));
+}
+
+TEST_CASE("start: a task that waited for the restart is completed")
+{
+    Fixture f("[httpd]\nenabled=false\n[tasks]\npending_id=r1\n");
+    REQUIRE(f.runtime->start().has_value());
+    std::string task_log = f.fs.content("logs/task_execution_log.xml").value_or("");
+    CHECK(task_log.contains("<task id=\"r1\">"));
+    CHECK(task_log.contains("<state>completed</state>"));
+}
+
+TEST_CASE("resources are written to debug.log every 5 minutes")
+{
+    Fixture f;
+    REQUIRE(f.runtime->start().has_value());
+    f.run(299s);
+    CHECK_FALSE(f.debugLog().contains(" disc "));
+    f.run(2s);
+    CHECK(f.debugLog().contains("disc 0/0 memory 0/0"));
+}
+
+TEST_CASE("stop(): StopMedia comes with the next poll, nextDeadline is at once")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="indefinite"/>)x", 3600),
+            "application/smil+xml");
+    f.serve("http://hub/a.jpg", "a", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    REQUIRE(f.seen() == "layout No Title | start a");
+
+    f.runtime->stop();
+    CHECK(f.runtime->nextDeadline() == f.clock.monotonic());
+    for (const CoreEvent &event : f.runtime->poll())
+        f.record(event);
+    CHECK(f.seen() == "layout No Title | start a | stop");
+}
+
+TEST_CASE("nextDeadline: the next change of the engine, the next upload of a report")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="10s"/>)x", 3600), "application/smil+xml");
+    f.serve("http://hub/a.jpg", "a", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    REQUIRE(f.seen() == "layout No Title | start a");
+    auto next = f.runtime->nextDeadline();
+    REQUIRE(next.has_value());
+    CHECK(*next <= f.clock.monotonic() + 10s); // the end of a
+
+    Fixture r;
+    r.serve("http://hub/index.smil", indexText("", 3600, R"x(<metadata><subscription><type>SystemReport</type>
+            <action>http://hub/system.xml</action><refreshInterval>20</refreshInterval></subscription></metadata>)x"),
+            "application/smil+xml");
+    REQUIRE(r.runtime->start().has_value());
+    r.run(1s);
+    REQUIRE(r.transport.activeCount() == 0); // the upload is done
+    next = r.runtime->nextDeadline();
+    REQUIRE(next.has_value());
+    CHECK(*next <= r.clock.monotonic() + 20s);
+}
+
+TEST_CASE("nextDeadline: fast while a report is uploaded (curl needs poll())")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText("", 3600, R"x(<metadata><subscription><type>SystemReport</type>
+            <action>http://hub/system.xml</action><refreshInterval>20</refreshInterval></subscription></metadata>)x"),
+            "application/smil+xml");
+    REQUIRE(f.runtime->start().has_value());
+    auto uploading = [&]
+    {
+        return std::ranges::any_of(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; }) &&
+               f.transport.activeCount() == 1;
+    };
+    for (int i = 0; i < 100 && !uploading(); ++i)
+        (void)f.runtime->poll();
+    REQUIRE(uploading()); // the PUT of the system report runs, the downloads are done
+    auto next = f.runtime->nextDeadline();
+    REQUIRE(next.has_value());
+    CHECK(*next <= f.clock.monotonic() + PlayerRuntimeApi::busy_poll);
+
+    f.run(1s); // polled until it is done
+    CHECK(f.transport.activeCount() == 0);
+}
+
+// ------------------------------------------------------------------ input of the frontend, the engine
+
+TEST_CASE("input of the frontend: a failed medium is skipped, a touch and a notify start their elements")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<par begin="2s">
+                <seq><video xml:id="v" src="v.mp4"/><img xml:id="i" src="i.jpg" dur="indefinite"/></seq>
+                <img xml:id="t" src="t.jpg" begin="i.activateEvent" dur="indefinite"/>
+                <img xml:id="n" src="n.jpg" begin="notify(door)" dur="indefinite"/></par>)x", 3600),
+            "application/smil+xml");
+    for (std::string name : {"v.mp4", "i.jpg", "t.jpg", "n.jpg"})
+        f.serve("http://hub/" + name, name, name.ends_with("mp4") ? "video/mp4" : "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s); // the par begins after 2 s, when the media are there
+    REQUIRE(f.seen() == "layout No Title | start v");
+
+    f.runtime->mediaFailed(f.instances["v"]);
+    f.run(100ms);
+    CHECK(f.seen().ends_with("start i"));
+    f.runtime->elementActivated(f.instances["i"]);
+    f.run(100ms);
+    CHECK(f.seen().ends_with("start t"));
+    f.runtime->notify("door");
+    f.run(100ms);
+    CHECK(f.seen().ends_with("start n"));
+}
+
+TEST_CASE("smil-playerId() and smil-playerName() in expr come from the configuration")
+{
+    Fixture f("[General]\nuuid=u-1\nplayer_name=Lobby\n[httpd]\nenabled=false\n");
+    f.serve("http://hub/index.smil", indexText(R"x(<par begin="2s"><img xml:id="a" src="a.jpg" dur="indefinite" expr="smil-playerName()='Lobby'"/>
+                                                    <img xml:id="b" src="a.jpg" dur="indefinite" expr="smil-playerId()='u-1'"/></par>)x", 3600),
+            "application/smil+xml");
+    f.serve("http://hub/a.jpg", "a", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    CHECK(f.seen().contains("start a"));
+    CHECK(f.seen().contains("start b"));
+}
+
+TEST_CASE("random_seed goes to the engine: another seed, another order")
+{
+    auto order = [](std::uint32_t seed)
+    {
+        Fixture f;
+        auto    config  = f.base();
+        config.random_seed = seed;
+        f.runtime       = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+        std::string body = "<seq><metadata/>";
+        for (char c = 'a'; c <= 'h'; ++c)
+        {
+            body += std::string("<img xml:id=\"") + c + "\" src=\"a.jpg\" dur=\"1s\"/>";
+        }
+        f.serve("http://hub/index.smil", indexText(body + "</seq>", 3600), "application/smil+xml");
+        f.serve("http://hub/a.jpg", "a", "image/jpeg");
+        REQUIRE(f.runtime->start().has_value());
+        f.run(30s);
+        return f.seen();
+    };
+    CHECK(order(1) == order(1));
+    CHECK(order(1) != order(2));
+}
+
+// ------------------------------------------------------------------ tasks
+
+TEST_CASE("updateSettings from the hub: the new index URI is loaded and the restart is planned")
+{
+    TimeZone tz("UTC"); // the FakeClock starts on Thursday, 2026-01-01 00:00
+    Fixture  f;
+    f.serve("http://hub/index.smil", indexText("", 3600,
+                                          R"x(<metadata><subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><updateSettings id="s1"><sourceURI>http://hub/config.xml</sourceURI>
+                                        </updateSettings></timedTaskList></s>)x",
+            "application/xml");
+    f.serve("http://hub/config.xml", R"x(<configuration><prop name="content.serverUrl" value="http://hub/other.smil"/>
+                                         <prop name="schedule.reboot.days" value="thursday"/>
+                                         <prop name="schedule.reboot.time" value="00:10:00"/></configuration>)x",
+            "application/xml");
+    f.serve("http://hub/other.smil", indexText("", 3600), "application/smil+xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    CHECK(std::ranges::contains(f.transport.requests, std::string("http://hub/other.smil"), &downloader::HttpRequest::url));
+
+    f.run(10min);
+    CHECK(f.seen().contains("reboot DailyReboot"));
+}
+
+TEST_CASE("without a supervisor an installation is only written to debug.log")
+{
+    Fixture f;
+    auto    config = f.base();
+    config.supervisor = nullptr;
+    f.runtime         = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    f.serve("http://hub/index.smil", indexText("", 3600,
+                                          R"x(<metadata><subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/fw", "binary", "application/octet-stream");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI>
+                                        <version>2.1</version></firmwareUpdate></timedTaskList></s>)x",
+            "application/xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    CHECK(f.debugLog().contains("none, software not installed: cache/garlic-player."));
+}
+
+TEST_CASE("clear_webcache: the player cache stays, the restart comes after the frontend")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText("", 3600,
+                                          R"x(<metadata><subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><applyCommand id="w1"><command>clear_webcache</command></applyCommand>
+                                        </timedTaskList></s>)x",
+            "application/xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    CHECK(f.seen().ends_with("clear  web"));
+    CHECK(f.fs.exists("cache/index.smil"));
+    f.runtime->cachesCleared();
+    CHECK(f.seen().ends_with("reboot w1"));
+}
+
+// ------------------------------------------------------------------ settings, debug info
+
+TEST_CASE("debug info: more memory used than there is gives 0 free")
+{
+    Fixture f;
+    auto    config = f.base();
+    config.system_info = []
+    {
+        reports::SystemInfo system;
+        system.memory_total = 1000;
+        system.memory_used  = 3000;
+        return system;
+    };
+    f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.runtime->debugInfo().memory_free == 0u);
+}
+
+// ------------------------------------------------------------------ the REST API through the HTTP server
+
+namespace
+{
+    std::uint16_t freePort(common::FileSystem &fs)
+    {
+        httpd::Router        router;
+        httpd::MhdServer     server(router, fs);
+        httpd::HttpdSettings settings;
+        settings.port         = 0;
+        settings.bind_address = "127.0.0.1";
+        REQUIRE(server.start(settings).has_value());
+        return server.port();
+    }
+
+    std::string request(const std::string &method, const std::string &path, const std::string &content_type = "",
+                        const std::string &body = "")
+    {
+        return method + " " + path + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n" +
+               (content_type.empty() ? "" : "Content-Type: " + content_type + "\r\n") +
+               "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" + body;
+    }
+
+    std::string tokenOf(const std::string &response)
+    {
+        std::string body  = tests::bodyOf(response);
+        auto        start = body.find("\"access_token\":\"");
+        REQUIRE(start != std::string::npos);
+        start += 16;
+        return body.substr(start, body.find('"', start) - start);
+    }
+}
+
+TEST_CASE("REST API: notify, reboot, switch, exec and screenshots reach the runtime")
+{
+    TimeZone      tz("UTC");
+    Fixture       probe;
+    std::uint16_t port = freePort(probe.fs);
+    Fixture       f("[httpd]\nenabled=true\nhost=127.0.0.1\nport=" + std::to_string(port) + "\n");
+    f.serve("http://hub/index.smil", indexText(R"x(<par begin="2s"><img xml:id="a" src="a.jpg" dur="indefinite"/>
+                                                    <img xml:id="n" src="a.jpg" begin="notify(door)" dur="indefinite"/></par>)x", 3600),
+            "application/smil+xml");
+    f.serve("http://hub/other.smil", indexText("", 3600), "application/smil+xml");
+    f.serve("http://hub/a.jpg", "a", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    REQUIRE(f.seen() == "layout No Title | start a");
+
+    std::string token = tokenOf(f.http(port, request("POST", "/v2/oauth2/token", "application/x-www-form-urlencoded",
+                                                     "grant_type=password&username=admin&password=")));
+    std::string auth  = "?access_token=" + token;
+
+    f.http(port, request("POST", "/v2/task/notify" + auth + "&smilEvent=door"));
+    f.run(100ms);
+    CHECK(f.seen().ends_with("start n"));
+
+    f.http(port, request("POST", "/v2/task/reboot" + auth));
+    CHECK(f.seen().contains("reboot httpd: 2026-01-01T00:00:"));
+
+    auto index_requests = [&] { return std::ranges::count(f.transport.requests, std::string("http://hub/index.smil"), &downloader::HttpRequest::url); };
+    auto before         = index_requests();
+    f.http(port, request("POST", "/v2/app/switch" + auth + "&mode=start"));
+    f.run(1s);
+    CHECK(index_requests() > before);
+
+    f.http(port, request("POST", "/v2/app/exec" + auth + "&uri=http://hub/other.smil"));
+    f.run(1s);
+    CHECK(std::ranges::contains(f.transport.requests, std::string("http://hub/other.smil"), &downloader::HttpRequest::url));
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/index.smil"); // exec plays it only for a while
+
+    // a screenshot: the frontend gets the event, the answer waits for screenshotTaken()
+    auto shot = std::async(std::launch::async, [port, auth] { return tests::sendRaw(port, request("GET", "/v2/task/screenshot" + auth)); });
+    auto end  = std::chrono::steady_clock::now() + 5s;
+    while (!f.seen().contains("screenshot ") && std::chrono::steady_clock::now() < end)
+        for (const CoreEvent &event : f.runtime->poll())
+            f.record(event);
+    REQUIRE(f.seen().contains("screenshot "));
+    std::string path = f.log.back().substr(11);
+    f.write(path, "JPEG");
+    f.runtime->screenshotTaken(path);
+    while (shot.wait_for(1ms) != std::future_status::ready && std::chrono::steady_clock::now() < end)
+        f.runtime->poll();
+    REQUIRE(shot.wait_for(0s) == std::future_status::ready);
+    CHECK(tests::bodyOf(shot.get()) == "JPEG");
+
+    // no screenshot within 5 s: the text of garlic-lib (a second later: another file name)
+    f.clock.advance(1s);
+    auto late = f.http(port, request("GET", "/v2/task/screenshot" + auth), 100ms);
+    CHECK(tests::bodyOf(late) == "file not created.");
+}
+
+TEST_CASE("REST API: an upload without room in the cache gets the error of garlic-lib")
+{
+    Fixture       probe;
+    std::uint16_t port = freePort(probe.fs);
+    Fixture       f("[httpd]\nenabled=true\nhost=127.0.0.1\nport=" + std::to_string(port) + "\n");
+    auto          config = f.base();
+    config.free_space    = [] { return std::uint64_t{0}; };
+    f.runtime            = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+
+    std::string token = tokenOf(f.http(port, request("POST", "/v2/oauth2/token", "application/x-www-form-urlencoded",
+                                                     "grant_type=password&username=admin&password=")));
+    std::string body  = "--XyZ123\r\nContent-Disposition: form-data; name=\"downloadPath\"\r\n\r\nhttp://x/a.jpg\r\n"
+                        "--XyZ123\r\nContent-Disposition: form-data; name=\"fileSize\"\r\n\r\n100\r\n"
+                        "--XyZ123\r\nContent-Disposition: form-data; name=\"data\"; filename=\"a.jpg\"\r\n\r\nimage\r\n"
+                        "--XyZ123--\r\n";
+    auto response = f.http(port, request("POST", "/v2/files/new?access_token=" + token,
+                                         "multipart/form-data; boundary=XyZ123", body));
+    CHECK(tests::bodyOf(response).contains("Neccessary 110 byte cannot be relesed from disc space"));
+}
+
+TEST_CASE("the HTTP server: a port that is in use is written to debug.log, a new port restarts it")
+{
+    Fixture       probe;
+    std::uint16_t first = freePort(probe.fs);
+    httpd::Router        router;
+    httpd::MhdServer     blocker(router, probe.fs);
+    httpd::HttpdSettings blocking;
+    blocking.port = first;
+    REQUIRE(blocker.start(blocking).has_value());
+
+    Fixture f("[httpd]\nenabled=true\nhost=127.0.0.1\nport=" + std::to_string(first) + "\n");
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.debugLog().contains("not started"));
+    blocker.stop();
+
+    // on and running on a free port, then moved to another one
+    PlayerSettings next = f.runtime->playerSettings();
+    next.httpd_port     = freePort(probe.fs);
+    next.httpd_enabled  = true;
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value());
+    CHECK(tests::statusOf(f.http(next.httpd_port, request("GET", "/nothing"))) == 404);
+
+    std::uint16_t old = next.httpd_port;
+    next.httpd_port   = freePort(probe.fs);
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value());
+    CHECK(tests::statusOf(f.http(next.httpd_port, request("GET", "/nothing"))) == 404);
+    CHECK(tests::sendRaw(old, request("GET", "/nothing")) == "connect failed");
 }

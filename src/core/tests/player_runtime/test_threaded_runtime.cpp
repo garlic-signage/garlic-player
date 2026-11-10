@@ -38,7 +38,8 @@ namespace
         downloader::tests::FakeHttpTransport transport;
         std::mutex                           mutex;
         std::condition_variable              woken;
-        int                                  wakes = 0;
+        int                                  wakes     = 0;
+        std::atomic<int>                     all_wakes = 0; // never reset
         std::vector<std::string>             seen;
         NewLayout                            layout;
         std::unique_ptr<ThreadedRuntime>     runtime;
@@ -63,6 +64,7 @@ namespace
             {
                 std::lock_guard lock(mutex);
                 ++wakes;
+                ++all_wakes;
                 woken.notify_all();
             });
         }
@@ -123,6 +125,7 @@ TEST_CASE("threaded: the core runs in its own thread and wakes the frontend for 
     REQUIRE(f.runtime->start().has_value());
     REQUIRE(f.waitFor("start a"));
     CHECK(f.seen == std::vector<std::string>{"layout threaded", "start a"});
+    CHECK(f.all_wakes > 0); // the events came with a wake
 
     // a call from the frontend runs in the core thread
     std::promise<std::thread::id> where;
@@ -143,6 +146,7 @@ TEST_CASE("threaded: an error of start() is returned, the thread is ended")
     auto    started = f.runtime->start();
     REQUIRE_FALSE(started.has_value());
     CHECK(started.error().starts_with("database: "));
+    CHECK(f.runtime->start().error().starts_with("database: ")); // the thread was ended: not "already started"
     f.runtime->post([](PlayerRuntimeApi &) {}); // no thread: nothing happens
     CHECK(f.runtime->takeEvents().empty());
 }

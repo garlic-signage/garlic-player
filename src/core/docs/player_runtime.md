@@ -122,8 +122,8 @@ new valid index
   the supervisor.
 - **Restart schedule** like garlic-lib (`tools/reboot`): `schedule/reboot_days` English weekdays separated by spaces,
   `schedule/reboot_time` `HH:mm:ss` (03:00 if missing), the next time within a week (`nextReboot()`, tested).
-- **nextDeadline()**: the earliest time of engine, index, reports, restart and resource log. While downloads run or
-  the HTTP server is on at most 100 ms, because curl and libmicrohttpd run without threads of their own. An ESP32
+- **nextDeadline()**: the earliest time of engine, index, reports, restart and resource log. While downloads or report
+  uploads run or the HTTP server is on at most 100 ms, because curl and libmicrohttpd run without threads of their own. An ESP32
   without HTTP server can really sleep.
 - **System information**: `config.system_info` for the reports; empty means `system::collectSystemInfo` where the
   module exists (native platforms). WASM and ESP32 give their own.
@@ -212,7 +212,7 @@ core thread
 - **`ThreadedRuntime` comes with the core**, otherwise every native frontend writes the same loop with mutex and wake
   up, and that is where the bugs are. The price: calls through `post()` are asynchronous, and `wake` runs in the core
   thread, so the frontend has to move it into its UI thread.
-- **`nextDeadline()` at most 100 ms while downloads run or the HTTP server is on**, because curl and libmicrohttpd run
+- **`nextDeadline()` at most 100 ms while downloads or report uploads run or the HTTP server is on**, because curl and libmicrohttpd run
   without threads and need `poll()`. Without both an ESP32 can sleep until the next time of the engine.
 - **Settings dialog and debug info in the core.** Reading, checking and storing exists once; every frontend has its
   own dialog on the same two calls (garlic-lib had one dialog for QWidget and QML). Standby and restarts stay with

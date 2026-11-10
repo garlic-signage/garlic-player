@@ -422,3 +422,14 @@ TEST_CASE("without a source of system information and with a short uuid nothing 
     REQUIRE(puts.size() == 3);
     CHECK(puts[2].size() == std::string("http://hub/logs/playlog-").size() + 23 + 4); // only the random part
 }
+
+TEST_CASE("isBusy while an upload runs")
+{
+    Fixture f;
+    CHECK_FALSE(f.reporter.isBusy());
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml")});
+    f.reporter.poll();
+    CHECK(f.reporter.isBusy());
+    f.run();
+    CHECK_FALSE(f.reporter.isBusy());
+}

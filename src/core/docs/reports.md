@@ -6,7 +6,7 @@ garlic-lib: `Reporting::*Manager`, `reports/create/*`, `WebDav`.
 ```cpp
 Reporter reporter(transport, fs, clock, logger, config, inventory, cache_dir, [] { return systemInfo(); });
 reporter.subscribe(document.head.subscriptions);   // with every new index
-// host loop: reporter.poll(); transport.poll(); … sleep until reporter.nextDeadline()
+// host loop: reporter.poll(); transport.poll(); … sleep until reporter.nextDeadline(), only briefly while reporter.isBusy()
 ```
 
 | File                  | Content                                                                 |

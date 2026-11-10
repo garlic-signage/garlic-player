@@ -47,3 +47,28 @@ TEST_CASE("invalid time: 03:00:00; no or unknown days: no restart")
     CHECK_FALSE(nextReboot("", "03:00:00", wednesday).has_value());
     CHECK_FALSE(nextReboot("funday", "03:00:00", wednesday).has_value());
 }
+
+TEST_CASE("every weekday name, the earliest of several days counts")
+{
+    CHECK(nextReboot("sunday", "03:00", wednesday) == local_days{November / 1 / 2026} + 3h);
+    CHECK(nextReboot("Monday", "03:00", wednesday) == local_days{November / 2 / 2026} + 3h);
+    CHECK(nextReboot("tuesday", "03:00", wednesday) == local_days{November / 3 / 2026} + 3h);
+    CHECK(nextReboot("saturday", "03:00", wednesday) == local_days{October / 31 / 2026} + 3h);
+    CHECK(nextReboot("monday thursday sunday", "03:00", wednesday) == local_days{October / 29 / 2026} + 3h);
+    CHECK(nextReboot("friday  thursday", "03:00", wednesday) == local_days{October / 29 / 2026} + 3h); // two spaces
+}
+
+TEST_CASE("today exactly at the time still counts")
+{
+    CHECK(nextReboot("wednesday", "10:00:00", wednesday) == wednesday);
+}
+
+TEST_CASE("the time: 23:59:59 is the last valid one, everything else is 03:00:00")
+{
+    CHECK(nextReboot("thursday", "23:59:59", wednesday) == local_days{October / 29 / 2026} + 23h + 59min + 59s);
+    for (std::string_view invalid : {"24:00", "12:60", "12:00:60", "1:00", "12", "12:00:00:00", "ab:cd"})
+    {
+        CAPTURE(invalid);
+        CHECK(nextReboot("thursday", invalid, wednesday) == local_days{October / 29 / 2026} + 3h);
+    }
+}

@@ -217,7 +217,7 @@ namespace garlic::core
             earlier(rest_api->nextDeadline());
         earlier(next_reboot);
         // curl and libmicrohttpd run without threads of their own: they need to be polled while they work
-        if ((queue && !queue->isIdle()) || server)
+        if ((queue && !queue->isIdle()) || (reporter && reporter->isBusy()) || server)
             earlier(now + busy_poll);
         return next;
     }

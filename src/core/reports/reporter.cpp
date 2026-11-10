@@ -154,6 +154,11 @@ namespace garlic::core::reports
         return next;
     }
 
+    bool Reporter::isBusy() const
+    {
+        return std::ranges::any_of(jobs, [](const auto &job) { return job->request.has_value(); });
+    }
+
     // ------------------------------------------------------------------ uploads
 
     void Reporter::send(Job &job)
