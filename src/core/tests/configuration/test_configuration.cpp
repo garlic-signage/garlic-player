@@ -20,6 +20,7 @@
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
 #include "configuration/configuration.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 
 #include <regex>
@@ -27,6 +28,7 @@
 using namespace garlic::core::configuration;
 using garlic::core::common::MemoryFileSystem;
 using garlic::core::common::WriteMode;
+using garlic::core::tests::FailingFileSystem;
 using garlic::core::tests::FakeClock;
 using namespace std::chrono_literals;
 
@@ -49,98 +51,6 @@ namespace
         }
 
         std::string ini() const { return fs.content(ini_path).value_or("<missing>"); }
-    };
-
-    using garlic::core::common::FileSystemError;
-    using garlic::core::common::FileSystemErrorCode;
-    using garlic::core::common::FileSystemResult;
-
-    /// A MemoryFileSystem whose operations can fail, and that counts what the configuration does with it.
-    class FailingFileSystem : public garlic::core::common::FileSystem
-    {
-        public:
-            explicit FailingFileSystem(MemoryFileSystem &m) : memory(m) {}
-
-            bool fail_read = false, fail_open = false, fail_write = false, fail_close = false, fail_rename = false;
-            int  opened    = 0;
-            std::vector<std::string> created_directories;
-
-            bool exists(std::string_view path) const override { return memory.exists(path); }
-            FileSystemResult<std::uint64_t> fileSize(std::string_view path) const override { return memory.fileSize(path); }
-            FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const override
-            {
-                return memory.lastModified(path);
-            }
-            FileSystemResult<std::chrono::system_clock::time_point> lastAccess(std::string_view path) const override
-            {
-                return memory.lastAccess(path);
-            }
-            FileSystemResult<std::vector<garlic::core::common::DirectoryEntry>> list(std::string_view path) const override
-            {
-                return memory.list(path);
-            }
-            FileSystemResult<std::string> readFile(std::string_view path) const override
-            {
-                if (fail_read)
-                    return error("read failed");
-                return memory.readFile(path);
-            }
-            FileSystemResult<std::unique_ptr<garlic::core::common::WritableFile>> openForWrite(std::string_view path,
-                                                                                               WriteMode mode) override
-            {
-                ++opened;
-                if (fail_open)
-                    return error("open failed");
-                auto file = memory.openForWrite(path, mode);
-                if (!file)
-                    return std::unexpected(file.error());
-                return std::make_unique<File>(std::move(*file), *this);
-            }
-            FileSystemResult<void> rename(std::string_view from, std::string_view to) override
-            {
-                if (fail_rename)
-                    return error("rename failed");
-                return memory.rename(from, to);
-            }
-            FileSystemResult<void> remove(std::string_view path) override { return memory.remove(path); }
-            FileSystemResult<void> removeAll(std::string_view path) override { return memory.removeAll(path); }
-            FileSystemResult<void> createDirectories(std::string_view path) override
-            {
-                created_directories.emplace_back(path);
-                return memory.createDirectories(path);
-            }
-
-        private:
-            class File : public garlic::core::common::WritableFile
-            {
-                public:
-                    File(std::unique_ptr<garlic::core::common::WritableFile> f, const FailingFileSystem &o)
-                        : file(std::move(f)), owner(o) {}
-                    FileSystemResult<void> write(std::span<const std::byte> data) override
-                    {
-                        if (owner.fail_write)
-                            return error("write failed");
-                        return file->write(data);
-                    }
-                    FileSystemResult<void> close() override
-                    {
-                        auto closed = file->close();
-                        if (owner.fail_close)
-                            return error("close failed");
-                        return closed;
-                    }
-
-                private:
-                    std::unique_ptr<garlic::core::common::WritableFile> file;
-                    const FailingFileSystem                            &owner;
-            };
-
-            static std::unexpected<FileSystemError> error(std::string message)
-            {
-                return std::unexpected(FileSystemError{FileSystemErrorCode::IoError, std::move(message)});
-            }
-
-            MemoryFileSystem &memory;
     };
 
     struct FailingFixture : Fixture
