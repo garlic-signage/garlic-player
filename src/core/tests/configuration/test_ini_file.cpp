@@ -189,7 +189,7 @@ TEST_CASE("lines: indented keys, spaces around =, # comments, lines without = or
 
 TEST_CASE("value escapes of QSettings: control characters, escaped spaces, a backslash at the end")
 {
-    auto ini = IniFile::parse("esc=\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\;\n"
+    auto ini = IniFile::parse("esc=\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\\;\n"
                               "space=a\\  ; the escaped space stays\n"
                               "tail=a\\\n");
     CHECK(ini.value("esc") == "\a\b\f\n\r\t\v\\\";");

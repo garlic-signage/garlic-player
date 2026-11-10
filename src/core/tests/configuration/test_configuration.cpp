@@ -240,7 +240,7 @@ TEST_CASE("indexPath is the directory of the index")
     CHECK(pathFor("https://example.com/smil/index.smil?player=1#x") == "https://example.com/smil/");
     CHECK(pathFor("https://garlic-hub.ddev.site/smil-index") == "https://garlic-hub.ddev.site/");
     CHECK(pathFor("https://example.com") == "https://example.com/");
-    CHECK(pathFor("ftp://example.com/smil/index.smil") == "ftp://example.com/smil/");
+    CHECK(pathFor("ftp://example.com?x=/a") == "ftp://example.com/");
     CHECK(pathFor("/var/lib/garlic/index.smil") == "/var/lib/garlic/");
     CHECK(pathFor("index.smil") == "./");
 }
