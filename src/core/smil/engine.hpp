@@ -274,6 +274,7 @@ namespace garlic::core::smil
             std::vector<std::size_t>   regionsOf(const Media &media) const;
 
             bool hasDur(const Timing &timing) const; // dur with a time or indefinite: the dur decides the end
+            bool isEmpty(std::size_t container) const; // no elements; for an excl: in none of its priorityClasses
             const Timing &timingOf(std::size_t node) const;
 
             // triggers

@@ -151,6 +151,22 @@ TEST_CASE("region sizes: percent, pixels, px; empty values keep the default")
     CHECK(region.background_repeat == "no-repeat");
 }
 
+TEST_CASE("region height and top relative to the root-layout height, not the width")
+{
+    Head head = parseHead(R"(<layout>
+        <root-layout width="1920" height="1080"/>
+        <region id="pixels" top="270" height="540"/>
+        <region id="percent" top="10%" height="50%"/>
+    </layout>)");
+
+    const Region &pixels = head.regions.at(0);
+    CHECK(pixels.top == doctest::Approx(0.25));
+    CHECK(pixels.height == doctest::Approx(0.5));
+    const Region &percent = head.regions.at(1);
+    CHECK(percent.top == doctest::Approx(0.1));
+    CHECK(percent.height == doctest::Approx(0.5));
+}
+
 TEST_CASE("region ids: xml:id before id, generated ids are unique")
 {
     Head head = parseHead(R"(<layout><region xml:id="new" id="old"/><region/><region/></layout>)");

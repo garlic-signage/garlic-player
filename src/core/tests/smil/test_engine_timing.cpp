@@ -93,6 +93,13 @@ TEST_CASE("end before begin and end 0s: never shown")
     CHECK(zero.run(10s) == "0s start next | 1s stop next");
 }
 
+TEST_CASE("video with dur 0s: no dur, it plays its own length, also when repeated")
+{
+    auto runner = EngineRunner::body(R"(<video xml:id="v" src="v.mp4" dur="0s" repeatCount="2"/>)");
+    runner.media_length["v.mp4"] = 3s;
+    CHECK(runner.run(20s) == "0s start v | 3s repeat v | 6s stop v");
+}
+
 TEST_CASE("restart: always starts a new interval, whenNotActive and never ignore it")
 {
     auto always = EngineRunner::body(R"(<par><img xml:id="a" src="a.jpg" begin="0s;1s" dur="3s"/></par>)");

@@ -234,6 +234,14 @@ namespace garlic::core::smil
                timing.dur.type == Duration::Type::Indefinite;
     }
 
+    bool Engine::isEmpty(std::size_t container) const
+    {
+        const Runtime &c = nodes[container];
+        if (c.container->kind == ContainerKind::Excl) // its children are priorityClasses
+            return std::ranges::all_of(c.children, [&](std::size_t pc) { return nodes[pc].children.empty(); });
+        return c.children.empty();
+    }
+
     // ------------------------------------------------------------------ triggers
 
     /**
@@ -626,9 +634,7 @@ namespace garlic::core::smil
         bool            has_end = !c.container->timing.end.empty();
         bool            no_time = dur.type == Duration::Type::Media ||
                        (dur.type == Duration::Type::Clock && dur.value.count() <= 0);
-        bool            empty   = c.children.empty();
-        if (c.container->kind == ContainerKind::Excl) // its children are priorityClasses: empty means no elements
-            empty = std::ranges::all_of(c.children, [&](std::size_t pc) { return nodes[pc].children.empty(); });
+        bool            empty   = isEmpty(container);
         if ((no_time && !has_end) || (empty && !hasDur(c.container->timing) && !has_end))
         {
             skip(container);
@@ -664,7 +670,7 @@ namespace garlic::core::smil
             case ContainerKind::Par:
                 for (std::size_t child : c.children)
                     activate(child);
-                if (c.children.empty()) // a pause with dur
+                if (c.children.empty()) // a pause with dur or end
                     childrenDone(container);
                 break;
             case ContainerKind::Excl:
@@ -795,11 +801,19 @@ namespace garlic::core::smil
         }
     }
 
-    /// All children are through: with a dur the container waits for it, otherwise its simple duration is over.
+    /**
+     * All children are through: with a dur the container waits for it, otherwise its simple duration is over.
+     * An empty container with end and without dur waits for the end: SMIL defines its simple duration as indefinite
+     * (5.4.3 "The end attribute"), garlic-lib started it and only the end timer stopped it.
+     */
     void Engine::childrenDone(std::size_t container)
     {
-        if (!hasDur(nodes[container].container->timing))
-            containerSimpleEnd(container);
+        const Timing &timing = nodes[container].container->timing;
+        if (hasDur(timing))
+            return;
+        if (!timing.end.empty() && isEmpty(container))
+            return;
+        containerSimpleEnd(container);
     }
 
     /// Repeat (repeatCount) or end of the interval, garlic-lib: finishedSimpleDuration.

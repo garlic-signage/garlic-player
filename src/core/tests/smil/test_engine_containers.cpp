@@ -108,6 +108,23 @@ TEST_CASE("empty containers: without dur skipped, with dur a pause, dur 0 and me
     CHECK(runner.run(10s) == "2.300s start a | 3.300s stop a"); // 3 skipped containers, 100 ms each
 }
 
+TEST_CASE("empty containers with end and without dur: a pause until the end (SMIL: simple duration indefinite)")
+{
+    auto par = EngineRunner::body(R"(<par end="2s"/><img xml:id="a" src="a.jpg" dur="1s"/>)");
+    CHECK(par.run(10s) == "2s start a | 3s stop a");
+    auto seq = EngineRunner::body(R"(<seq end="2s"/><img xml:id="a" src="a.jpg" dur="1s"/>)");
+    CHECK(seq.run(10s) == "2s start a | 3s stop a");
+    auto excl = EngineRunner::body(R"(<excl end="2s"/><img xml:id="a" src="a.jpg" dur="1s"/>)");
+    CHECK(excl.run(10s) == "2s start a | 3s stop a");
+    auto with_pc = EngineRunner::body(R"(<excl end="2s"><priorityClass/></excl><img xml:id="a" src="a.jpg" dur="1s"/>)");
+    CHECK(with_pc.run(10s) == "2s start a | 3s stop a");
+
+    // with children nothing changes: the container ends with its last child
+    auto filled = EngineRunner::body(R"(<par end="5s"><img xml:id="x" src="x.jpg" dur="1s"/></par>
+                                       <img xml:id="a" src="a.jpg" dur="1s"/>)");
+    CHECK(filled.run(10s) == "0s start x | 1s stop x | 1s start a | 2s stop a");
+}
+
 TEST_CASE("container with only missing media: 100 ms per skipped child, repeating it tries again")
 {
     auto skipped = EngineRunner::body(R"(<seq><img xml:id="m" src="m.jpg" dur="1s"/></seq><img xml:id="a" src="a.jpg" dur="1s"/>)");

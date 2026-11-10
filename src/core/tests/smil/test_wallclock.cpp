@@ -55,6 +55,13 @@ TEST_CASE("without repeat: once at the start")
     CHECK_FALSE(later.next.has_value());
 }
 
+TEST_CASE("0 repeats with a period: once at the start, not endless")
+{
+    auto triggers = wallclockTriggers(wallclock(jan1, 0, daily()), jan1 + 50h);
+    CHECK(triggers.previous == jan1);
+    CHECK_FALSE(triggers.next.has_value());
+}
+
 TEST_CASE("R5: the start and 5 repeats")
 {
     auto w = wallclock(jan1, 5, daily());

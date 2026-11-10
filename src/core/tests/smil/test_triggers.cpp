@@ -152,6 +152,8 @@ TEST_CASE("wallclock: weekdays")
     CHECK(wallclock("2026-03-15-w3T08:00").start == local_days{March / 11 / 2026} + 8h);  // Wednesday before
     CHECK(wallclock("2026-03-15w1").start == local_days{March / 16 / 2026});              // without sign: after
     CHECK(wallclock("2026-03-15+w7").start == local_days{March / 22 / 2026});             // same weekday: a week later
+    CHECK(wallclock("2026-03-18-w3").start == local_days{March / 11 / 2026});             // same weekday: a week before
+    CHECK(wallclock("2026-03-16-w3").start == local_days{March / 11 / 2026});             // Monday: Wednesday before
 }
 
 TEST_CASE("wallclock: repeats and periods")

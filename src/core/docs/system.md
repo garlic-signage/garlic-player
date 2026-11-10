@@ -31,6 +31,8 @@ auto self = system::processInfo();          // for the debug display of a fronte
 - One `platform_*.cpp` per system, chosen by CMake: `platform_linux.cpp` (Linux, Android), `platform_windows.cpp`,
   `platform_apple.cpp`, `platform_none.cpp` (other systems: empty values). The text parsing (`parseMeminfo`,
   `parseProcStatus`, `normalizeLocale`, `zoneName`) is in `system_info.cpp` and tested on every platform.
+  `ifaddrs_network.cpp` reads the interfaces with `getifaddrs` for Linux and Apple; the platform file only adds
+  type and MAC from the link layer (`AF_PACKET` or `AF_LINK`).
 - `platform_windows.cpp` and `platform_apple.cpp` have not been compiled yet; they are checked with the first
   Windows and Apple build.
 

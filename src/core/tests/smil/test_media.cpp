@@ -132,6 +132,15 @@ TEST_CASE("params: logContentId, filename, cacheControl")
     CHECK(media.query.empty()); // only widgets get a query
 }
 
+TEST_CASE("params: cacheControl other than onlyIfCached uses the cache, also without the param")
+{
+    CHECK(parseOne(R"(<img src="a.jpg"><param name="cacheControl" value="useCache"/></img>)").cache_control ==
+          CacheControl::UseCache);
+    CHECK(parseOne(R"(<img src="a.jpg"><param name="cacheControl" value="anything"/></img>)").cache_control ==
+          CacheControl::UseCache);
+    CHECK(parseOne(R"(<img src="a.jpg"/>)").cache_control == CacheControl::UseCache);
+}
+
 TEST_CASE("widget: the other params become a percent-encoded query")
 {
     Media media = parseOne(R"(<ref src="clock.wgt" type="application/widget">
