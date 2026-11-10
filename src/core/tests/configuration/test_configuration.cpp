@@ -50,6 +50,110 @@ namespace
 
         std::string ini() const { return fs.content(ini_path).value_or("<missing>"); }
     };
+
+    using garlic::core::common::FileSystemError;
+    using garlic::core::common::FileSystemErrorCode;
+    using garlic::core::common::FileSystemResult;
+
+    /// A MemoryFileSystem whose operations can fail, and that counts what the configuration does with it.
+    class FailingFileSystem : public garlic::core::common::FileSystem
+    {
+        public:
+            explicit FailingFileSystem(MemoryFileSystem &m) : memory(m) {}
+
+            bool fail_read = false, fail_open = false, fail_write = false, fail_close = false, fail_rename = false;
+            int  opened    = 0;
+            std::vector<std::string> created_directories;
+
+            bool exists(std::string_view path) const override { return memory.exists(path); }
+            FileSystemResult<std::uint64_t> fileSize(std::string_view path) const override { return memory.fileSize(path); }
+            FileSystemResult<std::chrono::system_clock::time_point> lastModified(std::string_view path) const override
+            {
+                return memory.lastModified(path);
+            }
+            FileSystemResult<std::chrono::system_clock::time_point> lastAccess(std::string_view path) const override
+            {
+                return memory.lastAccess(path);
+            }
+            FileSystemResult<std::vector<garlic::core::common::DirectoryEntry>> list(std::string_view path) const override
+            {
+                return memory.list(path);
+            }
+            FileSystemResult<std::string> readFile(std::string_view path) const override
+            {
+                if (fail_read)
+                    return error("read failed");
+                return memory.readFile(path);
+            }
+            FileSystemResult<std::unique_ptr<garlic::core::common::WritableFile>> openForWrite(std::string_view path,
+                                                                                               WriteMode mode) override
+            {
+                ++opened;
+                if (fail_open)
+                    return error("open failed");
+                auto file = memory.openForWrite(path, mode);
+                if (!file)
+                    return std::unexpected(file.error());
+                return std::make_unique<File>(std::move(*file), *this);
+            }
+            FileSystemResult<void> rename(std::string_view from, std::string_view to) override
+            {
+                if (fail_rename)
+                    return error("rename failed");
+                return memory.rename(from, to);
+            }
+            FileSystemResult<void> remove(std::string_view path) override { return memory.remove(path); }
+            FileSystemResult<void> removeAll(std::string_view path) override { return memory.removeAll(path); }
+            FileSystemResult<void> createDirectories(std::string_view path) override
+            {
+                created_directories.emplace_back(path);
+                return memory.createDirectories(path);
+            }
+
+        private:
+            class File : public garlic::core::common::WritableFile
+            {
+                public:
+                    File(std::unique_ptr<garlic::core::common::WritableFile> f, const FailingFileSystem &o)
+                        : file(std::move(f)), owner(o) {}
+                    FileSystemResult<void> write(std::span<const std::byte> data) override
+                    {
+                        if (owner.fail_write)
+                            return error("write failed");
+                        return file->write(data);
+                    }
+                    FileSystemResult<void> close() override
+                    {
+                        auto closed = file->close();
+                        if (owner.fail_close)
+                            return error("close failed");
+                        return closed;
+                    }
+
+                private:
+                    std::unique_ptr<garlic::core::common::WritableFile> file;
+                    const FailingFileSystem                            &owner;
+            };
+
+            static std::unexpected<FileSystemError> error(std::string message)
+            {
+                return std::unexpected(FileSystemError{FileSystemErrorCode::IoError, std::move(message)});
+            }
+
+            MemoryFileSystem &memory;
+    };
+
+    struct FailingFixture : Fixture
+    {
+        FailingFileSystem failing{fs};
+        Configuration     config{failing, clock, std::string(ini_path)};
+
+        FailingFixture()
+        {
+            putIni("[General]\nplayer_name=Lobby\nuuid=u-1\n");
+            REQUIRE(config.load().has_value());
+        }
+    };
 }
 
 TEST_CASE("load reads an existing ini")
@@ -136,6 +240,7 @@ TEST_CASE("indexPath is the directory of the index")
     CHECK(pathFor("https://example.com/smil/index.smil?player=1#x") == "https://example.com/smil/");
     CHECK(pathFor("https://garlic-hub.ddev.site/smil-index") == "https://garlic-hub.ddev.site/");
     CHECK(pathFor("https://example.com") == "https://example.com/");
+    CHECK(pathFor("ftp://example.com/smil/index.smil") == "ftp://example.com/smil/");
     CHECK(pathFor("/var/lib/garlic/index.smil") == "/var/lib/garlic/");
     CHECK(pathFor("index.smil") == "./");
 }
@@ -147,8 +252,13 @@ TEST_CASE("validateIndexUri")
     CHECK(Configuration::validateIndexUri("/var/index.smil") == "/var/index.smil");
 
     CHECK_FALSE(Configuration::validateIndexUri("").has_value());
-    CHECK_FALSE(Configuration::validateIndexUri("http:/example.com").has_value());
+    CHECK(Configuration::validateIndexUri("/var/a:b/index.smil") == "/var/a:b/index.smil"); // ':' after a '/'
+
+    CHECK_FALSE(Configuration::validateIndexUri("").has_value());
+    CHECK(Configuration::validateIndexUri("http:/example.com").error() ==
+          "Url scheme is not valid! Use http://domain.tld");
     CHECK_FALSE(Configuration::validateIndexUri("index.smil").has_value());
+    CHECK_FALSE(Configuration::validateIndexUri("://example.com").has_value()); // no scheme before the colon
 }
 
 TEST_CASE("api access token is valid for one day")
@@ -168,8 +278,13 @@ TEST_CASE("api access token is valid for one day")
     f.clock.advance(23h);
     CHECK(f.config.determineApiAccessToken("admin", "secret") == token);
 
-    f.clock.advance(2h);
-    CHECK(f.config.determineApiAccessToken("admin", "secret") != token);
+    f.clock.advance(1h); // exactly one day: expired
+    std::string next = f.config.determineApiAccessToken("admin", "secret");
+    CHECK(next != token);
+
+    f.config.setValue("api_access_token", ""); // expire still in the future, but no token
+    CHECK(f.config.determineApiAccessToken("admin", "secret") == next);
+    CHECK(f.config.apiAccessToken() == next);
 }
 
 TEST_CASE("user agent")
@@ -223,4 +338,66 @@ TEST_CASE("httpd can be switched off in the ini")
 
     f.config.setValue("httpd/enabled", "false");
     CHECK_FALSE(f.config.httpd().enabled);
+}
+
+TEST_CASE("httpd: a number with something after it is invalid, 0 switches off, the timeout is at least 1 s")
+{
+    Fixture f;
+    f.putIni("[General]\nuuid=u\nplayer_name=p\n\n[httpd]\nenabled=0\nport=9090x\nreadTimeout=0\n");
+    REQUIRE(f.config.load().has_value());
+
+    auto s = f.config.httpd();
+    CHECK_FALSE(s.enabled);
+    CHECK(s.port == 8080);
+    CHECK(s.read_timeout == 1s);
+}
+
+TEST_CASE("saving: the directory of the ini is created, the same value is not written again")
+{
+    FailingFixture f;
+    f.failing.created_directories.clear();
+    f.failing.opened = 0;
+
+    f.config.setPlayerName("Lobby"); // unchanged
+    CHECK(f.failing.opened == 0);
+
+    f.config.setPlayerName("Hall");
+    CHECK(f.failing.opened == 1);
+    CHECK(f.failing.created_directories == std::vector<std::string>{"config"});
+}
+
+TEST_CASE("saving fails: the old ini stays, no temporary file is left, lastError tells why")
+{
+    for (int step = 0; step < 3; ++step)
+    {
+        CAPTURE(step);
+        FailingFixture f;
+        std::string    before = f.ini();
+        f.failing.fail_open   = step == 0;
+        f.failing.fail_write  = step == 1;
+        f.failing.fail_close  = step == 2;
+
+        f.config.setPlayerName("Hall");
+        CHECK(f.ini() == before);
+        CHECK_FALSE(f.fs.exists(std::string(ini_path) + ".tmp"));
+        CHECK(f.config.lastError() == std::array{"open failed", "write failed", "close failed"}[step]);
+        CHECK(f.config.playerName() == "Hall"); // the value is used anyway
+    }
+
+    FailingFixture f;
+    std::string    before = f.ini();
+    f.failing.fail_rename = true;
+    f.config.setPlayerName("Hall");
+    CHECK(f.ini() == before);
+    CHECK(f.config.lastError() == "rename failed");
+}
+
+TEST_CASE("load: an ini that cannot be read is an error, a missing one is not")
+{
+    Fixture           f;
+    FailingFileSystem failing{f.fs};
+    failing.fail_read = true;
+    Configuration config{failing, f.clock, std::string(ini_path)};
+    CHECK(config.load().error() == "read failed");
+    CHECK(failing.opened == 0); // no new uuid written over the ini
 }

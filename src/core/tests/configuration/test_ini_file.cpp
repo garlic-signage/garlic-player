@@ -174,3 +174,57 @@ TEST_CASE("remove")
 
     CHECK_FALSE(ini.value("httpd/port").has_value());
 }
+
+TEST_CASE("lines: indented keys, spaces around =, # comments, lines without = or without ]")
+{
+    auto ini = IniFile::parse(" \tindented=1\t\n"
+                              "# comment=x\n"
+                              "no equal sign\n"
+                              "[broken\n"
+                              "spaced key = 2\n");
+    CHECK(ini.value("indented") == "1");
+    CHECK(ini.value("spaced key") == "2"); // [broken is no group
+    CHECK(ini.values().size() == 2);
+}
+
+TEST_CASE("value escapes of QSettings: control characters, escaped spaces, a backslash at the end")
+{
+    auto ini = IniFile::parse("esc=\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\;\n"
+                              "space=a\\  ; the escaped space stays\n"
+                              "tail=a\\\n");
+    CHECK(ini.value("esc") == "\a\b\f\n\r\t\v\\\";");
+    CHECK(ini.value("space") == "a ");
+    CHECK(ini.value("tail") == "a\\");
+}
+
+TEST_CASE("\\x and %U: one, two and three bytes of UTF-8, upper and lower case hex digits")
+{
+    auto ini = IniFile::parse("utf8=\\x7f\\x80\\x7ff\\x800\\xffff\n"
+                              "digits=\\x9F\\xAa\n"
+                              "price%U20AC=1\n"
+                              "e%U00e9=2\n"
+                              "x%09%AF=3\n"
+                              "a%U123=4\n");
+    CHECK(ini.value("utf8") == "\x7f\xc2\x80\xdf\xbf\xe0\xa0\x80\xef\xbf\xbf");
+    CHECK(ini.value("digits") == "\xc2\x9f\xc2\xaa");
+    CHECK(ini.value("price€") == "1");
+    CHECK(ini.value("eé") == "2");
+    CHECK(ini.value("x\t\xc2\xaf") == "3");
+    CHECK(ini.value("a%U123") == "4"); // too short for %U: as it is
+}
+
+TEST_CASE("written as they are: letters, digits, _ - . and UTF-8 in keys; spaces at one end are quoted")
+{
+    IniFile ini;
+    ini.setValue("AZaz09_-.Ā", "1");
+    ini.setValue("lead", " a");
+    ini.setValue("trail", "b ");
+    ini.setValue("control", std::string("\x1f\r\t"));
+
+    auto text = ini.serialize();
+    CHECK(text.find("\nAZaz09_-.Ā=1\n") != std::string::npos);
+    CHECK(text.find("\nlead=\" a\"\n") != std::string::npos);
+    CHECK(text.find("\ntrail=\"b \"\n") != std::string::npos);
+    CHECK(text.find("\ncontrol=\\x1f\\r\\t\n") != std::string::npos);
+    CHECK(IniFile::parse(text).values() == ini.values());
+}
