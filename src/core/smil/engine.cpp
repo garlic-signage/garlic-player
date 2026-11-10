@@ -668,10 +668,8 @@ namespace garlic::core::smil
                 playNext(container);
                 break;
             case ContainerKind::Par:
-                for (std::size_t child : c.children)
+                for (std::size_t child : c.children) // empty: a pause, its dur or end ends it
                     activate(child);
-                if (c.children.empty()) // a pause with dur or end
-                    childrenDone(container);
                 break;
             case ContainerKind::Excl:
                 c.playing.reset();
