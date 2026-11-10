@@ -1,7 +1,7 @@
 # js: the browser frontend of the garlic-player on the core (WASM). The core runs as WebAssembly in the page, the
 # player itself is JavaScript (web/). Only with Emscripten; on its own with the presets here, or from the repository
 # build with the Emscripten toolchain.
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.31)
 
 project(js VERSION 2.0.0 LANGUAGES CXX)
 

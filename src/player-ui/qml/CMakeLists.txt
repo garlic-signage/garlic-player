@@ -1,6 +1,6 @@
 # qml: the Qt Quick frontend of the garlic-player on the core, meant for iOS (and the desktop to try it). The same
 # behaviour as qwidget; video and audio with Qt Multimedia, web pages with Qt WebView (the system WebView on mobiles).
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.31)
 
 project(qml VERSION 2.0.0 LANGUAGES CXX)
 

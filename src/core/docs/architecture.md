@@ -169,8 +169,9 @@ Why the core is built the way it is. The decisions of single modules are in thei
   platform-specific dependencies for ESP32 and WASM; system libraries only for Linux distribution packages. doctest,
   nlohmann/json and miniz also come by FetchContent if they are not found, so the core builds on Linux and macOS
   without preparation.
-- **CMake 3.25, not 4.x.** The CMake of the Android SDK and of ESP-IDF is 3.x. Hence the alias for
-  `SQLite3::SQLite3` (CMake < 4.3) and `CMAKE_POLICY_VERSION_MINIMUM 3.10` for the fetched miniz and doctest.
+- **CMake 3.31, not 4.x.** The Android SDK offers 3.31 and ESP-IDF 6 ships 4.0, so 3.31 is the lowest version that both
+  toolchains have. Hence the alias for `SQLite3::SQLite3` (CMake < 4.3) and `CMAKE_POLICY_VERSION_MINIMUM 3.10` for the
+  fetched miniz and doctest.
 - **doctest, no GoogleTest/GoogleMock.** CLion supports doctest, it is leaner, and a later change would be mechanical.
   Instead of mocks there are hand-written fakes (`FakeHttpTransport`, `MemoryFileSystem`, `FakeClock`): tests check the
   end state ("the old file is unchanged, the new one waits as `.ready`") instead of call chains that break with every

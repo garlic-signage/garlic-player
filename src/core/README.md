@@ -61,7 +61,7 @@ the static modules are linked directly.
 
 ## Build
 
-Requirements: CMake ≥ 3.25, Ninja, a C++23 compiler (GCC ≥ 12, Clang ≥ 16 with libc++, MSVC ≥ 17.3) and vcpkg with
+Requirements: CMake ≥ 3.31, Ninja, a C++23 compiler (GCC ≥ 12, Clang ≥ 16 with libc++, MSVC ≥ 17.3) and vcpkg with
 `VCPKG_ROOT` set.
 
 ```sh

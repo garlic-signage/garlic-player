@@ -47,7 +47,7 @@ old frontends) is kept in [legacy](legacy) for reference; it is not built anymor
 
 ## Build (2.0)
 
-Needs CMake 3.25+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.8+ with Widgets, WebEngine and Multimedia, libvlc,
+Needs CMake 3.31+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.8+ with Widgets, WebEngine and Multimedia, libvlc,
 libcurl, libmicrohttpd, SQLite and libxml2. On Debian Trixie:
 
 ```

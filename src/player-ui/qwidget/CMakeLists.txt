@@ -1,5 +1,5 @@
 # qwidget: the Qt Widgets frontend of the garlic-player on the core (PlayerRuntimeApi in a ThreadedRuntime)
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.31)
 
 project(qwidget VERSION 2.0.0 LANGUAGES CXX)
 

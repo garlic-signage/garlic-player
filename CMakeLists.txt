@@ -1,6 +1,6 @@
 # garlic-player: the core and the frontends in one project (e.g. for CLion). The old Qt 5 code in legacy/ is not
 # part of it.
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.31)
 
 project(garlic-player LANGUAGES C CXX)
 

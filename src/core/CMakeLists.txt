@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.31)
 
 # The core has the version of the player: the file VERSION of player-ui ("2.0.0-dev", on the build server "2.0.0-beta.566").
 # project(VERSION) takes only the numbers, the full string goes to common::version().
@@ -119,10 +119,6 @@ if(GARLIC_CORE_BUILD_SHARED)
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::tasks>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::system>"
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,garlic::core::player_runtime>"
-    )
-
-    set_property(TARGET garlic_core PROPERTY LINK_LIBRARY_OVERRIDE
-            "WHOLE_ARCHIVE,garlic_core_common,garlic_core_logger,garlic_core_downloader,garlic_core_database,garlic_core_httpd,garlic_core_configuration,garlic_core_rest_api,garlic_core_smil,garlic_core_content,garlic_core_reports,garlic_core_tasks,garlic_core_system,garlic_core_player_runtime"
     )
 
     # What users of garlic::core need for the headers: the include directory and nlohmann/json (json_fwd.hpp)
