@@ -13,7 +13,7 @@ env:
 
 jobs:
   build-macos:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - name: Run macOS Build Script
@@ -21,7 +21,7 @@ jobs:
       - name: Run iOS Build Script
         run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]
     steps:
       - name: Run Windows 11 Build Script
@@ -35,7 +35,7 @@ jobs:
       - name: Run Arm64 Linux Build Script
         run: /home/niko/scripts/build.sh
   build-linux-X64:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Run x64 Linux Build Script
