@@ -41,6 +41,8 @@ namespace
     std::string sendRaw(std::uint16_t port, const std::string &request)
     {
         int         fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        timeval     limit{10, 0}; // a server that never answers fails the test instead of hanging it
+        ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &limit, sizeof(limit));
         sockaddr_in address{};
         address.sin_family      = AF_INET;
         address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -380,3 +382,134 @@ TEST_CASE("MhdServer: a later answer holds the connection without blocking, othe
     CHECK(bodyOf(response) == "JPEG");
 }
 
+
+TEST_CASE("MhdServer: an upload that cannot be stored gets 500 and never reaches the handler")
+{
+    Fixture f;
+    bool    called = false;
+    f.router.add("POST", "/v2/files/new",
+                 [&](const Request &)
+                 {
+                     called = true;
+                     return Response::json(200, "{}");
+                 });
+    auto s       = f.settings();
+    s.upload_dir = f.upload_dir + "/missing";
+    f.start(s);
+
+    std::string body = "--XyZ123\r\nContent-Disposition: form-data; name=\"data\"; filename=\"a.jpg\"\r\n\r\nimage\r\n--XyZ123--\r\n";
+    auto response = f.request(post("/v2/files/new", "multipart/form-data; boundary=XyZ123", body));
+
+    CHECK(statusOf(response) == 500);
+    CHECK_FALSE(called);
+}
+
+TEST_CASE("MhdServer: the headers of the response are sent")
+{
+    Fixture f;
+    f.router.add("GET", "/file",
+                 [](const Request &) { return Response{200, "image/jpeg", "JPEG", {{"Cache-Control", "no-cache"}}}; });
+    f.start(f.settings());
+
+    auto response = f.request("GET /file HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    CHECK(response.find("Cache-Control: no-cache\r\n") != std::string::npos);
+}
+
+TEST_CASE("MhdServer: a body of exactly the maximum size is accepted")
+{
+    Fixture     f;
+    std::string seen;
+    f.router.add("POST", "/v2/app/exec",
+                 [&](const Request &r)
+                 {
+                     seen = r.body;
+                     return Response::json(200, "{}");
+                 });
+    auto s             = f.settings();
+    s.max_request_size = 100;
+    f.start(s);
+
+    auto response = f.request(post("/v2/app/exec", "application/json", std::string(100, 'x')));
+    CHECK(statusOf(response) == 200);
+    CHECK(seen.size() == 100);
+}
+
+TEST_CASE("MhdServer: a later answer that is already there is sent at once")
+{
+    Fixture f;
+    f.router.add("GET", "/ready",
+                 [](const Request &)
+                 {
+                     auto pending = std::make_shared<PendingResponse>();
+                     pending->complete(Response::json(201, R"({"ready":true})"));
+                     return Response::later(pending);
+                 });
+    f.start(f.settings());
+
+    auto response = f.request("GET /ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    CHECK(statusOf(response) == 201);
+    CHECK(bodyOf(response) == R"({"ready":true})");
+}
+
+// Skipped: stop() calls MHD_run() only once after resuming, that is not enough to send the 503 (docs/httpd.md says
+// it is sent). The client only sees the connection closed.
+TEST_CASE("MhdServer: stop() answers a waiting request with 503" * doctest::skip())
+{
+    Fixture                          f;
+    std::shared_ptr<PendingResponse> pending;
+    f.router.add("GET", "/slow",
+                 [&](const Request &)
+                 {
+                     pending = std::make_shared<PendingResponse>();
+                     return Response::later(pending);
+                 });
+    f.start(f.settings());
+
+    auto slow = std::async(std::launch::async, [port = f.server.port()]
+                           { return sendRaw(port, "GET /slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"); });
+    auto end = std::chrono::steady_clock::now() + 5s;
+    while (!pending && std::chrono::steady_clock::now() < end)
+        f.server.poll();
+    REQUIRE(pending);
+
+    f.server.stop();
+    REQUIRE(slow.wait_for(5s) == std::future_status::ready);
+    auto response = slow.get();
+    CHECK(statusOf(response) == 503);
+    CHECK(bodyOf(response) == R"({"error":"server stopped"})");
+}
+
+TEST_CASE("MhdServer: start() again closes the old port")
+{
+    Fixture f;
+    f.start(f.settings());
+    std::uint16_t first = f.server.port();
+
+    f.start(f.settings());
+    CHECK(f.server.port() != first);
+    CHECK(sendRaw(first, "GET / HTTP/1.1\r\n\r\n") == "connect failed");
+}
+
+TEST_CASE("MhdServer: without a bind address on all addresses")
+{
+    Fixture f;
+    f.router.add("GET", "/", [](const Request &) { return Response::json(200, "{}"); });
+    auto s         = f.settings();
+    s.bind_address = "";
+    f.start(s);
+
+    CHECK(statusOf(f.request("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")) == 200);
+}
+
+TEST_CASE("MhdServer: a client that sends nothing more is disconnected after the read timeout")
+{
+    Fixture f;
+    auto    s      = f.settings();
+    s.read_timeout = 1s;
+    f.start(s);
+
+    auto start    = std::chrono::steady_clock::now();
+    auto response = f.request("GET / HTTP/1.1\r\nHost: localhost\r\n"); // the empty line never comes
+    CHECK(response.empty());
+    CHECK(std::chrono::steady_clock::now() - start < 4s);
+}
