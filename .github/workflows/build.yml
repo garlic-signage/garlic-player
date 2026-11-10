@@ -29,13 +29,13 @@ jobs:
         run: |
           call "C:\BuildEssentials\3.1_buildPlayer.bat"
   build-linux-arm64:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Run Arm64 Linux Build Script
         run: /home/niko/scripts/build.sh
   build-linux-X64:
-    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Run x64 Linux Build Script
