@@ -18,6 +18,14 @@
 #include <doctest/doctest.h>
 
 #include "system/system_info.hpp"
+#include "time_zone.hpp"
+
+#if defined(__linux__) || defined(__APPLE__)
+    #include "system/ifaddrs_network.hpp"
+#endif
+
+#include <algorithm>
+#include <filesystem>
 
 using namespace garlic::core::system;
 
@@ -88,3 +96,98 @@ TEST_CASE("the real values of this machine")
     CHECK(self.memory > 0);
     CHECK(self.threads >= 1);
 }
+
+TEST_CASE("/proc fields: the key exactly, the number of its own line, too large is nothing")
+{
+    Memory memory = parseMeminfo("MemTotalX:  5 kB\nMemTotal:  1000 kB\nMemAvailable: kB\nMemFree:  400 kB\n");
+    CHECK(memory.total == 1000ULL * 1024);      // not MemTotalX
+    CHECK(memory.available == 400ULL * 1024);   // MemAvailable without a number: MemFree
+    CHECK_FALSE(parseMeminfo("MemTotal kB 5\n").total.has_value());
+    CHECK_FALSE(parseMeminfo("MemTotal: kB\nMemFree: 400 kB\n").total.has_value()); // not the number of the next line
+    CHECK_FALSE(parseMeminfo("MemTotal: 99999999999999999999999 kB\n").total.has_value());
+}
+
+TEST_CASE("locale: C with an encoding is C, a name without : stays as it is")
+{
+    CHECK(normalizeLocale("C.UTF-8") == "C"); // Debian containers
+    CHECK(normalizeLocale("C") == "C");
+    CHECK(zoneName("Europe/Berlin") == "Europe/Berlin");
+}
+
+TEST_CASE("disk space: 96 % of the disk, free is available minus the 4 % reserve")
+{
+    std::error_code ec;
+    auto            before = std::filesystem::space(".", ec);
+    REQUIRE_FALSE(ec);
+    DiskSpace disk  = diskSpace(".");
+    auto      after = std::filesystem::space(".", ec);
+
+    std::uint64_t reserved = before.capacity - before.capacity / 100 * 96;
+    CHECK(disk.total == before.capacity / 100 * 96);
+    CHECK(disk.free + reserved >= std::min(before.available, after.available)); // the disk may change meanwhile
+    CHECK(disk.free + reserved <= std::max(before.available, after.available));
+}
+
+TEST_CASE("system info: no disk values for a missing cache directory, memory used is more than 0")
+{
+    auto info = collectSystemInfo("/this/does/not/exist", "");
+    CHECK_FALSE(info.total_capacity.has_value());
+    CHECK_FALSE(info.free_space.has_value());
+    REQUIRE(info.memory_used.has_value());
+    CHECK(*info.memory_used > 0);
+}
+
+#if defined(__linux__) && !defined(__ANDROID__)
+TEST_CASE("Linux: the time zone from TZ if it is a name, otherwise from the system")
+{
+    std::string system_zone;
+    {
+        garlic::core::tests::TimeZone tz("CET-1"); // POSIX rule, not a name
+        system_zone = collectSystemInfo(".", "").time_zone;
+        CHECK(system_zone != "CET-1");
+    }
+    garlic::core::tests::TimeZone tz(":America/New_York");
+    CHECK(collectSystemInfo(".", "").time_zone == "America/New_York");
+}
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+TEST_CASE("MAC in upper case with colons like Qt")
+{
+    const unsigned char bytes[] = {0x00, 0x1a, 0x2b, 0xff};
+    CHECK(garlic::core::system::platform::macText(bytes, 4) == "00:1A:2B:FF");
+    CHECK(garlic::core::system::platform::macText(bytes, 0).empty());
+}
+#endif
+
+#ifdef __linux__
+TEST_CASE("Linux: the loopback interface with type, MAC and its addresses")
+{
+    auto info = collectSystemInfo(".", "");
+    auto lo   = std::ranges::find(info.network, std::string("lo"), &garlic::core::reports::NetworkInterface::id);
+    REQUIRE(lo != info.network.end());
+    CHECK(lo->type == "loopback");
+    CHECK(lo->mac == "00:00:00:00:00:00");
+
+    using Family = garlic::core::reports::NetworkAddress::Family;
+    auto v4 = std::ranges::find(lo->addresses, std::string("127.0.0.1"), &garlic::core::reports::NetworkAddress::ip);
+    REQUIRE(v4 != lo->addresses.end());
+    CHECK(v4->family == Family::V4);
+    CHECK(v4->netmask == "255.0.0.0");
+    CHECK(v4->broadcast.empty()); // loopback has no broadcast
+
+    for (const auto &interface : info.network) // the family fits the address
+        for (const auto &address : interface.addresses)
+        {
+            CAPTURE(address.ip);
+            CHECK((address.family == Family::V6) == address.ip.contains(':'));
+        }
+
+    auto v6 = std::ranges::find(lo->addresses, std::string("::1"), &garlic::core::reports::NetworkAddress::ip);
+    if (v6 != lo->addresses.end()) // IPv6 may be switched off, e.g. in containers
+    {
+        CHECK(v6->family == Family::V6);
+        CHECK(v6->netmask == "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
+    }
+}
+#endif
