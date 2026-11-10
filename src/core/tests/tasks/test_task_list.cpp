@@ -38,6 +38,7 @@ TEST_CASE("task list: the four kinds with their fields, unknown ones ignored")
     CHECK((*tasks)[0].kind == Task::Kind::UpdateSettings);
     CHECK((*tasks)[0].id == "s1");
     CHECK((*tasks)[0].source_uri == "http://hub/config.xml");
+    CHECK((*tasks)[0].content_type == "application/xml");
     CHECK((*tasks)[0].content_checksum == "ABC");
     CHECK((*tasks)[0].checksum_method == "MD5");
     CHECK((*tasks)[1].kind == Task::Kind::FirmwareUpdate);
@@ -56,6 +57,24 @@ TEST_CASE("task list: without timedTaskList empty, broken XML with line")
     auto broken = parseTaskList("<schedule>\n<timedTaskList>\n</schedule>");
     REQUIRE_FALSE(broken.has_value());
     CHECK(broken.error().line == 3);
+    CHECK(broken.error().message.find("timedTaskList") != std::string::npos); // the message of libxml2
+}
+
+TEST_CASE("task list: timedTaskList as root, only the first list, the first command, empty text")
+{
+    auto root = parseTaskList(R"(<timedTaskList><shutdownPlayer id="r1"/></timedTaskList>)");
+    REQUIRE(root.has_value());
+    REQUIRE(root->size() == 1);
+    CHECK((*root)[0].id == "r1");
+
+    auto tasks = parseTaskList(R"(<schedule>
+        <timedTaskList><applyCommand id="c1"><command>clear_cache</command><command>clear_webcache</command></applyCommand>
+            <applyCommand id="c2"><command> </command></applyCommand></timedTaskList>
+        <timedTaskList><shutdownPlayer id="r2"/></timedTaskList></schedule>)");
+    REQUIRE(tasks.has_value());
+    REQUIRE(tasks->size() == 2);
+    CHECK((*tasks)[0].command == "clear_cache");
+    CHECK((*tasks)[1].command.empty());
 }
 
 TEST_CASE("settings: every prop with a value")
