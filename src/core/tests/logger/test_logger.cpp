@@ -18,10 +18,13 @@
 #include <doctest/doctest.h>
 
 #include "common/memory_file_system.hpp"
+#include "common/std_file_system.hpp"
 #include "fake_clock.hpp"
 #include "logger/logger.hpp"
 #include "time_zone.hpp"
 
+#include <filesystem>
+#include <random>
 #include <vector>
 
 using namespace garlic::core::logger;
@@ -74,6 +77,15 @@ TEST_CASE("debug.log: time, severity, category, source position and message per 
     CHECK(text.find("2026-01-01 00:00:01,500 informational Develop test_logger.cpp(") != std::string::npos);
 }
 
+TEST_CASE("debug.log: debug() and the line of the call")
+{
+    Fixture f;
+    auto    line = std::source_location::current().line(); f.logger.debug("Develop", "here");
+
+    CHECK(f.content(LogFile::Debug).find(" debug Develop test_logger.cpp(" + std::to_string(line) + ") here\n") !=
+          std::string::npos);
+}
+
 TEST_CASE("debug.log: entries below the minimum severity are dropped")
 {
     auto c               = config();
@@ -82,10 +94,12 @@ TEST_CASE("debug.log: entries below the minimum severity are dropped")
 
     f.logger.debug("Develop", "noise");
     f.logger.info("Develop", "noise");
+    f.logger.warning("Develop", "the minimum itself");
     f.logger.error("Develop", "important");
 
     std::string text = f.content(LogFile::Debug);
     CHECK(text.find("noise") == std::string::npos);
+    CHECK(text.find("warning Develop") != std::string::npos);
     CHECK(text.find("error Develop") != std::string::npos);
 }
 
@@ -93,13 +107,13 @@ TEST_CASE("event_log.xml in the format of garlic-lib, values escaped")
 {
     Fixture f;
     f.logger.event(Severity::Warning, "ContentManager", "MEDIA_UNSUPPORTED",
-                   {{"resourceURI", "http://example.com/a.php?x=1&y=<2>"}, {"contentId", "id-1"}});
+                   {{"resourceURI", "http://example.com/a.php?x=1&y=<2>"}, {"contentId", "say \"hi\" it's"}});
 
     CHECK(f.content(LogFile::Event) ==
           "<event><eventType>warning</eventType><eventTime>2026-01-01T00:00:00Z</eventTime>"
           "<eventSource>ContentManager</eventSource><eventName>MEDIA_UNSUPPORTED</eventName><metadata>"
           "<meta name=\"resourceURI\" content=\"http://example.com/a.php?x=1&amp;y=&lt;2&gt;\"/>"
-          "<meta name=\"contentId\" content=\"id-1\"/></metadata></event>\n");
+          "<meta name=\"contentId\" content=\"say &quot;hi&quot; it&apos;s\"/></metadata></event>\n");
 }
 
 TEST_CASE("event without metadata keeps the empty metadata element")
@@ -175,4 +189,37 @@ TEST_CASE("mirror receives debug lines and events")
     REQUIRE(mirrored.size() == 2);
     CHECK(mirrored[0].starts_with("error|Database|2026-01-01 00:00:00,000 error Database"));
     CHECK(mirrored[1].starts_with("critical|MediaPlayer|<event>"));
+}
+
+TEST_CASE("rotated as soon as the limit is reached; debug.log has its own limit")
+{
+    std::string line = "<taskState><task id=\"t\"><lastUpdateTime>2026-01-01T00:00:00Z</lastUpdateTime>"
+                       "<state>pending</state></task></taskState>\n";
+    auto        c    = config();
+    c.max_size       = line.size();
+    c.debug_max_size = 1000;
+    Fixture f(c);
+
+    f.logger.taskState("t", "pending"); // exactly the limit
+    CHECK_FALSE(f.fs.exists(f.logger.path(LogFile::TaskExecution)));
+    CHECK(f.fs.content(f.logger.path(LogFile::TaskExecution) + ".1") == line);
+
+    f.logger.info("Develop", "longer than max_size, shorter than debug_max_size: " + std::string(line.size(), 'x'));
+    CHECK(f.fs.exists(f.logger.path(LogFile::Debug)));
+}
+
+TEST_CASE("on the real file system: the log directory is created")
+{
+    std::random_device random;
+    auto dir = std::filesystem::temp_directory_path() / ("garlic-logger-" + std::to_string(random()));
+    {
+        garlic::core::common::StdFileSystem fs;
+        FakeClock                           clock;
+        auto                                c = config();
+        c.log_dir                             = (dir / "logs").string();
+        Logger logger(fs, clock, c);
+        logger.event(Severity::Informational, "System", "PLAYER_STARTED");
+        CHECK(fs.readFile(logger.path(LogFile::Event)).value_or("").find("PLAYER_STARTED") != std::string::npos);
+    }
+    std::filesystem::remove_all(dir);
 }
