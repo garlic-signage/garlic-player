@@ -212,6 +212,50 @@ TEST_CASE("clear() cancels everything without callbacks")
     CHECK(f.transport.activeCount() == 0);
 }
 
+TEST_CASE("after clear() a cancelled URL can be added again")
+{
+    Fixture f(1);
+    f.serve(mediaUrl(0));
+    f.queue.add(mediaUrl(0));
+    f.transport.poll();
+
+    f.queue.clear();
+    f.queue.add(mediaUrl(0));
+    f.runUntilIdle();
+
+    REQUIRE(f.results.size() == 1);
+    CHECK(f.results[0].status == DownloadStatus::Downloaded);
+}
+
+TEST_CASE("poll() drives the downloaders: a refused request is reported from there")
+{
+    Fixture f(1);
+    f.transport.refuse_start = true;
+    f.queue.add(mediaUrl(0));
+    CHECK(f.results.empty()); // never from inside add()
+
+    f.queue.poll();
+
+    REQUIRE(f.results.size() == 1);
+    CHECK(f.results[0].status == DownloadStatus::Failed);
+    CHECK(f.queue.isIdle());
+}
+
+TEST_CASE("setUserAgent() applies to all downloaders")
+{
+    Fixture f(2);
+    f.queue.setUserAgent("garlic/2.0");
+    f.serve(mediaUrl(0));
+    f.serve(mediaUrl(1));
+    f.queue.add(mediaUrl(0));
+    f.queue.add(mediaUrl(1));
+    f.runUntilIdle();
+
+    REQUIRE(f.transport.requests.size() == 4);
+    for (const auto &request : f.transport.requests)
+        CHECK(request.headers.find("User-Agent") == "garlic/2.0");
+}
+
 TEST_CASE("jobs can be added from inside the callback")
 {
     FakeClock                clock;

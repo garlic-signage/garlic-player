@@ -203,6 +203,35 @@ TEST_CASE("file name: URL extension wins over application/octet-stream")
     CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + ".mp4");
 }
 
+TEST_CASE("file name: no extension from the host, a long one or one with other characters, the type decides")
+{
+    for (std::string url : {"http://example.com", "http://example.com/a.abcdef", "http://example.com/a.j-g"})
+    {
+        CAPTURE(url);
+        Fixture f;
+        f.transport.respond(HttpMethod::Head, url, response(200, "image/png", "data"));
+        f.transport.respond(HttpMethod::Get, url, response(200, "image/png", "data"));
+
+        CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + ".png");
+    }
+
+    Fixture     f; // 5 characters are still an extension
+    std::string url = "http://example.com/a.abcde";
+    f.transport.respond(HttpMethod::Head, url, response(200, "image/png", "data"));
+    f.transport.respond(HttpMethod::Get, url, response(200, "image/png", "data"));
+    CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + ".abcde");
+}
+
+TEST_CASE("file name: spaces around the content type are ignored")
+{
+    Fixture     f;
+    std::string url = "http://example.com/media/12345";
+    f.transport.respond(HttpMethod::Head, url, response(200, "  IMAGE/PNG ; charset=binary", "data"));
+    f.transport.respond(HttpMethod::Get, url, response(200, "image/png", "data"));
+
+    CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + ".png");
+}
+
 // ------------------------------------------------------------------ not modified
 
 TEST_CASE("cached file: conditional HEAD, 304 means not modified")
@@ -216,6 +245,7 @@ TEST_CASE("cached file: conditional HEAD, 304 means not modified")
     CHECK(r.status == DownloadStatus::NotModified);
     CHECK(r.local_path == cache_file);
     CHECK(f.requestHeader(0, "If-None-Match") == "\"v1\"");
+    CHECK_FALSE(f.requestHeader(0, "If-Modified-Since").has_value()); // none known: not sent empty
     CHECK(f.transport.requests.size() == 1);
 }
 
@@ -246,6 +276,25 @@ TEST_CASE("without ETag Last-Modified and size decide")
 
     CHECK(r.status == DownloadStatus::NotModified);
     CHECK(f.requestHeader(0, "If-Modified-Since") == "Wed, 01 Jan 2025 10:00:00 GMT");
+    CHECK_FALSE(f.requestHeader(0, "If-None-Match").has_value()); // none known: not sent empty
+}
+
+TEST_CASE("without ETag the same Last-Modified with another size is a new file")
+{
+    Fixture f;
+    f.putFile(cache_file, "old");
+    f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "", "Wed, 01 Jan 2025 10:00:00 GMT", "image/jpeg", 3,
+                      InventoryState::Complete});
+
+    auto head = response(200, "image/jpeg", "new!");
+    head.headers.add("Last-Modified", "Wed, 01 Jan 2025 10:00:00 GMT");
+    f.transport.respond(HttpMethod::Head, media_url, head);
+    f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "new!"));
+
+    auto r = f.download(media_url);
+
+    CHECK(r.status == DownloadStatus::Downloaded);
+    CHECK(f.transport.requests.size() == 2);
 }
 
 TEST_CASE("no conditional HEAD if the cached file was deleted")
@@ -298,6 +347,19 @@ TEST_CASE("relative redirect without leading slash")
     f.transport.respond(HttpMethod::Get, "http://example.com/media/b.jpg", response(200, "image/jpeg", "data"));
 
     CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+}
+
+TEST_CASE("redirect without scheme (//host/path) keeps the scheme of the request")
+{
+    Fixture f;
+    auto    redirect = response(302, "", "");
+    redirect.headers.add("Location", "//cdn.example.com/a.jpg");
+    f.transport.respond(HttpMethod::Head, media_url, redirect);
+    f.transport.respond(HttpMethod::Head, "http://cdn.example.com/a.jpg", response(200, "image/jpeg", "data"));
+    f.transport.respond(HttpMethod::Get, "http://cdn.example.com/a.jpg", response(200, "image/jpeg", "data"));
+
+    CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+    CHECK(f.transport.requests.at(1).url == "http://cdn.example.com/a.jpg");
 }
 
 TEST_CASE("too many redirects fail")
@@ -483,6 +545,23 @@ TEST_CASE("web pages are not cacheable")
     CHECK(r.status == DownloadStatus::NotCacheable);
     CHECK(r.local_path.empty());
     CHECK(f.transport.requests.size() == 1);
+
+    f.transport.respond(HttpMethod::Head, "http://example.com/x", response(200, "application/xhtml+xml", ""));
+    CHECK(f.download("http://example.com/x").status == DownloadStatus::NotCacheable);
+}
+
+TEST_CASE("supported content types: image, video, audio, text and some applications")
+{
+    for (std::string type : {"audio/mpeg", "text/plain", "application/smil", "application/smil+xml",
+                             "application/xml", "application/zip", "application/widget",
+                             "application/vnd.android.package-archive"})
+    {
+        CAPTURE(type);
+        Fixture f;
+        f.transport.respond(HttpMethod::Head, "http://example.com/x.bin", response(200, type, "x"));
+        f.transport.respond(HttpMethod::Get, "http://example.com/x.bin", response(200, type, "x"));
+        CHECK(f.download("http://example.com/x.bin").status == DownloadStatus::Downloaded);
+    }
 }
 
 TEST_CASE("unknown content type fails, except for .wgt and .smil")
@@ -494,6 +573,10 @@ TEST_CASE("unknown content type fails, except for .wgt and .smil")
     f.transport.respond(HttpMethod::Head, "http://example.com/app.wgt", response(200, "application/x-unknown", "x"));
     f.transport.respond(HttpMethod::Get, "http://example.com/app.wgt", response(200, "application/x-unknown", "x"));
     CHECK(f.download("http://example.com/app.wgt").status == DownloadStatus::Downloaded);
+
+    f.transport.respond(HttpMethod::Head, "http://example.com/i.smil", response(200, "application/x-unknown", "x"));
+    f.transport.respond(HttpMethod::Get, "http://example.com/i.smil", response(200, "application/x-unknown", "x"));
+    CHECK(f.download("http://example.com/i.smil").status == DownloadStatus::Downloaded);
 }
 
 TEST_CASE("a file with a fixed name (system file) is taken with any content type")
@@ -558,6 +641,70 @@ TEST_CASE("no resume if the file changed on the server")
     CHECK_FALSE(f.requestHeader(1, "Range").has_value());
     CHECK(r.status == DownloadStatus::Downloaded);
     CHECK(f.content(cache_file) == "new!");
+}
+
+TEST_CASE("resume without ETag: Last-Modified is the If-Range validator")
+{
+    Fixture f;
+    f.putFile(cache_file + ".part", "01234");
+    f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "", "Wed, 01 Jan 2025 10:00:00 GMT", "image/jpeg", 10,
+                      InventoryState::Transfer});
+
+    auto head = response(200, "image/jpeg", "0123456789");
+    head.headers.add("Last-Modified", "Wed, 01 Jan 2025 10:00:00 GMT");
+    f.transport.respond(HttpMethod::Head, media_url, head);
+    f.transport.respond(HttpMethod::Get, media_url, response(206, "image/jpeg", "56789"));
+
+    auto r = f.download(media_url);
+
+    CHECK(r.status == DownloadStatus::Downloaded);
+    CHECK(f.content(cache_file) == "0123456789");
+    CHECK(f.requestHeader(1, "Range") == "bytes=5-");
+    CHECK(f.requestHeader(1, "If-Range") == "Wed, 01 Jan 2025 10:00:00 GMT");
+}
+
+TEST_CASE("no resume with a weak ETag or an empty .part file")
+{
+    SUBCASE("weak ETag: not allowed in If-Range")
+    {
+        Fixture f;
+        f.putFile(cache_file + ".part", "01234");
+        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "W/\"v1\"", "", "image/jpeg", 10,
+                          InventoryState::Transfer});
+        f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789", "W/\"v1\""));
+        f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "0123456789", "W/\"v1\""));
+
+        CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+        CHECK_FALSE(f.requestHeader(1, "Range").has_value());
+    }
+    SUBCASE("empty .part file")
+    {
+        Fixture f;
+        f.putFile(cache_file + ".part", "");
+        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "\"v1\"", "", "image/jpeg", 10,
+                          InventoryState::Transfer});
+        f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789", "\"v1\""));
+        f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "0123456789", "\"v1\""));
+
+        CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+        CHECK_FALSE(f.requestHeader(1, "Range").has_value());
+    }
+}
+
+TEST_CASE("416 range not satisfiable: the .part file is deleted, the next attempt starts from the beginning")
+{
+    Fixture f;
+    f.putFile(cache_file + ".part", "0123456789xx");
+    f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "\"v1\"", "", "image/jpeg", 10,
+                      InventoryState::Transfer});
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789", "\"v1\""));
+    f.transport.respond(HttpMethod::Get, media_url, response(416, "", ""));
+
+    auto r = f.download(media_url);
+
+    CHECK(r.status == DownloadStatus::Failed);
+    CHECK(f.requestHeader(1, "Range") == "bytes=12-");
+    CHECK_FALSE(f.fs.exists(cache_file + ".part"));
 }
 
 // ------------------------------------------------------------------ usage

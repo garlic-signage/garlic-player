@@ -117,6 +117,21 @@ TEST_CASE("CurlTransport: GET delivers status, headers and the complete body")
     CHECK(handler.chunks > 1);
 }
 
+TEST_CASE("CurlTransport: an interim 1xx response is not passed on, only the final one")
+{
+    TestHttpServer server;
+    server.route("GET", "/a.jpg", "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: image/jpeg", "data");
+
+    CurlTransport    transport;
+    RecordingHandler handler;
+    REQUIRE(transport.start({HttpMethod::Get, server.url("/a.jpg"), {}}, handler));
+    run(transport, handler);
+
+    CHECK(handler.events == std::vector<std::string>{"head 200", "complete"});
+    CHECK(handler.head.headers.find("Content-Type") == "image/jpeg");
+    CHECK(handler.body == "data");
+}
+
 TEST_CASE("CurlTransport: HEAD delivers no body")
 {
     TestHttpServer server;
