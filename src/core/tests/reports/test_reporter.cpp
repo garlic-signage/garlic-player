@@ -268,3 +268,157 @@ TEST_CASE("an unchanged subscription keeps its schedule, a changed one sends at 
     f.wait(120s);
     CHECK(f.puts().size() == 2);
 }
+
+TEST_CASE("an upload counts as done with 2xx only")
+{
+    for (int status : {200, 299, 199, 300})
+    {
+        CAPTURE(status);
+        Fixture f;
+        f.answer(status);
+        f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 0, 10)});
+        f.run();
+        f.wait(10s); // a failed one is sent again after retryInterval
+        CHECK(f.puts().size() == (status / 100 == 2 ? 1u : 2u));
+    }
+}
+
+TEST_CASE("a subscription with another refresh, retry or method counts as changed: sent at once")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 60, 10)});
+    f.run();
+
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 120, 10)});
+    f.run();
+    CHECK(f.puts().size() == 2);
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 120, 20)});
+    f.run();
+    CHECK(f.puts().size() == 3);
+    f.reporter.subscribe({{"SystemReport", "http://hub/a.xml", "post", 120, 20}});
+    f.run();
+    CHECK(f.puts().size() == 4);
+}
+
+TEST_CASE("the same report type twice: the last subscription counts")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("SystemReport", "http://hub/b.xml")});
+    f.run();
+    CHECK(f.puts() == std::vector<std::string>{"http://hub/b.xml"});
+}
+
+TEST_CASE("a running upload is cancelled when its subscription goes or the reporter is destroyed")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml")});
+    f.reporter.poll(); // started, not answered yet
+    REQUIRE(f.transport.activeCount() == 1);
+    f.reporter.subscribe({});
+    CHECK(f.transport.activeCount() == 0);
+
+    {
+        Reporter other{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", nullptr};
+        other.subscribe({subscription("SystemReport", "http://hub/a.xml")});
+        other.poll();
+        REQUIRE(f.transport.activeCount() == 1);
+    }
+    CHECK(f.transport.activeCount() == 0);
+}
+
+TEST_CASE("while an upload runs it is not started again and has no deadline")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 1)});
+    f.reporter.poll();
+    CHECK_FALSE(f.reporter.nextDeadline().has_value());
+    f.clock.advance(5s);
+    f.reporter.poll();
+    CHECK(f.puts().size() == 1);
+}
+
+TEST_CASE("nextDeadline is the earliest report")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("InventoryReport", "http://hub/b.xml", 120), subscription("SystemReport", "http://hub/a.xml", 60)});
+    f.run();
+    CHECK(f.reporter.nextDeadline() == f.clock.monotonic() + 60s);
+}
+
+TEST_CASE("no log to send: tried again after refreshInterval")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.run();
+    CHECK(f.puts().empty());
+    CHECK(f.reporter.nextDeadline() == f.clock.monotonic() + 60s);
+
+    f.logger.played("first", f.clock.now());
+    f.wait(60s);
+    CHECK(f.puts().size() == 1);
+}
+
+TEST_CASE("uploads carry the User-Agent of the player")
+{
+    Fixture f;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml")});
+    f.run();
+    CHECK(f.transport.requests.at(0).headers.find("User-Agent") == f.config.userAgent());
+}
+
+TEST_CASE("an upload that cannot be started or fails is logged and tried again after retryInterval")
+{
+    Fixture f;
+    f.transport.refuse_start = true;
+    f.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 0, 10)});
+    f.run();
+    CHECK(f.puts().size() == 1); // the fake transport records the refused request too
+    CHECK(f.transport.activeCount() == 0);
+    CHECK(f.fs.content("logs/debug.log").value_or("").find("upload not started") != std::string::npos);
+
+    f.transport.refuse_start = false;
+    f.answer(500);
+    f.wait(10s);
+    CHECK(f.puts().size() == 2);
+    CHECK(f.fs.content("logs/debug.log").value_or("").find("upload failed: http://hub/a.xml") != std::string::npos);
+
+    f.answer(201);
+    f.wait(10s);
+    CHECK(f.puts().size() == 3);
+}
+
+TEST_CASE("task execution report: several rotated task logs, the newest state wins")
+{
+    Fixture f;
+    f.logger.taskState("t1", "pending");
+    f.logger.rotate(logger::LogFile::TaskExecution); // becomes .2
+    f.logger.taskState("t2", "pending");
+    f.logger.taskState("t1", "aborted");
+    f.logger.rotate(logger::LogFile::TaskExecution); // .1
+    f.logger.taskState("t2", "completed");
+
+    f.reporter.subscribe({subscription("TaskExecutionReport", "http://hub/tasks.xml")});
+    f.run();
+    const std::string &body = f.transport.requests.at(0).body;
+    CHECK(body.find("<state>pending</state>") == std::string::npos);
+    CHECK(body.find("<task id=\"t1\">") < body.find("<task id=\"t2\">"));
+    CHECK(body.find("<state>aborted</state>") < body.find("<state>completed</state>"));
+}
+
+TEST_CASE("without a source of system information and with a short uuid nothing breaks")
+{
+    Fixture f;
+    f.config.setValue("uuid", "short");
+    Reporter reporter{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", nullptr};
+    f.logger.played("first", f.clock.now());
+    reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("InventoryReport", "http://hub/b.xml"),
+                        subscription("PlaylogCollection", "http://hub/logs")});
+    for (int i = 0; i < 10; ++i)
+    {
+        reporter.poll();
+        f.transport.poll();
+    }
+    auto puts = f.puts();
+    REQUIRE(puts.size() == 3);
+    CHECK(puts[2].size() == std::string("http://hub/logs/playlog-").size() + 23 + 4); // only the random part
+}

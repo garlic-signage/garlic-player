@@ -510,3 +510,156 @@ TEST_CASE("task/screenshot: no file after 5 s gives the text of garlic-lib")
     CHECK_FALSE(f.api.nextDeadline().has_value());
 }
 
+
+// ------------------------------------------------------------------ input in other forms
+
+TEST_CASE("JSON bodies: not an object is no JSON, values of another type count as missing")
+{
+    Fixture f;
+    CHECK(body(f.call("POST", "/v2/oauth2/token", {}, {}, R"(["password"])"))["error"] == "No JSON found");
+    CHECK(body(f.call("POST", "/v2/files/find", f.auth(), {}, "[1]"))["error"] == "No JSON found");
+    CHECK(body(f.call("POST", "/v2/app/start", f.auth(), {}, "[1]"))["error"] == "No JSON found");
+    CHECK(body(f.call("POST", "/v2/app/switch", f.auth(), {}, "[1]"))["error"] == "No JSON found");
+    CHECK(body(f.call("POST", "/v2/task/notify", f.auth(), {}, "[1]"))["error"] == "No JSON found");
+
+    for (int i = 0; i < 3; ++i)
+        f.upload("/v2/files/new", {{"downloadPath", "http://x/" + std::to_string(i) + ".jpg"}, {"fileSize", "1"}}, "x");
+    auto all = body(f.call("POST", "/v2/files/find", f.auth(), {}, R"({"maxResults":true,"pageToken":1.5})"));
+    CHECK(all["items"].size() == 3); // no number: all
+    CHECK(all["nextPageToken"] == 0);
+}
+
+TEST_CASE("files/find: pageToken from the JSON body")
+{
+    Fixture f;
+    for (int i = 0; i < 3; ++i)
+    {
+        f.upload("/v2/files/new", {{"downloadPath", "http://x/" + std::to_string(i) + ".jpg"}, {"fileSize", "1"}}, "x");
+        f.clock.advance(1s);
+    }
+    auto page = body(f.call("POST", "/v2/files/find", f.auth(), {}, R"({"maxResults":"1","pageToken":"2"})"));
+    REQUIRE(page["items"].size() == 1);
+    CHECK(page["items"][0]["id"] == common::Md5::hex("http://x/0.jpg")); // the oldest
+    CHECK(page["nextPageToken"] == 3);
+}
+
+TEST_CASE("app/switch: mode from the JSON body")
+{
+    Fixture f;
+    CHECK(body(f.call("POST", "/v2/app/switch", f.auth(), {}, R"({"mode":"start"})")).contains("uri"));
+    CHECK(f.calls == std::vector<std::string>{"reload"});
+}
+
+// ------------------------------------------------------------------ uploads: names, types, dates
+
+TEST_CASE("files/new: MIME type from an extension in upper case, unknown is octet-stream")
+{
+    Fixture f;
+    f.upload("/v2/files/new", {{"downloadPath", "http://x/a.ZIP"}, {"fileSize", "1"}}, "x");
+    f.upload("/v2/files/new", {{"downloadPath", "http://x/a.xyz"}, {"fileSize", "1"}}, "x");
+    CHECK(f.inventory.find("http://x/a.ZIP")->content_type == "application/zip");
+    CHECK(f.inventory.find("http://x/a.xyz")->content_type == "application/octet-stream");
+}
+
+TEST_CASE("files/new: the extension comes from the file name only, not from a directory")
+{
+    Fixture     f;
+    std::string url = "http://x/v1.2/media";
+    f.upload("/v2/files/new", {{"downloadPath", url}, {"fileSize", "1"}}, "x");
+    CHECK(f.inventory.find(url)->file_name == common::Md5::hex(url) + ".");
+}
+
+TEST_CASE("files/new: modifiedDate only as ISO date, otherwise the time of the file")
+{
+    Fixture f;
+    auto    modified = [&](std::string date)
+    {
+        std::string url = "http://x/" + common::Md5::hex(date) + ".jpg";
+        f.upload("/v2/files/new", {{"downloadPath", url}, {"fileSize", "1"}, {"modifiedDate", date}}, "x");
+        return f.inventory.findByCacheName(common::Md5::hex(url) + ".jpg")->last_update;
+    };
+    CHECK(modified("2099-09-09T09:09:09") == "2099-09-09T09:09:09");
+    CHECK(modified("2025-05-01T10:00:00+02:00") == "2025-05-01T10:00:00+02:00");
+    CHECK(modified("2025-05-01") == "2026-01-01T00:00:00");
+    CHECK(modified("2025-05-01 10:00:00") == "2026-01-01T00:00:00");
+    CHECK(modified("2025/05/01T10:00:00") == "2026-01-01T00:00:00");
+    CHECK(modified("yesterday") == "2026-01-01T00:00:00");
+}
+
+TEST_CASE("files: modifiedDate without Z, no createdDate without a file; the cache directory with or without /")
+{
+    Fixture f;
+    f.inventory.save({"http://x/a.jpg", "abc.jpg", "", "", "image/jpeg", 4, downloader::InventoryState::Complete});
+    auto item = body(f.call("GET", "/v2/files/abc", f.auth()));
+    CHECK(item["modifiedDate"] == "2026-01-01T00:00:00"); // saved by the downloader with Z
+    CHECK(item["createdDate"] == "");
+    CHECK(item["downloadPath"] == "cache/abc.jpg");
+
+    f.config.setCacheDir("cache/");
+    CHECK(body(f.call("GET", "/v2/files/abc", f.auth()))["downloadPath"] == "cache/abc.jpg");
+    f.config.setCacheDir("");
+    CHECK(body(f.call("GET", "/v2/files/abc", f.auth()))["downloadPath"] == "abc.jpg");
+}
+
+TEST_CASE("the token is valid up to its expire time inclusive")
+{
+    Fixture f;
+    auto    auth = f.auth();
+    f.clock.advance(24h);
+    CHECK(f.call("GET", "/v2/files/find", auth).status == 200);
+    f.clock.advance(1s);
+    CHECK(f.call("GET", "/v2/files/find", auth).status == 403);
+}
+
+// ------------------------------------------------------------------ without actions of the runtime
+
+TEST_CASE("without actions of the runtime nothing breaks; a screenshot is answered at once")
+{
+    Fixture           f;
+    rest_api::RestApi api{f.config, f.inventory, f.fs, f.clock, {}};
+    httpd::Router     router;
+    api.registerRoutes(router);
+    auto call = [&](std::string path, std::map<std::string, std::string> query)
+    {
+        Request r;
+        r.method = "POST";
+        r.path   = std::move(path);
+        r.query  = std::move(query);
+        r.query["access_token"] = f.token();
+        return router.handle(r);
+    };
+
+    CHECK(call("/v2/app/start", {{"uri", "http://hub/a.smil"}}).status == 200);
+    CHECK(call("/v2/app/exec", {{"uri", "http://hub/b.smil"}}).status == 200);
+    CHECK(call("/v2/app/switch", {{"mode", "start"}}).status == 200);
+    CHECK(call("/v2/task/notify", {{"smilEvent", "x"}}).status == 200);
+    CHECK(call("/v2/task/reboot", {}).status == 200);
+
+    auto screenshot = call("/v2/task/screenshot", {});
+    CHECK_FALSE(screenshot.pending);
+    CHECK(screenshot.body == "file not created.");
+
+    Request upload;
+    upload.method = "POST";
+    upload.path   = "/v2/files/new";
+    upload.query  = {{"access_token", f.token()}};
+    upload.form   = {{"downloadPath", "http://x/big.mp4"}, {"fileSize", "5000"}};
+    f.putFile("cache/upload-1.tmp", "data");
+    upload.files["data"] = {"cache/upload-1.tmp", "big.mp4", "video/mp4", 4};
+    CHECK(body(router.handle(upload)).contains("id")); // no room to make: stored anyway
+    CHECK(f.calls.empty());
+}
+
+TEST_CASE("task/screenshot: another file does not answer, the earliest deadline counts")
+{
+    Fixture f;
+    auto    first = f.call("GET", "/v2/task/screenshot", f.auth());
+    f.clock.advance(1s);
+    auto second = f.call("GET", "/v2/task/screenshot", f.auth());
+    REQUIRE(first.pending);
+    REQUIRE(second.pending);
+
+    f.api.screenshotTaken("logs/other.jpg");
+    CHECK_FALSE(first.pending->isComplete());
+    CHECK(f.api.nextDeadline() == f.clock.monotonic() + 4s); // the first one: 5 s after its start
+}
