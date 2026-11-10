@@ -17,7 +17,7 @@ target_link_libraries(garlic_core_common_tests PRIVATE
 )
 
 target_compile_definitions(garlic_core_common_tests PRIVATE
-    GARLIC_CORE_EXPECTED_VERSION="${PROJECT_VERSION}"
+    GARLIC_CORE_EXPECTED_VERSION="${GARLIC_CORE_VERSION_FULL}"
 )
 
 add_test(NAME common COMMAND garlic_core_common_tests)

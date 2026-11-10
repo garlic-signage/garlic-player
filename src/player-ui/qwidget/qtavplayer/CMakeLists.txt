@@ -14,6 +14,7 @@ FetchContent_MakeAvailable(qtavplayer_source)
 # QtAVPlayer hands its frames to Qt Multimedia through private headers; that is known and wanted
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Multimedia)
+# this will not work anymore from Qt6.9+
 if(NOT TARGET Qt6::MultimediaPrivate)
     message(FATAL_ERROR "Qt6::MultimediaPrivate not found")
 endif()

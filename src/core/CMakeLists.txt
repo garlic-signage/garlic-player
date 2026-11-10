@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.25)
 
+# The core has the version of the player: the file VERSION of player-ui ("2.0.0-dev", on the build server "2.0.0-beta.566").
+# project(VERSION) takes only the numbers, the full string goes to common::version().
+set(_garlic_version_file "${CMAKE_CURRENT_SOURCE_DIR}/../player-ui/VERSION")
+file(STRINGS "${_garlic_version_file}" GARLIC_CORE_VERSION_FULL LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_garlic_version_file}")
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" _garlic_version_numbers "${GARLIC_CORE_VERSION_FULL}")
+
 project(garlic-core
-    VERSION 0.1.0
+    VERSION ${_garlic_version_numbers}
     DESCRIPTION "Qt-free core library of the garlic-player"
     LANGUAGES CXX
 )

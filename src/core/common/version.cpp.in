@@ -21,6 +21,6 @@ namespace garlic::core::common
 {
     std::string_view version() noexcept
     {
-        return "@PROJECT_VERSION@";
+        return "@GARLIC_CORE_VERSION_FULL@";
     }
 }
