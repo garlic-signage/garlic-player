@@ -268,3 +268,129 @@ TEST_CASE("clear removes all entries")
     CHECK(table.findAll().empty());
 }
 
+
+TEST_CASE("findByCacheBaseName: _ and \\ in the name are literal too")
+{
+    Fixture f;
+    f.table.save(entry("http://example.com/a.jpg", "abc.jpg"));
+    f.table.save(entry("http://example.com/b.jpg", "a.jpg"));
+
+    CHECK_FALSE(f.table.findByCacheBaseName("ab_").has_value());
+    CHECK_FALSE(f.table.findByCacheBaseName("a\\").has_value());
+    CHECK(f.table.lastError().empty());
+}
+
+TEST_CASE("not complete is stored as not complete")
+{
+    Fixture f;
+    auto    e = entry("http://example.com/a.jpg", "abc.jpg");
+    e.state   = InventoryState::Transfer;
+    f.table.save(e);
+    CHECK(f.table.find("http://example.com/a.jpg")->state == InventoryState::Transfer);
+}
+
+TEST_CASE("findPaginated with negative values: nothing, or from the start")
+{
+    Fixture f;
+    f.table.save(entry("http://example.com/a.jpg", "a.jpg"));
+    f.table.save(entry("http://example.com/b.jpg", "b.jpg"));
+
+    CHECK(f.table.findPaginated(-1, 0).empty()); // LIMIT -1 would be everything in SQLite
+    CHECK(f.table.findPaginated(10, -1).size() == 2);
+}
+
+TEST_CASE("no error message after operations that worked")
+{
+    Fixture f;
+    f.table.save(entry("http://example.com/a.jpg", "abc.jpg"));
+    (void)f.table.findAll();
+    f.table.deleteByCacheName("abc.jpg");
+    f.table.clear();
+    CHECK(f.table.lastError().empty());
+}
+
+TEST_CASE("open again: the first database is closed, the second one is used")
+{
+    TempFile  file;
+    FakeClock clock;
+    InventoryTable table{clock};
+    REQUIRE(table.open(":memory:").has_value());
+    table.save(entry("http://example.com/a.jpg", "abc.jpg"));
+
+    REQUIRE(table.open(file.path).has_value());
+    CHECK(table.findAll().empty());
+}
+
+TEST_CASE("without a database nothing happens and nothing crashes")
+{
+    FakeClock      clock;
+    InventoryTable table{clock};
+    REQUIRE_FALSE(table.open("/nonexistent-directory/garlic.db").has_value());
+
+    table.save(entry("http://example.com/a.jpg", "abc.jpg"));
+    table.deleteByCacheName("abc.jpg");
+    table.clear();
+    CHECK(table.findAll().empty());
+}
+
+TEST_CASE("save fails: the old entry of the file name is kept (one transaction), lastError tells why")
+{
+    TempFile  file;
+    FakeClock clock;
+    {
+        InventoryTable table{clock};
+        REQUIRE(table.open(file.path).has_value());
+    }
+    execRaw(file.path, "CREATE TRIGGER no_fail BEFORE INSERT ON inventory WHEN NEW.resource_uri = 'http://fail' "
+                       "BEGIN SELECT RAISE(ABORT, 'not allowed'); END");
+
+    InventoryTable table{clock};
+    REQUIRE(table.open(file.path).has_value());
+    table.save(entry("http://old", "index.smil"));
+    table.save(entry("http://fail", "index.smil")); // would remove http://old first
+
+    CHECK(table.lastError() == "not allowed");
+    CHECK(table.findByCacheName("index.smil")->url == "http://old");
+
+    table.save(entry("http://new", "index.smil")); // the transaction is closed again
+    CHECK(table.findByCacheName("index.smil")->url == "http://new");
+}
+
+TEST_CASE("open fails while another process locks the database, with the message of SQLite")
+{
+    TempFile  file;
+    FakeClock clock;
+    execRaw(file.path, "CREATE TABLE other (x INTEGER)");
+
+    sqlite3 *lock = nullptr;
+    REQUIRE(sqlite3_open(file.path.c_str(), &lock) == SQLITE_OK);
+    REQUIRE(sqlite3_exec(lock, "BEGIN EXCLUSIVE", nullptr, nullptr, nullptr) == SQLITE_OK);
+
+    InventoryTable table{clock};
+    auto           result = table.open(file.path);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error() == "database is locked");
+
+    sqlite3_exec(lock, "ROLLBACK", nullptr, nullptr, nullptr);
+    sqlite3_close(lock);
+}
+
+TEST_CASE("a garlic-lib table that cannot be recreated (another process reads): open fails")
+{
+    TempFile file;
+    execRaw(file.path, "CREATE TABLE inventory (resource_uri TEXT PRIMARY KEY, cache_name TEXT UNIQUE, state INTEGER);"
+                       "INSERT INTO inventory VALUES ('http://a', 'a.jpg', 5);");
+
+    sqlite3 *reader = nullptr;
+    REQUIRE(sqlite3_open(file.path.c_str(), &reader) == SQLITE_OK);
+    REQUIRE(sqlite3_exec(reader, "BEGIN; SELECT * FROM inventory", nullptr, nullptr, nullptr) == SQLITE_OK);
+
+    FakeClock      clock;
+    InventoryTable table{clock};
+    auto           result = table.open(file.path);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error() == "database is locked");
+
+    sqlite3_exec(reader, "ROLLBACK", nullptr, nullptr, nullptr);
+    sqlite3_close(reader);
+}

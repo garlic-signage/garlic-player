@@ -25,6 +25,6 @@ TEST_CASE("toLower changes only A-Z")
 {
     CHECK(toLower("Content-Type") == "content-type");
     CHECK(toLower("IMAGE/JPEG; Charset=UTF-8") == "image/jpeg; charset=utf-8");
-    CHECK(toLower("") == "");
+    CHECK(toLower("AZ@[") == "az@["); // both ends of A-Z, the characters next to them stay
     CHECK(toLower("\xC3\x84rger 123") == "\xC3\x84rger 123"); // UTF-8 stays as it is
 }

@@ -209,6 +209,41 @@ TEST_CASE_TEMPLATE("FileSystem renames and removes directories with everything i
     CHECK(f.fs.removeAll(f.path("not_there")).has_value()); // nothing to remove is no error
 }
 
+TEST_CASE_TEMPLATE("FileSystem removeAll removes a single file too", Fixture, MemoryFixture, StdFixture)
+{
+    Fixture f;
+    writeFile(f, f.path("a.jpg"), "data", WriteMode::Truncate);
+    REQUIRE(f.fs.removeAll(f.path("a.jpg")).has_value());
+    CHECK_FALSE(f.fs.exists(f.path("a.jpg")));
+}
+
+TEST_CASE("StdFileSystem: a file that is not closed is closed by the destructor, nothing is lost")
+{
+    StdFixture f;
+    {
+        auto file = f.fs.openForWrite(f.path("a"), WriteMode::Truncate);
+        REQUIRE(file.has_value());
+        REQUIRE((*file)->write(bytes("data")).has_value());
+    }
+    CHECK(f.read(f.path("a")) == "data");
+}
+
+TEST_CASE("StdFileSystem: a directory cannot be written or read as a file, and is in the way of a directory path")
+{
+    StdFixture f;
+    REQUIRE(f.fs.createDirectories(f.path("dir")).has_value());
+
+    auto written = f.fs.openForWrite(f.path("dir"), WriteMode::Truncate);
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code != FileSystemErrorCode::NotFound); // it is there
+    auto read = f.fs.readFile(f.path("dir"));
+    REQUIRE_FALSE(read.has_value());
+    CHECK(read.error().code != FileSystemErrorCode::NotFound);
+
+    writeFile(f, f.path("file"), "data", WriteMode::Truncate);
+    CHECK_FALSE(f.fs.createDirectories(f.path("file/sub")).has_value());
+}
+
 TEST_CASE("StdFileSystem handles UTF-8 paths")
 {
     StdFixture  f;
