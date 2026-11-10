@@ -164,6 +164,7 @@ namespace garlic::core::reports
     void Reporter::send(Job &job)
     {
         job.due.reset();
+        std::string log; // the content of the log file to upload
         if (job.kind == Kind::PlayLog || job.kind == Kind::EventLog)
         {
             job.sending = nextLogFile(job.kind);
@@ -172,9 +173,18 @@ namespace garlic::core::reports
                 schedule(job, job.subscription.refresh_interval); // nothing to send
                 return;
             }
+            // read before the upload: an empty report would be sent and the log deleted after it
+            auto text = fs.readFile(job.sending);
+            if (!text)
+            {
+                logger.warning("Reporting", job.sending + " cannot be read: " + text.error().message);
+                retry(job);
+                return;
+            }
+            log = std::move(*text);
         }
 
-        downloader::HttpRequest request{downloader::HttpMethod::Put, url(job), {}, body(job)};
+        downloader::HttpRequest request{downloader::HttpMethod::Put, url(job), {}, body(job, log)};
         request.headers.add("Content-Type", "application/xml");
         request.headers.add("User-Agent", config.userAgent());
 
@@ -196,9 +206,7 @@ namespace garlic::core::reports
         if (!ok)
         {
             logger.warning("Reporting", "upload failed: " + job.subscription.action);
-            int retry = job.subscription.retry_interval > 0 ? job.subscription.retry_interval
-                                                            : job.subscription.refresh_interval;
-            schedule(job, retry);
+            retry(job);
             return;
         }
         if (is_log)
@@ -209,6 +217,13 @@ namespace garlic::core::reports
             return;
         }
         schedule(job, job.subscription.refresh_interval);
+    }
+
+    /// After a failure: retryInterval, without it refreshInterval.
+    void Reporter::retry(Job &job)
+    {
+        schedule(job, job.subscription.retry_interval > 0 ? job.subscription.retry_interval
+                                                          : job.subscription.refresh_interval);
     }
 
     void Reporter::schedule(Job &job, int seconds)
@@ -243,15 +258,15 @@ namespace garlic::core::reports
         return sending;
     }
 
-    std::string Reporter::body(Job &job)
+    std::string Reporter::body(const Job &job, const std::string &log)
     {
         auto now = clock.now();
         switch (job.kind)
         {
             case Kind::PlayLog:
-                return playLogReport(config.uuid(), now, fs.readFile(job.sending).value_or(""));
+                return playLogReport(config.uuid(), now, log);
             case Kind::EventLog:
-                return eventLogReport(config.uuid(), now, fs.readFile(job.sending).value_or(""));
+                return eventLogReport(config.uuid(), now, log);
             case Kind::Inventory:
             {
                 std::vector<InventoryObject> objects;

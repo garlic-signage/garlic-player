@@ -89,8 +89,9 @@ A `.wgt` is a zip archive. It is extracted next to the file: `cache/abc.wgt` →
 `cache/abc/index.html`. miniz reads the archive; it is one C file, also on WASM, and ESP-IDF brings it along.
 
 - Extracted again only if the file is newer than the extracted `index.html` (garlic-lib: `mustExtract`).
-- Extracted into `<directory>.part` first; only when everything worked it replaces the directory. A broken archive
-  keeps the old widget. garlic-lib deleted the directory first.
+- Extracted into `<directory>.part` first; only when everything worked it replaces the directory: the old one is
+  moved to `<directory>.old`, the new one into place, then `.old` is removed. If the new one cannot take its place, the
+  old one is moved back. A broken archive keeps the old widget. garlic-lib deleted the directory first.
 - Entries with an absolute path, a drive or `..` reject the whole archive ("zip slip"). garlic-lib did not check.
 - Before extracting, `make_space` gets the unpacked size (garlic-lib: `calculateUncompressedSize`); if it cannot be
   made free, the widget is not extracted.
@@ -161,7 +162,8 @@ makeSpace(bytes)
   `SMIL_OPEN_ERROR`, or is the refresh still running (at least 60 s, `0` = never)?
 - **A medium is skipped again and again**: not downloaded yet (`resolve()` gives nothing), not supported by the
   frontend (`MEDIA_UNSUPPORTED`), or `cacheControl="onlyIfCached"` on a web page.
-- **Leftovers**: a `.part` of a download that is never started again and a `.tmp` after a crash stay in the cache.
+- **Leftovers**: a `.part` of a download that is never started again and a `.tmp` after a crash stay in the cache. A
+  widget directory `<directory>.old` after a crash goes with the next extraction or the cache cleanup.
 - **Order of the cleanup** follows the atime, see [common](common.md#when-something-goes-wrong).
 - Tests: `tests/content/test_index_manager.cpp`, `test_media_manager.cpp`, `test_widget.cpp`,
   `test_cache_space.cpp`, all on a `MemoryFileSystem` with the fake transport (`content_fixture.hpp`).

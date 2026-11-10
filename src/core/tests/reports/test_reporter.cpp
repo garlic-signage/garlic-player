@@ -455,15 +455,22 @@ TEST_CASE("a log that cannot be renamed for the upload is not sent, it stays and
     CHECK(f.transport.requests.back().body.contains("<contentId>first"));
 }
 
-// Skipped: a log file that cannot be read is sent as an empty report and then deleted, its entries are lost.
-TEST_CASE("a log that cannot be read is not sent and not deleted" * doctest::skip())
+TEST_CASE("a log that cannot be read is not sent and not deleted, it is tried again after retryInterval")
 {
     Fixture f;
     f.logger.played("first", f.clock.now());
     f.failing.fail_read = true;
     f.failing.only      = "play_log.xml.sending";
-    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 300, 30)});
     f.run();
     CHECK(f.puts().empty());
     CHECK(f.fs.exists("logs/play_log.xml.sending"));
+    CHECK(f.fs.content("logs/debug.log").value_or("").contains("logs/play_log.xml.sending cannot be read: read failed"));
+    CHECK(f.reporter.nextDeadline() == f.clock.monotonic() + 30s);
+
+    f.failing.fail_read = false;
+    f.wait(30s);
+    REQUIRE(f.puts().size() == 1);
+    CHECK(f.transport.requests.back().body.contains("<contentId>first"));
+    CHECK_FALSE(f.fs.exists("logs/play_log.xml.sending"));
 }

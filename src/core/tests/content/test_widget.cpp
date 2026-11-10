@@ -154,6 +154,16 @@ TEST_CASE("on the real file system: subdirectories and empty directories are cre
     CHECK(result.has_value());
     CHECK(fs.readFile((dir / "clock/js/lib/app.js").generic_string()) == "code");
     CHECK(std::filesystem::is_directory(dir / "clock/img"));
+
+    // a new version over the old one, with a .old left over from a crash: a directory cannot be renamed onto it
+    REQUIRE(fs.createDirectories((dir / "clock.old").generic_string()).has_value());
+    writeFile(fs, (dir / "clock.old/stale.html").generic_string(), "stale");
+    writeFile(fs, wgt, makeZip({{"index.html", "v2"}}));
+    std::filesystem::last_write_time(wgt, std::filesystem::last_write_time(dir / "clock/index.html") + 1s);
+    CHECK(extractWidget(fs, wgt).has_value());
+    CHECK(fs.readFile((dir / "clock/index.html").generic_string()) == "v2");
+    CHECK_FALSE(std::filesystem::exists(dir / "clock/js"));
+    CHECK_FALSE(std::filesystem::exists(dir / "clock.old"));
     std::filesystem::remove_all(dir);
 }
 
@@ -189,14 +199,45 @@ TEST_CASE("errors of the file system: an error, no .part left, an extracted olde
     }
 }
 
-TEST_CASE("the new version cannot be moved into place: an error, no .part left")
+TEST_CASE("the new version cannot be moved into place: an error, no .part left, the old version stays")
+{
+    for (const char *only : {"clock.part", "cache/clock"}) // the new one into place, the old one aside
+    {
+        CAPTURE(only);
+        ContentFixture f;
+        writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v1"}}));
+        REQUIRE(extractWidget(f.failing, "cache/clock.wgt").has_value());
+        f.clock.advance(1s);
+        writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v2"}}));
+
+        f.failing.fail_rename = true;
+        f.failing.only        = only;
+        auto extracted        = extractWidget(f.failing, "cache/clock.wgt");
+        REQUIRE_FALSE(extracted.has_value());
+        CHECK(extracted.error() == "cannot replace cache/clock: rename failed");
+        CHECK_FALSE(f.fs.exists("cache/clock.part/index.html"));
+        CHECK_FALSE(f.fs.exists("cache/clock.old/index.html"));
+        CHECK(f.fs.content("cache/clock/index.html") == "v1");
+    }
+
+    ContentFixture first; // without an older version
+    writeFile(first.fs, "cache/clock.wgt", makeZip({{"index.html", "v1"}}));
+    first.failing.fail_rename = true;
+    REQUIRE_FALSE(extractWidget(first.failing, "cache/clock.wgt").has_value());
+    CHECK_FALSE(first.fs.exists("cache/clock.part/index.html"));
+}
+
+TEST_CASE("a new version: no .old is left, a left over .old of a crash is removed")
 {
     ContentFixture f;
     writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v1"}}));
-    f.failing.fail_rename = true;
-    auto extracted        = extractWidget(f.failing, "cache/clock.wgt");
-    REQUIRE_FALSE(extracted.has_value());
-    CHECK(extracted.error() == "cannot replace cache/clock: rename failed");
-    CHECK_FALSE(f.fs.exists("cache/clock.part/index.html"));
-    CHECK_FALSE(f.fs.exists("cache/clock/index.html"));
+    REQUIRE(extractWidget(f.failing, "cache/clock.wgt").has_value());
+    writeFile(f.fs, "cache/clock.old/stale.html", "stale");
+    f.clock.advance(1s);
+    writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v2"}}));
+
+    REQUIRE(extractWidget(f.failing, "cache/clock.wgt").has_value());
+    CHECK(f.fs.content("cache/clock/index.html") == "v2");
+    CHECK_FALSE(f.fs.exists("cache/clock.old/stale.html"));
+    CHECK_FALSE(f.fs.exists("cache/clock.old/index.html"));
 }

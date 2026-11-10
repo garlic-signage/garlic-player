@@ -150,10 +150,20 @@ namespace garlic::core::content
                 return fail("cannot write " + target + ": " + closed.error().message);
         }
 
-        // only now the old version goes
-        (void)fs.removeAll(directory);
+        // only now the old version goes: moved aside first, so it comes back if the new one cannot take its place
+        std::string old = directory + ".old";
+        (void)fs.removeAll(old); // left over from a crash
+        auto moved   = fs.rename(directory, old);
+        bool had_old = moved.has_value();
+        if (!moved && moved.error().code != common::FileSystemErrorCode::NotFound)
+            return fail("cannot replace " + directory + ": " + moved.error().message);
         if (auto renamed = fs.rename(part, directory); !renamed)
+        {
+            if (had_old)
+                (void)fs.rename(old, directory);
             return fail("cannot replace " + directory + ": " + renamed.error().message);
+        }
+        (void)fs.removeAll(old);
         return {};
     }
 }

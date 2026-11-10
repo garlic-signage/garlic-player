@@ -101,10 +101,11 @@ namespace garlic::core::reports
 
             void        send(Job &job);
             void        finished(Job &job, bool ok);
+            void        retry(Job &job);
             void        schedule(Job &job, int seconds);
             std::string nextLogFile(Kind kind);
             std::string taskStates();
-            std::string body(Job &job);
+            std::string body(const Job &job, const std::string &log); // log: the content of a log upload
             std::string url(const Job &job) const;
     };
 }

@@ -33,8 +33,9 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 - **When**: at once when a subscription is new or changed, then every `refreshInterval` seconds. An unchanged
   subscription in a new index keeps its schedule; garlic-lib created all managers again and sent at every index.
 - **Without `refreshInterval`** (0): only once. garlic-lib started a timer of 0 ms, which fires all the time.
-- **After a failure** (transport error, HTTP status not 2xx): the next try after `retryInterval` seconds, without it
-  after `refreshInterval`. garlic-lib read `retryInterval` but did not use it.
+- **After a failure** (transport error, HTTP status not 2xx, a log file that cannot be read): the next try after
+  `retryInterval` seconds, without it after `refreshInterval`. A log that cannot be read is not sent, so it is not
+  deleted either. garlic-lib read `retryInterval` but did not use it.
 - **Task states** (`TaskExecutionReport`, new; garlic-lib wrote the log but sent nothing): the hub gives one fixed
   file per player (`task_execution-<uuid>.xml`) and overwrites it with every upload. So the report holds the last
   state of every task (`pending`, `completed`, `aborted`), taken from the rotated task logs (oldest first) and the
