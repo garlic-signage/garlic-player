@@ -59,7 +59,8 @@ A handler that cannot answer at once (e.g. a screenshot made by the frontend) re
 keeps the `std::shared_ptr<PendingResponse>`. The server holds the connection (`MHD_suspend_connection`, the daemon
 is started with `MHD_ALLOW_SUSPEND_RESUME`) and goes on serving other requests. When `pending->complete(response)` has
 been called, the next `poll()` resumes the connection and sends the answer. Held connections still open at `stop()`
-get 503.
+get 503: `stop()` serves the open connections until they are closed, at most 1 s, so a slow or idle (keep-alive)
+client delays it by 1 s at most.
 
 ```cpp
 router.add("GET", "/slow", [&](const Request &) { pending = std::make_shared<PendingResponse>(); return Response::later(pending); });

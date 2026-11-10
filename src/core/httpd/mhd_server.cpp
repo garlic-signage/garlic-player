@@ -30,6 +30,7 @@
 
 #include <microhttpd.h>
 
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -293,7 +294,16 @@ namespace garlic::core::httpd
                 MHD_resume_connection(connection);
             }
             suspended.clear();
-            MHD_run(daemon);
+
+            // the answers need several rounds; at most 1 s, so a slow or idle client does not hold the player up
+            auto end = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+            do
+            {
+                MHD_run_wait(daemon, 10);
+                const MHD_DaemonInfo *info = MHD_get_daemon_info(daemon, MHD_DAEMON_INFO_CURRENT_CONNECTIONS);
+                if (info == nullptr || info->num_connections == 0)
+                    break;
+            } while (std::chrono::steady_clock::now() < end);
             MHD_stop_daemon(daemon);
         }
         daemon = nullptr;

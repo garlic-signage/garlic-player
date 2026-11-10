@@ -451,9 +451,7 @@ TEST_CASE("MhdServer: a later answer that is already there is sent at once")
     CHECK(bodyOf(response) == R"({"ready":true})");
 }
 
-// Skipped: stop() calls MHD_run() only once after resuming, that is not enough to send the 503 (docs/httpd.md says
-// it is sent). The client only sees the connection closed.
-TEST_CASE("MhdServer: stop() answers a waiting request with 503" * doctest::skip())
+TEST_CASE("MhdServer: stop() answers a waiting request with 503")
 {
     Fixture                          f;
     std::shared_ptr<PendingResponse> pending;
@@ -472,7 +470,9 @@ TEST_CASE("MhdServer: stop() answers a waiting request with 503" * doctest::skip
         f.server.poll();
     REQUIRE(pending);
 
+    auto start = std::chrono::steady_clock::now();
     f.server.stop();
+    CHECK(std::chrono::steady_clock::now() - start < 500ms); // the client closes after the 503: no waiting
     REQUIRE(slow.wait_for(5s) == std::future_status::ready);
     auto response = slow.get();
     CHECK(statusOf(response) == 503);
@@ -512,4 +512,26 @@ TEST_CASE("MhdServer: a client that sends nothing more is disconnected after the
     auto response = f.request("GET / HTTP/1.1\r\nHost: localhost\r\n"); // the empty line never comes
     CHECK(response.empty());
     CHECK(std::chrono::steady_clock::now() - start < 4s);
+}
+
+TEST_CASE("MhdServer: an idle client holds stop() up for 1 s at most")
+{
+    Fixture f;
+    f.start(f.settings());
+
+    int         fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in address{};
+    address.sin_family      = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port        = htons(f.server.port());
+    REQUIRE(::connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == 0);
+    for (int i = 0; i < 10; ++i) // accepts the connection
+        f.server.poll();
+
+    auto start = std::chrono::steady_clock::now();
+    f.server.stop();
+    auto took = std::chrono::steady_clock::now() - start;
+    ::close(fd);
+    CHECK(took >= 900ms); // it waited for the client
+    CHECK(took < 2s);
 }
