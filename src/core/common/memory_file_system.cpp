@@ -70,7 +70,8 @@ namespace garlic::core::common
     {
         if (files.find(path) != files.end())
             return true;
-        auto next = files.lower_bound(path);
+        // the first file inside: "dir/" sorts after "dir.wgt" and "dir.part/…", which "dir" alone would find first
+        auto next = files.lower_bound(std::string(path) + "/");
         return next != files.end() && isInside(next->first, path);
     }
 

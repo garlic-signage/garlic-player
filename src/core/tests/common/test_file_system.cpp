@@ -328,3 +328,18 @@ TEST_CASE("MemoryFileSystem: lastAccess is the last write or readFile")
     CHECK(f.fs.lastAccess(f.path("a")) == f.clock.now());
     CHECK(f.fs.lastModified(f.path("a")) == f.clock.now() - 10s);
 }
+
+TEST_CASE_TEMPLATE("FileSystem: a directory exists also next to files and directories with the same start", Fixture,
+                   MemoryFixture, StdFixture)
+{
+    Fixture f;
+    REQUIRE(f.fs.createDirectories(f.path("w")).has_value());
+    REQUIRE(f.fs.createDirectories(f.path("w.part")).has_value());
+    writeFile(f, f.path("w/index.html"), "html", WriteMode::Truncate);
+    writeFile(f, f.path("w.part/index.html"), "html", WriteMode::Truncate);
+    writeFile(f, f.path("w.wgt"), "zip", WriteMode::Truncate); // "." sorts before "/"
+
+    CHECK(f.fs.exists(f.path("w")));
+    CHECK(f.fs.exists(f.path("w.part")));
+    CHECK_FALSE(f.fs.exists(f.path("w.par")));
+}
