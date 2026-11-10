@@ -84,7 +84,10 @@ run-clang-tidy -quiet -p build/asan '/src/core/(?!tests/).*\.cpp$'
 **Mutation tests** are not part of the CI, they run by hand now and then. `scripts/mull_smil.sh` changes the code of
 `smil/` in small steps with Mull (e.g. `>` to `>=`, a call removed) and checks whether a test fails. A surviving
 mutant is either a test gap or a change without effect (counters that only have to change, deleters whose leaks
-the sanitizer job finds). It needs only Docker, runs in `debian:trixie` and writes the report to `build/mull/`
+the sanitizer job finds). A removed call (`cxx_remove_void_call`) at the start of a statement is often not the call
+in the code but a call the compiler added, usually the destructor of a temporary `std::string`. If the real call
+starts there too, both have the same position and Mull reports only one of them, so such survivors are checked by
+hand before they count as a gap. It needs only Docker, runs in `debian:trixie` and writes the report to `build/mull/`
 (`report/smil.txt`: the survivors as `file:line`). First run on 2026-11-10: 1316 mutants, 87 % found by the tests.
 
 ## Downloader
