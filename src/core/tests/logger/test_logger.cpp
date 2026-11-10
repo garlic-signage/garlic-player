@@ -19,6 +19,7 @@
 
 #include "common/memory_file_system.hpp"
 #include "common/std_file_system.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "logger/logger.hpp"
 #include "time_zone.hpp"
@@ -222,4 +223,21 @@ TEST_CASE("on the real file system: the log directory is created")
         CHECK(fs.readFile(logger.path(LogFile::Event)).value_or("").find("PLAYER_STARTED") != std::string::npos);
     }
     std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("a log file that cannot be opened: the entry is lost, nothing breaks, the next one is written")
+{
+    TimeZone                               tz{"UTC"};
+    FakeClock                              clock;
+    MemoryFileSystem                       fs{clock};
+    garlic::core::tests::FailingFileSystem failing{fs};
+    Logger                                 logger{failing, clock, config()};
+
+    failing.fail_open = true;
+    logger.event(Severity::Informational, "System", "LOST");
+    CHECK_FALSE(fs.exists(logger.path(LogFile::Event)));
+
+    failing.fail_open = false;
+    logger.event(Severity::Informational, "System", "WRITTEN");
+    CHECK(fs.content(logger.path(LogFile::Event)).value_or("").contains("WRITTEN"));
 }

@@ -20,10 +20,12 @@
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
 #include "downloader/downloader.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "memory_inventory.hpp"
 
+#include <array>
 #include <optional>
 #include <string>
 
@@ -66,9 +68,10 @@ namespace
     {
         FakeClock         clock;
         MemoryFileSystem  fs{clock};
+        garlic::core::tests::FailingFileSystem failing{fs}; // nothing fails unless a test says so
         MemoryInventory   inventory;
         FakeHttpTransport transport;
-        Downloader        downloader{transport, fs, inventory, clock, config()};
+        Downloader        downloader{transport, failing, inventory, clock, config()};
 
         std::optional<DownloadResult> result;
 
@@ -753,4 +756,45 @@ TEST_CASE("cancel() stops the job without callback")
     CHECK_FALSE(called);
     CHECK_FALSE(f.downloader.isBusy());
     CHECK(f.transport.activeCount() == 0);
+}
+
+// ------------------------------------------------------------------ errors of the file system
+
+TEST_CASE("the .part file cannot be opened, written or closed: failed, the cached copy stays")
+{
+    for (int step = 0; step < 3; ++step)
+    {
+        CAPTURE(step);
+        Fixture f;
+        f.putCached("old", "\"v1\"");
+        f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "new!", "\"v2\""));
+        f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "new!", "\"v2\""));
+        f.failing.fail_open  = step == 0;
+        f.failing.fail_write = step == 1;
+        f.failing.fail_close = step == 2;
+
+        auto result = f.download(media_url);
+        CHECK(result.status == DownloadStatus::Failed);
+        CHECK(result.error == std::array{"open failed", "write failed", "close failed"}[step]);
+        CHECK(result.local_path == cache_file); // the old copy plays on
+        CHECK(f.content(cache_file) == "old");
+        CHECK_FALSE(f.fs.exists(cache_file + ".ready"));
+        CHECK(f.inventory.find(media_url)->state == InventoryState::Transfer); // the next try loads it again
+    }
+}
+
+TEST_CASE("the finished .part file cannot be renamed: failed, not in the inventory as complete")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data", "\"v1\""));
+    f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "data", "\"v1\""));
+    f.failing.fail_rename = true;
+
+    auto result = f.download(media_url);
+    CHECK(result.status == DownloadStatus::Failed);
+    CHECK(result.error == "rename failed");
+    CHECK(result.local_path.empty());
+    CHECK_FALSE(f.fs.exists(cache_file));
+    auto entry = f.inventory.find(media_url);
+    CHECK((!entry || entry->state != InventoryState::Complete));
 }

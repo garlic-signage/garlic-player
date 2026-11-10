@@ -19,6 +19,7 @@
 
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "memory_inventory.hpp"
@@ -39,6 +40,7 @@ namespace
     {
         FakeClock                            clock;
         common::MemoryFileSystem             fs{clock};
+        garlic::core::tests::FailingFileSystem failing{fs}; // for the scheduler: nothing fails unless a test says so
         downloader::tests::MemoryInventory   inventory;
         downloader::tests::FakeHttpTransport transport;
         logger::Logger                       logger{fs, clock, loggerConfig()};
@@ -47,7 +49,7 @@ namespace
         std::function<void(const TaskAction &)> spy; // looks at the state at the moment of the action
         downloader::DownloadQueue queue{transport, fs, inventory, clock, downloaderConfig(), 2,
                                         [this](const downloader::DownloadResult &r) { (void)tasks.downloaded(r); }};
-        TaskScheduler tasks{queue, fs, logger, config, "cache", [this](TaskAction a)
+        TaskScheduler tasks{queue, failing, logger, config, "cache", [this](TaskAction a)
                                 {
                                     if (spy)
                                         spy(a);
@@ -447,4 +449,51 @@ TEST_CASE("a task list that cannot be downloaded: nothing runs, no open error")
     f.newIndex(); // tasks.xml is not served
     CHECK(f.actions.empty());
     CHECK(f.event("TASK_SCHEDULER_OPEN_ERROR").empty());
+}
+
+// ------------------------------------------------------------------ errors of the file system
+
+TEST_CASE("a task list that cannot be read: TASK_SCHEDULER_OPEN_ERROR, nothing runs")
+{
+    Fixture f;
+    f.failing.fail_read = true;
+    f.failing.only      = "task_scheduler.xml";
+    f.serveList(R"(<shutdownPlayer id="r1"/>)");
+    f.newIndex();
+    CHECK(f.actions.empty());
+    CHECK(f.event("TASK_SCHEDULER_OPEN_ERROR").contains(R"(content="cache/task_scheduler.xml")"));
+}
+
+TEST_CASE("a new task list that cannot replace the old one waits, the next index takes it")
+{
+    Fixture f;
+    f.serveList("");
+    f.newIndex();
+
+    f.failing.fail_rename = true;
+    f.failing.only        = "task_scheduler.xml.ready";
+    f.serveList(R"(<shutdownPlayer id="r1"/>)", "v2");
+    f.newIndex();
+    CHECK(f.actions.empty());
+
+    f.failing.fail_rename = false;
+    f.newIndex();
+    CHECK(f.actions.size() == 1);
+}
+
+TEST_CASE("a configuration.xml that cannot be read: aborted, tried again with the next index")
+{
+    Fixture f;
+    f.failing.fail_read = true;
+    f.failing.only      = "configuration.xml";
+    f.serve("http://hub/config.xml", settings);
+    f.serveList(R"(<updateSettings id="s1"><sourceURI>http://hub/config.xml</sourceURI></updateSettings>)");
+    f.newIndex();
+    CHECK(f.actions.empty());
+    CHECK(f.taskLog().contains("<state>aborted</state>"));
+    CHECK(f.config.value("update_settings_task_id").empty());
+
+    f.failing.fail_read = false;
+    f.newIndex();
+    CHECK(f.config.playerName() == "Lobby");
 }

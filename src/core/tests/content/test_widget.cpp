@@ -156,3 +156,47 @@ TEST_CASE("on the real file system: subdirectories and empty directories are cre
     CHECK(std::filesystem::is_directory(dir / "clock/img"));
     std::filesystem::remove_all(dir);
 }
+
+TEST_CASE("errors of the file system: an error, no .part left, an extracted older version stays")
+{
+    struct Case
+    {
+        const char *name;
+        bool FailingFileSystem::*flag;
+        const char *only;
+        const char *error;
+    };
+    for (const Case &c : {Case{"read", &FailingFileSystem::fail_read, "clock.wgt", "cannot read widget: read failed"},
+                          Case{"directory", &FailingFileSystem::fail_create_directories, "clock.part", "cannot create cache/clock.part: create directories failed"},
+                          Case{"open", &FailingFileSystem::fail_open, "index.html", "cannot write cache/clock.part/index.html: open failed"},
+                          Case{"write", &FailingFileSystem::fail_write, "index.html", "cannot write cache/clock.part/index.html: write failed"},
+                          Case{"close", &FailingFileSystem::fail_close, "index.html", "cannot write cache/clock.part/index.html: close failed"}})
+    {
+        CAPTURE(c.name);
+        ContentFixture f;
+        writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v1"}}));
+        REQUIRE(extractWidget(f.failing, "cache/clock.wgt").has_value());
+        f.clock.advance(1s);
+        writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v2"}}));
+
+        f.failing.*c.flag = true;
+        f.failing.only    = c.only;
+        auto extracted    = extractWidget(f.failing, "cache/clock.wgt");
+        REQUIRE_FALSE(extracted.has_value());
+        CHECK(extracted.error() == c.error);
+        CHECK_FALSE(f.fs.exists("cache/clock.part/index.html"));
+        CHECK(f.fs.content("cache/clock/index.html") == "v1");
+    }
+}
+
+TEST_CASE("the new version cannot be moved into place: an error, no .part left")
+{
+    ContentFixture f;
+    writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", "v1"}}));
+    f.failing.fail_rename = true;
+    auto extracted        = extractWidget(f.failing, "cache/clock.wgt");
+    REQUIRE_FALSE(extracted.has_value());
+    CHECK(extracted.error() == "cannot replace cache/clock: rename failed");
+    CHECK_FALSE(f.fs.exists("cache/clock.part/index.html"));
+    CHECK_FALSE(f.fs.exists("cache/clock/index.html"));
+}

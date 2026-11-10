@@ -22,6 +22,7 @@
 
 #include "common/memory_file_system.hpp"
 #include "downloader/download_queue.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "logger/logger.hpp"
@@ -41,6 +42,7 @@ namespace garlic::core::tests
     {
         FakeClock                                      clock;
         common::MemoryFileSystem                       fs{clock};
+        FailingFileSystem                              failing{fs}; // for the modules under test: nothing fails unless a test says so
         downloader::tests::MemoryInventory             inventory;
         downloader::tests::FakeHttpTransport           transport;
         logger::Logger                                 logger{fs, clock, loggerConfig()};

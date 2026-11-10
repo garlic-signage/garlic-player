@@ -37,7 +37,7 @@ namespace
         configuration::Configuration config{fs, clock, "config/garlic-player.ini"};
         std::vector<std::string>     titles; // of every index handed on
         std::vector<std::string>     bases;
-        IndexManager                 index{queue, fs, clock, logger, config, "cache",
+        IndexManager                 index{queue, failing, clock, logger, config, "cache",
                                [this](smil::Document d, std::string base)
                                {
                                    titles.push_back(d.head.title);
@@ -255,3 +255,37 @@ TEST_CASE("a temporary index (app/exec): own file, not remembered, start() goes 
     CHECK(f.titles.back() == "stored");
 }
 
+
+TEST_CASE("an update that cannot replace the index: logged, the current one plays on, tried again")
+{
+    Fixture f;
+    f.serve("http://hub/player/index.smil?id=1", indexText("first", 60), "application/smil+xml", "v1");
+    f.index.start();
+    f.runUntilIdle();
+
+    f.failing.fail_rename = true;
+    f.failing.only        = "index.smil.ready";
+    f.serve("http://hub/player/index.smil?id=1", indexText("second", 60), "application/smil+xml", "v2");
+    f.wait(60s);
+    CHECK(f.titles == std::vector<std::string>{"first"});
+    CHECK(f.fs.content("logs/debug.log").value_or("").contains("cannot replace index: rename failed"));
+    REQUIRE(f.index.nextDeadline().has_value());
+    CHECK(*f.index.nextDeadline() <= f.clock.monotonic() + 60s);
+
+    f.failing.fail_rename = false;
+    f.serve("http://hub/player/index.smil?id=1", indexText("third", 60), "application/smil+xml", "v3");
+    f.wait(60s);
+    CHECK(f.titles == std::vector<std::string>{"first", "third"});
+}
+
+TEST_CASE("an index that cannot be read: SMIL_NOT_AVAILABLE, nothing handed on")
+{
+    Fixture f;
+    f.failing.fail_read = true;
+    f.failing.only      = "cache/index.smil";
+    f.serve("http://hub/player/index.smil?id=1", indexText("first"), "application/smil+xml");
+    f.index.start();
+    f.runUntilIdle();
+    CHECK(f.titles.empty());
+    CHECK(f.events().contains("<eventName>SMIL_NOT_AVAILABLE</eventName>"));
+}

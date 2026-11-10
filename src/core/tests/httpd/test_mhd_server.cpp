@@ -17,7 +17,10 @@
 */
 #include <doctest/doctest.h>
 
+#include "common/memory_file_system.hpp"
 #include "common/std_file_system.hpp"
+#include "failing_file_system.hpp"
+#include "fake_clock.hpp"
 #include "httpd/mhd_server.hpp"
 #include "raw_http.hpp"
 
@@ -80,12 +83,14 @@ namespace
         }
 
         /// Sends the request from a client thread and polls the server here, like the core thread does.
-        std::string request(const std::string &raw)
+        std::string request(const std::string &raw) { return request(server, raw); }
+
+        std::string request(MhdServer &to, const std::string &raw)
         {
-            auto client = std::async(std::launch::async, [port = server.port(), raw] { return sendRaw(port, raw); });
+            auto client = std::async(std::launch::async, [port = to.port(), raw] { return sendRaw(port, raw); });
             auto end    = std::chrono::steady_clock::now() + 5s;
             while (client.wait_for(1ms) != std::future_status::ready && std::chrono::steady_clock::now() < end)
-                server.poll();
+                to.poll();
             REQUIRE(client.wait_for(0s) == std::future_status::ready);
             return client.get();
         }
@@ -492,4 +497,37 @@ TEST_CASE("MhdServer: an idle client holds stop() up for 1 s at most")
     ::close(fd);
     CHECK(took >= 900ms); // it waited for the client
     CHECK(took < 2s);
+}
+
+TEST_CASE("MhdServer: an upload that cannot be written or closed gets 500, its file is removed")
+{
+    for (bool close : {false, true})
+    {
+        CAPTURE(close);
+        Fixture                                      f;
+        garlic::core::tests::FakeClock               clock;
+        garlic::core::common::MemoryFileSystem       memory{clock};
+        garlic::core::tests::FailingFileSystem       failing{memory};
+        MhdServer                                    server{f.router, failing};
+        bool                                         called = false;
+        f.router.add("POST", "/v2/files/new",
+                     [&](const Request &)
+                     {
+                         called = true;
+                         return Response::json(200, "{}");
+                     });
+        auto s       = f.settings();
+        s.upload_dir = "uploads";
+        REQUIRE(server.start(s).has_value());
+        failing.fail_write = !close;
+        failing.fail_close = close;
+
+        std::string body = "--XyZ123\r\nContent-Disposition: form-data; name=\"data\"; filename=\"a.jpg\"\r\n\r\n"
+                           "image\r\n--XyZ123--\r\n";
+        auto response = f.request(server, post("/v2/files/new", "multipart/form-data; boundary=XyZ123", body));
+        CHECK(statusOf(response) == 500);
+        CHECK_FALSE(called);
+        CHECK_FALSE(memory.list("uploads").has_value()); // nothing left
+        server.stop();
+    }
 }

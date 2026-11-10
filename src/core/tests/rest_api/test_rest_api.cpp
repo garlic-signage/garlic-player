@@ -19,6 +19,7 @@
 
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "time_zone.hpp"
 #include "rest_api/rest_api.hpp"
@@ -39,10 +40,11 @@ namespace
     {
         FakeClock                    clock;
         common::MemoryFileSystem     fs{clock};
+        tests::FailingFileSystem     failing{fs}; // for the REST API: nothing fails unless a test says so
         configuration::Configuration config{fs, clock, "garlic-player.ini"};
         database::InventoryTable     inventory{clock};
         std::vector<std::string>     calls; // what the REST API asked the runtime to do
-        rest_api::RestApi            api{config, inventory, fs, clock, actions()};
+        rest_api::RestApi            api{config, inventory, failing, clock, actions()};
         httpd::Router                router;
 
         rest_api::RestActions actions()
@@ -662,4 +664,34 @@ TEST_CASE("task/screenshot: another file does not answer, the earliest deadline 
     f.api.screenshotTaken("logs/other.jpg");
     CHECK_FALSE(first.pending->isComplete());
     CHECK(f.api.nextDeadline() == f.clock.monotonic() + 4s); // the first one: 5 s after its start
+}
+
+// ------------------------------------------------------------------ errors of the file system
+
+TEST_CASE("files/delete: a file that cannot be removed keeps its entry")
+{
+    Fixture     f;
+    std::string url = "http://x/a.jpg";
+    f.upload("/v2/files/new", {{"downloadPath", url}, {"fileSize", "5"}}, "image");
+    std::string id = common::Md5::hex(url);
+
+    f.failing.fail_remove = true;
+    auto query  = f.auth();
+    query["id"] = id;
+    CHECK(body(f.call("POST", "/v2/files/delete", query))["error"] == "delete failed: " + id);
+    CHECK(f.inventory.find(url).has_value());
+    CHECK(f.fs.exists("cache/" + id + ".jpg"));
+}
+
+TEST_CASE("task/screenshot: a file that cannot be read gives the text of garlic-lib")
+{
+    TimeZone tz("UTC");
+    Fixture  f;
+    auto     r = f.call("GET", "/v2/task/screenshot", f.auth());
+    REQUIRE(r.pending);
+    f.putFile("logs/20260101000000.jpg", "JPEG");
+    f.failing.fail_read = true;
+    f.api.screenshotTaken("logs/20260101000000.jpg");
+    REQUIRE(r.pending->isComplete());
+    CHECK(r.pending->response->body == "file not readable.");
 }

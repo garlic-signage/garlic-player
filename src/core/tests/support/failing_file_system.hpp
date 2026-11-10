@@ -31,14 +31,17 @@ namespace garlic::core::tests
     using common::FileSystemResult;
 
     /// A MemoryFileSystem whose operations can fail (as IoError with a fixed message), and that counts opened files
-    /// and created directories. For the error paths MemoryFileSystem cannot reach.
+    /// and created directories. For the error paths MemoryFileSystem cannot reach. With "only" set, only paths that
+    /// contain it fail (for rename: the source), so e.g. the logs of a test go on working.
     class FailingFileSystem : public common::FileSystem
     {
         public:
             explicit FailingFileSystem(common::MemoryFileSystem &m) : memory(m) {}
 
-            bool fail_read = false, fail_open = false, fail_write = false, fail_close = false, fail_rename = false;
-            int  opened    = 0;
+            bool fail_read = false, fail_open = false, fail_write = false, fail_close = false, fail_rename = false,
+                 fail_remove = false, fail_create_directories = false;
+            std::string              only;
+            int                      opened = 0;
             std::vector<std::string> created_directories;
 
             bool exists(std::string_view path) const override { return memory.exists(path); }
@@ -57,32 +60,44 @@ namespace garlic::core::tests
             }
             FileSystemResult<std::string> readFile(std::string_view path) const override
             {
-                if (fail_read)
+                if (fail_read && hits(path))
                     return error("read failed");
                 return memory.readFile(path);
             }
             FileSystemResult<std::unique_ptr<common::WritableFile>> openForWrite(std::string_view path,
-                                                                                               common::WriteMode mode) override
+                                                                                 common::WriteMode mode) override
             {
                 ++opened;
-                if (fail_open)
+                if (fail_open && hits(path))
                     return error("open failed");
                 auto file = memory.openForWrite(path, mode);
                 if (!file)
                     return std::unexpected(file.error());
-                return std::make_unique<File>(std::move(*file), *this);
+                return std::make_unique<File>(std::move(*file), *this, std::string(path));
             }
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override
             {
-                if (fail_rename)
+                if (fail_rename && hits(from))
                     return error("rename failed");
                 return memory.rename(from, to);
             }
-            FileSystemResult<void> remove(std::string_view path) override { return memory.remove(path); }
-            FileSystemResult<void> removeAll(std::string_view path) override { return memory.removeAll(path); }
+            FileSystemResult<void> remove(std::string_view path) override
+            {
+                if (fail_remove && hits(path))
+                    return error("remove failed");
+                return memory.remove(path);
+            }
+            FileSystemResult<void> removeAll(std::string_view path) override
+            {
+                if (fail_remove && hits(path))
+                    return error("remove failed");
+                return memory.removeAll(path);
+            }
             FileSystemResult<void> createDirectories(std::string_view path) override
             {
                 created_directories.emplace_back(path);
+                if (fail_create_directories && hits(path))
+                    return error("create directories failed");
                 return memory.createDirectories(path);
             }
 
@@ -90,26 +105,31 @@ namespace garlic::core::tests
             class File : public common::WritableFile
             {
                 public:
-                    File(std::unique_ptr<common::WritableFile> f, const FailingFileSystem &o)
-                        : file(std::move(f)), owner(o) {}
+                    File(std::unique_ptr<common::WritableFile> f, const FailingFileSystem &o, std::string p)
+                        : file(std::move(f)), owner(o), path(std::move(p))
+                    {
+                    }
                     FileSystemResult<void> write(std::span<const std::byte> data) override
                     {
-                        if (owner.fail_write)
+                        if (owner.fail_write && owner.hits(path))
                             return error("write failed");
                         return file->write(data);
                     }
                     FileSystemResult<void> close() override
                     {
                         auto closed = file->close();
-                        if (owner.fail_close)
+                        if (owner.fail_close && owner.hits(path))
                             return error("close failed");
                         return closed;
                     }
 
                 private:
                     std::unique_ptr<common::WritableFile> file;
-                    const FailingFileSystem                            &owner;
+                    const FailingFileSystem              &owner;
+                    std::string                           path;
             };
+
+            bool hits(std::string_view path) const { return only.empty() || path.contains(only); }
 
             static std::unexpected<FileSystemError> error(std::string message)
             {

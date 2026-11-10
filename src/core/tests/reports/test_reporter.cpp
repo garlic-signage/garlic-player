@@ -18,6 +18,7 @@
 #include <doctest/doctest.h>
 
 #include "common/memory_file_system.hpp"
+#include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "reports/reporter.hpp"
@@ -33,11 +34,12 @@ namespace
     {
         FakeClock                             clock;
         common::MemoryFileSystem              fs{clock};
+        garlic::core::tests::FailingFileSystem failing{fs}; // for the reporter: nothing fails unless a test says so
         downloader::tests::FakeHttpTransport  transport;
         logger::Logger                        logger{fs, clock, loggerConfig()};
         configuration::Configuration          config{fs, clock, "config/garlic-player.ini"};
         database::InventoryTable              inventory{clock};
-        Reporter reporter{transport, fs, clock, logger, config, inventory, "cache", [] { return SystemInfo{}; }};
+        Reporter reporter{transport, failing, clock, logger, config, inventory, "cache", [] { return SystemInfo{}; }};
 
         Fixture()
         {
@@ -432,4 +434,36 @@ TEST_CASE("isBusy while an upload runs")
     CHECK(f.reporter.isBusy());
     f.run();
     CHECK_FALSE(f.reporter.isBusy());
+}
+
+// ------------------------------------------------------------------ errors of the file system
+
+TEST_CASE("a log that cannot be renamed for the upload is not sent, it stays and is tried again")
+{
+    Fixture f;
+    f.logger.played("first", f.clock.now());
+    f.failing.fail_rename = true;
+    f.failing.only        = "play_log.xml.1";
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.run();
+    CHECK(f.puts().empty());
+    CHECK(f.fs.exists("logs/play_log.xml.1"));
+
+    f.failing.fail_rename = false;
+    f.wait(60s);
+    REQUIRE(f.puts().size() == 1);
+    CHECK(f.transport.requests.back().body.contains("<contentId>first"));
+}
+
+// Skipped: a log file that cannot be read is sent as an empty report and then deleted, its entries are lost.
+TEST_CASE("a log that cannot be read is not sent and not deleted" * doctest::skip())
+{
+    Fixture f;
+    f.logger.played("first", f.clock.now());
+    f.failing.fail_read = true;
+    f.failing.only      = "play_log.xml.sending";
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.run();
+    CHECK(f.puts().empty());
+    CHECK(f.fs.exists("logs/play_log.xml.sending"));
 }

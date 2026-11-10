@@ -29,7 +29,7 @@ namespace
     struct Fixture : ContentFixture
     {
         smil::Document document;
-        MediaManager   media{queue, inventory, fs, logger, "cache", nullptr};
+        MediaManager   media{queue, inventory, failing, logger, "cache", nullptr};
 
         Fixture()
         {
@@ -251,4 +251,25 @@ TEST_CASE("region backgrounds are downloaded too, locate() finds them")
     root.runUntilIdle();
     CHECK(root.media.locate("http://hub/root.png").has_value());
     CHECK(root.transport.requests.size() == 2); // HEAD and GET of root.png only
+}
+
+TEST_CASE("an update that cannot replace the file: the old version plays on, the update waits")
+{
+    Fixture f;
+    f.serve("http://hub/a.jpg", "v1", "image/jpeg", "v1");
+    f.load(R"(<img src="http://hub/a.jpg" dur="1s"/>)");
+    f.runUntilIdle();
+    f.serve("http://hub/a.jpg", "v2", "image/jpeg", "v2");
+    f.media.prefetch(f.at(0));
+    f.runUntilIdle();
+
+    f.failing.fail_rename = true;
+    auto path = f.media.resolve(f.at(0));
+    REQUIRE(path.has_value());
+    CHECK(f.fs.content(*path) == "v1");
+    CHECK(f.fs.exists(*path + ".ready"));
+    f.media.release(f.at(0));
+
+    f.failing.fail_rename = false;
+    CHECK(f.fs.content(*f.media.resolve(f.at(0))) == "v2");
 }

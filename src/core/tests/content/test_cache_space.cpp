@@ -30,7 +30,7 @@ namespace
     struct SpaceFixture : ContentFixture
     {
         std::uint64_t disk = 100;
-        CacheSpace    space{fs, inventory, logger, "cache", [this] { return disk - used(); }};
+        CacheSpace    space{failing, inventory, logger, "cache", [this] { return disk - used(); }};
 
         std::uint64_t used() const
         {
@@ -222,4 +222,20 @@ TEST_CASE("a widget is not extracted when its unpacked size does not fit")
 
     CHECK(extractWidget(f.fs, "cache/clock.wgt", [](std::uint64_t) { return true; }).has_value());
     CHECK(f.fs.exists("cache/clock/index.html"));
+}
+
+TEST_CASE("a file that cannot be removed does not count, the failure is logged")
+{
+    SpaceFixture f;
+    f.disk = 80; // full
+    f.cached("old.jpg", 40);
+    f.cached("new.jpg", 40);
+    f.failing.fail_remove = true;
+    f.failing.only        = "old.jpg";
+
+    CHECK_FALSE(f.space.makeSpace(40)); // 50 bytes needed: old.jpg stays, new.jpg gives 40
+    CHECK(f.fs.exists("cache/old.jpg"));
+    CHECK_FALSE(f.fs.exists("cache/new.jpg"));
+    CHECK(f.fs.content("logs/debug.log").value_or("").contains("cache/old.jpg cannot be removed: remove failed"));
+    CHECK(f.events().contains("FAILED_FREEING_SPACE"));
 }
