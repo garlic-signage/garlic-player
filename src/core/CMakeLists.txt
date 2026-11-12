@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.31)
 
 # The core has the version of the player: the file VERSION of player-ui ("2.0.0-dev", on the build server "2.0.0-beta.566").
 # project(VERSION) takes only the numbers, the full string goes to common::version().
-set(_garlic_version_file "${CMAKE_CURRENT_SOURCE_DIR}/../player-ui/VERSION")
+get_filename_component(_garlic_version_file "${CMAKE_CURRENT_SOURCE_DIR}/../player-ui/VERSION" ABSOLUTE)
 file(STRINGS "${_garlic_version_file}" GARLIC_CORE_VERSION_FULL LIMIT_COUNT 1)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_garlic_version_file}")
 string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" _garlic_version_numbers "${GARLIC_CORE_VERSION_FULL}")
@@ -98,7 +98,13 @@ if(GARLIC_CORE_BUILD_SHARED)
         CONTENT "// generated: the shared library 'core' consists only of the static modules\n"
     )
 
-    add_library(garlic_core SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/core.cpp")
+    # Windows: WINDOWS_EXPORT_ALL_SYMBOLS only exports the objects of the target itself, not those of the linked
+    # static modules. So on Windows 'core' is static and the modules go directly into the executable.
+    if(WIN32)
+        add_library(garlic_core STATIC "${CMAKE_CURRENT_BINARY_DIR}/generated/core.cpp")
+    else()
+        add_library(garlic_core SHARED "${CMAKE_CURRENT_BINARY_DIR}/generated/core.cpp")
+    endif()
     add_library(garlic::core ALIAS garlic_core)
     garlic_core_set_options(garlic_core)
 

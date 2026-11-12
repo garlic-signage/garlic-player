@@ -136,7 +136,11 @@ namespace garlic::core::common
         if (ec)
             return std::unexpected(toError(ec, path));
 
+#ifdef _MSC_VER
+        return std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::clock_cast<std::chrono::system_clock>(time));
+#else
         return std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::file_clock::to_sys(time));
+#endif
     }
 
     /// std::filesystem has no access time: stat. Without atime (mounted noatime) it stays at the creation.

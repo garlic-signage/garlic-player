@@ -217,7 +217,10 @@ namespace garlic::core::downloader
         curl_easy_setopt(easy, CURLOPT_PRIVATE, t.get());
         if (!config.ca_bundle.empty())
             curl_easy_setopt(easy, CURLOPT_CAINFO, config.ca_bundle.c_str());
-
+#ifdef _WIN32
+        else // OpenSSL has no root certificates on Windows: use the Windows certificate store
+            curl_easy_setopt(easy, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_NATIVE_CA));
+#endif
         // libcurl forbids adding handles from inside its callbacks; then poll() adds it
         if (!in_perform)
         {
