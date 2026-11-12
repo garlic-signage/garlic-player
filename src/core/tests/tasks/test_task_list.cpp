@@ -57,7 +57,7 @@ TEST_CASE("task list: without timedTaskList empty, broken XML with line")
     auto broken = parseTaskList("<schedule>\n<timedTaskList>\n</schedule>");
     REQUIRE_FALSE(broken.has_value());
     CHECK(broken.error().line == 3);
-    CHECK(broken.error().message.find("timedTaskList") != std::string::npos); // the message of libxml2
+    CHECK_FALSE(broken.error().message.empty()); // wording of libxml2 differs between versions
 }
 
 TEST_CASE("task list: timedTaskList as root, only the first list, the first command, empty text")
