@@ -21,7 +21,7 @@ jobs:
       - name: Run iOS Build Script
         run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
-    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]
     steps:
       - name: Run Windows 11 Build Script
@@ -29,7 +29,7 @@ jobs:
         run: |
           call "C:\BuildEssentials\3.1_buildPlayer.bat"
   build-linux-arm64:
-    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Run Arm64 Linux Build Script
@@ -40,5 +40,5 @@ jobs:
     steps:
       - name: Run x64 Linux Build Script
         run: /home/niko/scripts/build-linux.sh
-      - name: Run Android multiabiBuild Script
-        run: /home/niko/scripts/build-android.sh
+#      - name: Run Android multiabiBuild Script
+ #       run: /home/niko/scripts/build-android.sh
