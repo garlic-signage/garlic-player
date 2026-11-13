@@ -1,6 +1,7 @@
 # Tests of the core in Debian Trixie with line coverage. On master the coverage badge is committed to the branch
 # "badges" (an SVG made here, no external service); the README shows it from there.
-# Besides: the tests under sanitizers (leaks), clang-tidy (warnings only) and the check for duplicated code.
+# Besides: the tests under sanitizers (ASan with leaks and UBSan, TSan), clang-tidy (warnings only) and the check
+# for duplicated code.
 # The builds of the old player on the own runners are in build.yml.
 name: CI
 
@@ -83,12 +84,27 @@ jobs:
               commit -q -m "coverage badge for ${GITHUB_SHA::7}"
           git push -q origin badges
 
-  # Memory errors and leaks: all tests again with AddressSanitizer (contains LeakSanitizer) and UBSan. Every leak
-  # fails the build. clang-tidy runs on the same build and only warns.
+  # All tests again under sanitizers, as a matrix:
+  # - ASan with LeakSanitizer and UBSan: memory errors and leaks. clang-tidy runs on this build and only warns.
+  # - TSan: data races and lock order (the core thread, the thread of libmicrohttpd, the tests with threads).
+  # Every finding fails the build. The flags are also set for C, so the fetched miniz is instrumented too.
   sanitizers:
-    name: Core tests with sanitizers (Debian Trixie)
+    name: Core tests with ${{ matrix.name }} (Debian Trixie)
     runs-on: ubuntu-latest
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      options: ${{ matrix.container_options }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ASan
+            flags: -fsanitize=address,undefined
+            container_options: ''
+          # privileged only to lower the randomization of the runner's kernel, see the step below
+          - name: TSan
+            flags: -fsanitize=thread
+            container_options: --privileged
 
     steps:
       - name: Install build dependencies
@@ -100,26 +116,36 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # The runner kernel randomizes mmap with more bits than TSan's memory layout allows. The setting is the
+      # host's, a container can change it only when privileged.
+      - name: Reduce address space randomization for TSan
+        if: matrix.name == 'TSan'
+        run: echo 28 > /proc/sys/vm/mmap_rnd_bits
+
       - name: Configure
         run: >
           cmake -S src/core -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Debug
           -DGARLIC_CORE_BUILD_TESTS=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
-          -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined
-          -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,undefined
+          "-DCMAKE_C_FLAGS=${{ matrix.flags }} -fno-omit-frame-pointer"
+          "-DCMAKE_CXX_FLAGS=${{ matrix.flags }} -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS=${{ matrix.flags }}
+          -DCMAKE_SHARED_LINKER_FLAGS=${{ matrix.flags }}
 
       - name: Build
         run: cmake --build build
 
+      # each sanitizer reads only its own options
       - name: Test
         env:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: ctest --test-dir build --output-on-failure
 
       - name: clang-tidy (warnings only)
+        if: matrix.name == 'ASan'
         working-directory: src/core
         run: |
           find . -path ./build -prune -o -path ./tests -prune -o -name '*.cpp' -print \
