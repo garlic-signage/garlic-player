@@ -97,7 +97,7 @@ Qt WebView is the system WebView on iOS (WKWebView) and Android, WebEngine on th
 The same package as the legacy player, `com.sagiadinos.garlic.player` with the activity
 `com.sagiadinos.garlic.player.java.GarlicActivity`: launcher 1.x and the Philips firmware start and update the player
 by these names, and the update keeps the ini (uuid, settings). versionCode from `VERSION` (`2.0.0-beta.566` →
-20000566), above the legacy 671. Android 9 (API 28) or newer, arm64-v8a.
+20000566), above the legacy 671. Android 9 (API 28) or newer, arm64-v8a and armeabi-v7a (one APK each).
 
 **Launcher.** `GarlicActivity` looks for it before Qt starts: `com.sagiadinos.garlic.launcher` (launcher 1.x), else
 `com.tpv.app.tpvlauncher` (Philips), else none. The protocol of launcher 1.x stays as it is (frozen); no heartbeat.
@@ -130,7 +130,7 @@ by these names, and the update keeps the ini (uuid, settings). versionCode from 
 
 ### Build
 
-Qt 6.8 for Android (arm64-v8a) and for the host, Android SDK with NDK 26.1, JDK 17, vcpkg (the triplet builds curl,
+Qt 6.8 for Android (arm64-v8a, armv7) and for the host, Android SDK with NDK 26.1, JDK 17, vcpkg (the triplet builds curl,
 OpenSSL, SQLite, libxml2 and libmicrohttpd).
 
 ```
@@ -147,13 +147,15 @@ cmake -S . -B build/android-arm64 -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build/android-arm64
 ```
 
-The APK is `build/android-arm64/src/player-ui/qml/android-build/build/outputs/apk/release/android-build-release-unsigned.apk`.
+32-bit boxes (armeabi-v7a): the same into `build/android-armv7` with the Qt kit `$QT/android_armv7` and
+`-DVCPKG_TARGET_TRIPLET=arm-neon-android`. Both APKs have the same versionCode; a box gets the one of its ABI.
+
+The APK is `build/<dir>/src/player-ui/qml/android-build/build/outputs/apk/release/android-build-release-unsigned.apk`.
 It has to be signed with the key of the legacy player, otherwise Android refuses it as update and launcher 1.x cannot
 install it over the old one.
 
 ## Not yet
 
 - iOS.
-- Android armeabi-v7a (32-bit boxes): a second build with the triplet `arm-neon-android` and the Qt kit `android_armv7`.
 - The supervisor protocol of [supervisor_protocol](../../core/docs/supervisor_protocol.md) (new launcher, garlic-daemon,
   garlic-service): until then Android only with launcher 1.x or Philips, the desktop without supervisor.
