@@ -17,14 +17,20 @@
 */
 #include "common/md5.hpp"
 
-#include <bit>
 
 namespace garlic::core::common
 {
     namespace
     {
+        /// Instead of std::rotl, whose count is int in the standard but unsigned in the libc++ of NDK 26: either way one
+        /// platform warns about the conversion. 0 < count < 32.
+        constexpr std::uint32_t rotateLeft(std::uint32_t value, unsigned count)
+        {
+            return (value << count) | (value >> (32U - count));
+        }
+
         // Per-round shift amounts (RFC 1321, 3.4)
-        constexpr std::array<int, 64> shifts = {
+        constexpr std::array<unsigned, 64> shifts = {
             7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
             5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20,
             4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
@@ -142,7 +148,7 @@ namespace garlic::core::common
             a = d;
             d = c;
             c = b;
-            b = b + std::rotl(f, shifts[i]);
+            b = b + rotateLeft(f, shifts[i]);
         }
 
         state[0] += a;
