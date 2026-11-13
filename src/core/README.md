@@ -1,7 +1,7 @@
 # garlic-core
 
-[![CI](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml)
-![coverage](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/coverage.svg)
+[![CI](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml)
+![coverage](https://raw.githubusercontent.com/garlic-signage/garlic-player/badges/coverage.svg)
 
 Qt-free rewrite of the garlic-lib in C++23. It provides the player-independent functions (download, database,
 HTTP server, SMIL parser, configuration, logger, system information) to the players (QWidget, QML, Java,

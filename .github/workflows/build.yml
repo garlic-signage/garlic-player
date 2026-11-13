@@ -13,13 +13,13 @@ env:
 
 jobs:
   build-macos:
-    if: false # temporarily off, was: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - name: Run macOS Build Script
         run: /Users/niko/Deployment/scripts/build-macosx.sh
-      - name: Run iOS Build Script
-        run: /Users/niko/Deployment/scripts/build-ios.sh
+#      - name: Run iOS Build Script
+#       run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]

@@ -1,8 +1,8 @@
 # garlic-player - SMIL Player for Digital Signage
 
-[![CI](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/sagiadinos/garlic-player/actions/workflows/ci.yml)
-![coverage](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/coverage.svg)
-[![mutation score](https://raw.githubusercontent.com/sagiadinos/garlic-player/badges/mutation.svg)](https://github.com/sagiadinos/garlic-player/actions/workflows/mutation.yml)
+[![CI](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml)
+![coverage](https://raw.githubusercontent.com/garlic-signage/garlic-player/badges/coverage.svg)
+[![mutation score](https://raw.githubusercontent.com/garlic-signage/garlic-player/badges/mutation.svg)](https://github.com/garlic-signage/garlic-player/actions/workflows/mutation.yml)
 
 > This README describes version 2.0 (beta). For version 1.x, the Qt 5 player with garlic-lib and the old launcher,
 > see [README-v1.md](README-v1.md).
