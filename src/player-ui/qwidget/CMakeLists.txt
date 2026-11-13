@@ -38,6 +38,18 @@ endif()
 target_compile_definitions(qwidget PRIVATE QT_NO_KEYWORDS)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../player_version.cmake)
 garlic_player_version(qwidget)
+# macOS: app bundle with icon and bundle id (needed for macdeployqt and notarization)
+if(APPLE)
+    set(_garlic_icon ${CMAKE_CURRENT_SOURCE_DIR}/../../../deployment/macx/garlic-player.icns)
+    target_sources(qwidget PRIVATE ${_garlic_icon})
+    set_source_files_properties(${_garlic_icon} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(qwidget PROPERTIES
+        MACOSX_BUNDLE ON
+        MACOSX_BUNDLE_ICON_FILE garlic-player.icns
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.garlic-signage.garlic-player
+    )
+endif()
+
 target_link_libraries(qwidget PRIVATE garlic::core Qt6::Widgets Qt6::WebEngineWidgets)
 if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(qwidget PRIVATE $<$<CONFIG:Release>:-s>)

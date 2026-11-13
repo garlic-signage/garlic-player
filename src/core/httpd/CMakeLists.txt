@@ -11,8 +11,8 @@ target_link_libraries(garlic_core_httpd PUBLIC garlic::core::common)
 
 # The server itself; settings, Request and Router are always built (the configuration uses HttpdSettings)
 if(GARLIC_CORE_WITH_HTTPD)
-    if(WIN32)
-        # vcpkg installs no pkg-config file for libmicrohttpd on Windows
+    if(WIN32 OR APPLE)
+        # Windows (vcpkg) and macOS (own build without pkg-config): find libmicrohttpd directly
         find_path(MHD_INCLUDE_DIR microhttpd.h REQUIRED)
         find_library(MHD_LIBRARY NAMES libmicrohttpd libmicrohttpd-dll microhttpd REQUIRED)
         add_library(PkgConfig::MHD INTERFACE IMPORTED)
