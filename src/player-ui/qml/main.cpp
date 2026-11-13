@@ -199,6 +199,7 @@ int main(int argc, char *argv[])
         player.setNeedsSettings(without_index && !configures);
         player.setLocked(supervisor->locked());
         player.setScreenControl(supervisor.get());
+        player.setDeviceControl(supervisor.get());
         supervisor->setCoreProbe([&runtime](std::function<void()> done)
                                  { runtime.post([done](garlic::core::PlayerRuntimeApi &) { done(); }); });
         QObject::connect(supervisor.get(), &player::SupervisorClient::lockedChanged, &player, &player::Player::setLocked);

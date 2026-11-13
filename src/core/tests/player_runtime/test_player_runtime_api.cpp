@@ -156,6 +156,9 @@ namespace
                 log.push_back("background " + background->src);
             else if (const auto *shot = std::get_if<Screenshot>(&event))
                 log.push_back("screenshot " + shot->path);
+            else if (const auto *device = std::get_if<DeviceSettings>(&event))
+                log.push_back("device " + (device->volume ? std::to_string(*device->volume) : std::string("-")) + " " +
+                              (device->brightness ? std::to_string(*device->brightness) : std::string("-")));
             else if (const auto *clear = std::get_if<tasks::ClearCaches>(&event))
                 log.push_back(std::string("clear ") + (clear->player ? "player" : "") + (clear->web ? " web" : ""));
         }
@@ -1076,4 +1079,35 @@ TEST_CASE("uuid of the supervisor: taken at the first start, a stored uuid stays
     f.runtime   = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
     REQUIRE(f.runtime->start().has_value());
     CHECK(f.runtime->configuration().uuid() == "11111111-2222-4333-8444-555555555555");
+}
+
+TEST_CASE("DeviceSettings: master volume and brightness at the start and when a configuration changes them")
+{
+    Fixture f("[httpd]\nenabled=false\n\n[audio]\nvolume=80%\n\n[display]\nbrightness=50\n");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    CHECK(f.seen() == "device 80 50");
+
+    f.log.clear();
+    f.write("usb/same.xml", R"(<configuration><prop name="volume" value="80"/></configuration>)");
+    REQUIRE(f.runtime->applyConfigurationFile("usb/same.xml"));
+    f.run(1s);
+    CHECK(f.seen().find("device") == std::string::npos); // unchanged: nothing announced
+
+    f.write("usb/new.xml", R"(<configuration><prop name="audio.soundlevel" value=" 140 % "/>
+        <prop name="display.brightness" value="bright"/></configuration>)");
+    REQUIRE(f.runtime->applyConfigurationFile("usb/new.xml"));
+    f.run(1s);
+    CHECK(f.seen().find("device 100 -") != std::string::npos); // clamped, no number
+}
+
+TEST_CASE("DeviceSettings: nothing without master volume and brightness")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="img/a.jpg" dur="10s"/>)x", 60, R"x(<meta name="title" content="first"/>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/img/a.jpg", "jpeg", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    CHECK(f.seen() == "layout first | start a");
 }

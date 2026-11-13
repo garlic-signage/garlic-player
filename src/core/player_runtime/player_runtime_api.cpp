@@ -35,6 +35,7 @@
 #endif
 
 #include <algorithm>
+#include <charconv>
 #include <format>
 #include <limits>
 
@@ -158,6 +159,7 @@ namespace garlic::core
             logger->error("Httpd", "not started: " + started.error());
 
         planReboot();
+        announceDeviceSettings();
         next_resource_log = clock.monotonic() + resource_log;
         index->start();
         return {};
@@ -408,6 +410,7 @@ namespace garlic::core
         if (std::holds_alternative<tasks::ApplyConfiguration>(action))
         {
             planReboot(); // the restart times may have changed
+            announceDeviceSettings();
             index->start(); // the index URI may have changed
             return;
         }
@@ -436,6 +439,36 @@ namespace garlic::core
         // web cache, cachesCleared() then restarts
         reboot_after_clear = clear.task_id;
         events.emplace_back(std::move(clear));
+    }
+
+    namespace
+    {
+        /// "80", "80%", " 80 % " → 80, clamped to 0…100; anything else (empty, "loud") → nullopt
+        std::optional<int> percent(std::string_view text)
+        {
+            while (!text.empty() && text.front() == ' ')
+                text.remove_prefix(1);
+            int  value = 0;
+            auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+            if (error != std::errc() || end == text.data())
+                return std::nullopt;
+            std::string_view rest(end, static_cast<std::size_t>(text.data() + text.size() - end));
+            while (!rest.empty() && (rest.front() == ' ' || rest.front() == '%'))
+                rest.remove_prefix(1);
+            if (!rest.empty())
+                return std::nullopt;
+            return std::clamp(value, 0, 100);
+        }
+    }
+
+    /// A DeviceSettings event when master volume or brightness differ from the last ones announced.
+    void PlayerRuntimeApi::announceDeviceSettings()
+    {
+        DeviceSettings now{percent(config.value("audio/volume")), percent(config.value("display/brightness"))};
+        if (now == device_settings)
+            return;
+        device_settings = now;
+        events.emplace_back(now);
     }
 
     void PlayerRuntimeApi::reboot(const std::string &task_id)

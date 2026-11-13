@@ -101,6 +101,11 @@ namespace player
                        [this](const BackgroundImage &e) { backgroundImage(e); },
                        [this](const tasks::ClearCaches &e) { clearCaches(e); },
                        [this](const Screenshot &e) { screenshot(e.path); },
+                       [this](const DeviceSettings &e)
+                       {
+                           if (device_control != nullptr)
+                               device_control->deviceSettings(e);
+                       },
                    },
                    event);
     }

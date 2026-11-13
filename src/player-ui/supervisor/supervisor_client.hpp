@@ -18,6 +18,7 @@
 #ifndef PLAYER_UI_SUPERVISOR_SUPERVISOR_CLIENT_HPP
 #define PLAYER_UI_SUPERVISOR_SUPERVISOR_CLIENT_HPP
 
+#include "device_control.hpp"
 #include "screen_control.hpp"
 
 #include "player_runtime/supervisor.hpp"
@@ -72,7 +73,10 @@ namespace player
      * Commands of the player go out only if the supervisor offers their capability. A lost connection is tried again
      * every 5 s, each time with hello.
      */
-    class SupervisorClient final : public QObject, public garlic::core::Supervisor, public ScreenControl
+    class SupervisorClient final : public QObject,
+                                   public garlic::core::Supervisor,
+                                   public ScreenControl,
+                                   public DeviceControl
     {
             Q_OBJECT
 
@@ -107,6 +111,10 @@ namespace player
             void screenOff() override;
             void screenOn() override;
             void deepStandby(std::chrono::seconds wake_up) override;
+
+            /// DeviceControl: setVolume and setBrightness for the values that are set, if offered. Kept and sent
+            /// again after every hello, so a supervisor that comes later or restarts gets them too.
+            void deviceSettings(const garlic::core::DeviceSettings &settings) override;
 
             /// Before a wanted end ("user", "quit", "restart"): written before it returns, the player ends next.
             void closing(const QString &reason);
@@ -145,6 +153,7 @@ namespace player
             qint64          next_id   = 1;
             std::map<qint64, Pending> pending;
 
+            garlic::core::DeviceSettings      device;
             CoreProbe                         core_probe;
             std::shared_ptr<std::atomic_bool> core_alive = std::make_shared<std::atomic_bool>(true);
 
@@ -166,6 +175,7 @@ namespace player
             void answer(const QJsonValue &id, const QJsonObject &result = {});
             void fail(const QJsonValue &id, int code, const QString &message, const QString &reason = {});
             void command(const QString &capability, const QString &method, const QJsonObject &params = {});
+            void sendDeviceSettings();
     };
 }
 

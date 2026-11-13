@@ -163,6 +163,11 @@ namespace player
                        [this](const tasks::ClearCaches &)
                        { runtime.post([](PlayerRuntimeApi &r) { r.cachesCleared(); }); },
                        [this](const Screenshot &e) { screenshot(e.path); },
+                       [this](const DeviceSettings &e)
+                       {
+                           if (device_control != nullptr)
+                               device_control->deviceSettings(e);
+                       },
                    },
                    event);
     }

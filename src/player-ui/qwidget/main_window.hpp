@@ -22,6 +22,7 @@
 #include "region.hpp"
 
 #include "blank_screen.hpp"
+#include "device_control.hpp"
 
 #include "player_runtime/threaded_runtime.hpp"
 
@@ -58,6 +59,9 @@ namespace player
 
             /// What switches the screen off at adapi:blankScreen (the supervisor); nullptr: the screen stays on.
             void setScreenControl(ScreenControl *control) { blank_screen.setControl(control); }
+
+            /// What applies master volume and brightness of the configuration; nullptr: nobody (only stored).
+            void setDeviceControl(DeviceControl *control) { device_control = control; }
 
             /// Player name and content URL come from the supervisor: the settings dialog shows them only.
             void setIdentityLocked(bool locked) { identity_locked = locked; }
@@ -101,7 +105,8 @@ namespace player
             int    fast_clicks = 0;
             QPoint menu_position;
 
-            BlankScreen blank_screen;
+            BlankScreen    blank_screen;
+            DeviceControl *device_control = nullptr;
             bool        identity_locked = false;
             bool        is_locked       = false;
 

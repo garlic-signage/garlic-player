@@ -355,6 +355,39 @@ class TestSupervisorClient final : public QObject
             QVERIFY(client.ready());
         }
 
+        void deviceSettingsOnlyWithTheirCapability()
+        {
+            FakeSupervisor fake;
+            fake.hello_result.insert("capabilities", QJsonArray{"volume"});
+            SupervisorClient client(fake.endpoint(), "2.0.0");
+            QVERIFY(client.start(2s));
+            client.deviceSettings({80, 50});
+            QCOMPARE(fake.waitForMethod("setVolume").value("params").toObject().value("level").toInt(), 80);
+            QVERIFY(fake.waitForMethod("setBrightness", 0, 300ms).isEmpty()); // not offered
+
+            qsizetype from = fake.received.size();
+            client.deviceSettings({std::nullopt, 50}); // no volume set: nothing to send
+            QVERIFY(fake.waitForMethod("setVolume", from, 300ms).isEmpty());
+        }
+
+        /// Values from before the connection, and again after a reconnect: the supervisor always has them.
+        void deviceSettingsAfterEveryHello()
+        {
+            FakeSupervisor fake;
+            fake.hello_result.insert("capabilities", QJsonArray{"volume", "brightness"});
+            SupervisorClient client(fake.endpoint(), "2.0.0");
+            client.deviceSettings({40, 70}); // the core announces them before the client is connected
+            QVERIFY(client.start(2s));
+            QCOMPARE(fake.waitForMethod("setVolume").value("params").toObject().value("level").toInt(), 40);
+            QCOMPARE(fake.waitForMethod("setBrightness").value("params").toObject().value("level").toInt(), 70);
+
+            qsizetype from = fake.received.size();
+            fake.client->disconnectFromServer();
+            QTRY_COMPARE_WITH_TIMEOUT(fake.connections, 2, 7000);
+            QVERIFY(!fake.waitForMethod("setVolume", from).isEmpty());
+            QVERIFY(!fake.waitForMethod("setBrightness", from).isEmpty());
+        }
+
         void aSupervisorOfAnotherProtocolIsNotTriedAgain()
         {
             FakeSupervisor fake;

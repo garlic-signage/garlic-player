@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
         main_window.setIdentityLocked(configures);
         main_window.setLocked(locked);
         main_window.setScreenControl(supervisor.get());
+        main_window.setDeviceControl(supervisor.get());
         supervisor->setCoreProbe([&runtime](std::function<void()> done)
                                  { runtime.post([done](garlic::core::PlayerRuntimeApi &) { done(); }); });
         QObject::connect(supervisor.get(), &player::SupervisorClient::lockedChanged, &main_window,

@@ -160,4 +160,3 @@ install it over the old one.
 - iOS.
 - Android with the [supervisor protocol](../../core/docs/supervisor_protocol.md) (intent extra `supervisor` of a new
   launcher): until then launcher 1.x or Philips.
-- Master volume and brightness of a `configuration.xml` to the supervisor (`setVolume`, `setBrightness`).

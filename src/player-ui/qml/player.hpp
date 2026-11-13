@@ -21,6 +21,7 @@
 #include "region_model.hpp"
 
 #include "blank_screen.hpp"
+#include "device_control.hpp"
 
 #include "player_runtime/threaded_runtime.hpp"
 
@@ -86,6 +87,9 @@ namespace player
             /// What switches the screen off at adapi:blankScreen; nullptr: nothing, the screen stays on.
             void setScreenControl(ScreenControl *control) { blank_screen.setControl(control); }
 
+            /// What applies master volume and brightness of the configuration; nullptr: nobody (only stored).
+            void setDeviceControl(DeviceControl *control) { device_control = control; }
+
             /// Locked by the supervisor: no menu, no dialogs, no shortcuts; accesskeys of the SMIL stay.
             bool locked() const noexcept { return is_locked; }
             void setLocked(bool locked);
@@ -134,6 +138,7 @@ namespace player
             bool                           identity_locked = false;
             bool                           is_locked       = false;
             BlankScreen                    blank_screen;
+            DeviceControl                 *device_control = nullptr;
             QQuickWindow                  *window         = nullptr;
             bool                           cursor_hidden  = false;
             QSize                          windowed_size{980, 540};

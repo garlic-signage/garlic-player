@@ -148,8 +148,9 @@ Requests. The result is `{}`: the supervisor has taken the command over and carr
 - Before `reboot` and `installSoftware` the supervisor may send `quit` and wait for `closing`, at most 10 s.
 - `screenOff`, `screenOn`, `deepStandby`: at `adapi:blankScreen` with the `standby_mode` of the configuration;
   `deepStandby` with `remainingTime()` of the element ([tasks](tasks.md#who-applies-them)).
-- `setVolume`, `setBrightness`: from `audio/volume` and `display/brightness` of a `configuration.xml`, see
-  [Settings](#settings).
+- `setVolume`, `setBrightness`: from `audio/volume` and `display/brightness` of a `configuration.xml` (`"80%"` or
+  `"80"`, clamped to 0…100; no number: not sent), see [Settings](#settings). Sent after every `hello` and whenever a
+  configuration changes them (`DeviceSettings` of the core).
 
 ## Supervisor → player
 

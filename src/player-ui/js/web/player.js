@@ -127,6 +127,8 @@ class GarlicPlayer {
         case 'clearCaches': this.#call(() => this.#player.cachesCleared()); break;
         // the browser cannot take a picture of the screen: the core answers without one
         case 'screenshot': this.#call(() => this.#player.screenshotTaken(event.path)); break;
+        // master volume and brightness are for a supervisor, the browser has none
+        case 'deviceSettings': break;
         case 'layout':
             // as preview in an overlay of garlic-hub: the page around gets the size of the layout for its proportions
             if (window.parent !== window)

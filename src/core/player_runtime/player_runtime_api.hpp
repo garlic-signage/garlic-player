@@ -94,9 +94,22 @@ namespace garlic::core
         std::string path;
     };
 
+    /**
+     * Master volume and brightness of the configuration (audio/volume, display/brightness), 0…100; nullopt: not set
+     * or no number. At the start and whenever a configuration changes them. The player applies neither, the frontend
+     * passes them to the supervisor (setVolume, setBrightness).
+     */
+    struct DeviceSettings
+    {
+        std::optional<int> volume;
+        std::optional<int> brightness;
+
+        bool operator==(const DeviceSettings &) const = default;
+    };
+
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot>;
+                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot, DeviceSettings>;
 
     struct PlayerRuntimeConfig
     {
@@ -242,6 +255,7 @@ namespace garlic::core
 
             std::optional<std::chrono::steady_clock::time_point> next_reboot;
             std::optional<std::string>                           reboot_after_clear; // task id until cachesCleared()
+            DeviceSettings                                       device_settings;    // the last ones announced
             std::chrono::steady_clock::time_point                next_resource_log;
             std::uint64_t                                        memory_max = 0; // of the player since the start
             std::string                                          memory_max_time;
@@ -253,6 +267,7 @@ namespace garlic::core
             void collectEngine();
             void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
+            void announceDeviceSettings();
             void reboot(const std::string &task_id);
             void logResources();
             void trackProcess(DebugInfo &info);

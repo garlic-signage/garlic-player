@@ -76,8 +76,8 @@ and garlic-daemon:
 | `player_name`, `index_uri`                | the core                                                                 |
 | `schedule/reboot_days`, `schedule/reboot_time` | the core plans the restart and calls `reboot("DailyReboot")` of the supervisor |
 | `standby_mode`                            | the frontend at `<ref src="adapi:blankScreen">`: `partially` switches the screen off, `deep` starts the deep standby until the next end time, both through the launcher, `no_standby` does nothing. garlic-lib: `PlayerRefCommand::play()`. The qml player on Android does it with launcher 1.x (deep: `remainingTime()` of the instance); without launcher the screen stays on |
-| `audio/volume`                            | nobody. The player never read it, it plays every medium with its SMIL `soundLevel` (medium before region). The master volume was meant for the launcher |
-| `display/brightness`                      | nobody. The Android launcher stores `volume` and `brightness` from the `configuration.xml`, but never calls `SystemSettings.configMasterVolume()`/`configBrightness()` (brightness needs device owner); `MainConfiguration.getBrightness()` reads the key `volume` |
+| `audio/volume`                            | the supervisor: the core announces it as `DeviceSettings` (0…100), the frontend sends `setVolume` if the supervisor offers it. The player itself plays every medium with its SMIL `soundLevel` (medium before region) |
+| `display/brightness`                      | the supervisor, like `audio/volume` (`setBrightness`). Launcher 1.x: not passed on; it stores `volume` and `brightness` from the `configuration.xml`, but never calls `SystemSettings.configMasterVolume()`/`configBrightness()` (brightness needs device owner); `MainConfiguration.getBrightness()` reads the key `volume` |
 | `display/rotation`                        | nobody, never implemented                                                |
 | `time/tzDescription`, `time/tzCode`, `time/protocol`, `time/server` | nobody, never implemented                  |
 

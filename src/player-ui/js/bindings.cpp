@@ -239,6 +239,15 @@ namespace player
                             result.set("path", e.path);
                             return result;
                         },
+                        // the browser has no supervisor: the page may ignore it
+                        [](const DeviceSettings &e)
+                        {
+                            val result = val::object();
+                            result.set("type", std::string("deviceSettings"));
+                            result.set("volume", e.volume ? val(*e.volume) : val::null());
+                            result.set("brightness", e.brightness ? val(*e.brightness) : val::null());
+                            return result;
+                        },
                     },
                     event);
             }

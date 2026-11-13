@@ -62,6 +62,7 @@ while (running)
 | `BackgroundImage{src, path}`            | a background image of the current layout is downloaded      |
 | `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache if `web`, then always `cachesCleared()` |
 | `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
+| `DeviceSettings{volume, brightness}`    | master volume and brightness of the configuration, 0…100 or not set: at the start and when a configuration changes them; the frontend passes them to the supervisor |
 
 ## Supervisor
 

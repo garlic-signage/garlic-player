@@ -314,6 +314,7 @@ namespace player
             heartbeat.start(std::chrono::seconds(supervisor.heartbeat_interval));
             tick(); // the first one at once
         }
+        sendDeviceSettings();
         Q_EMIT helloAnswered();
         if (supervisor.locked != was_locked)
             Q_EMIT lockedChanged(supervisor.locked);
@@ -382,6 +383,22 @@ namespace player
     void SupervisorClient::deepStandby(std::chrono::seconds wake_up)
     {
         command("deep_standby", "deepStandby", {{"seconds_to_wakeup", static_cast<qint64>(wake_up.count())}});
+    }
+
+    void SupervisorClient::deviceSettings(const garlic::core::DeviceSettings &settings)
+    {
+        device = settings;
+        if (answered)
+            sendDeviceSettings();
+    }
+
+    /// Only what is set and offered; quietly, a supervisor without volume or brightness is no error.
+    void SupervisorClient::sendDeviceSettings()
+    {
+        if (device.volume && offers("volume"))
+            request("setVolume", {{"level", *device.volume}});
+        if (device.brightness && offers("brightness"))
+            request("setBrightness", {{"level", *device.brightness}});
     }
 
     void SupervisorClient::closing(const QString &reason)

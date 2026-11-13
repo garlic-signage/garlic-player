@@ -147,6 +147,8 @@ With `--supervisor` the player speaks the [supervisor protocol](../../core/docs/
 - **Core**: restart and installation go to the supervisor if it offers them.
 - **`adapi:blankScreen`**: `BlankScreen` with the `standby_mode` of the configuration: `partially` screen off until
   the element ends, `deep` deep standby until its planned end; without supervisor the screen stays on.
+- **Master volume, brightness** of the configuration (`DeviceSettings` of the core): `setVolume`, `setBrightness` after
+  every `hello` and when a configuration changes them, if the supervisor offers them.
 - **Heartbeat** from a timer in the UI thread, only while the core thread answers.
 - **Locked** (`locked`, `setLocked`): no menu gesture, no Ctrl keys, open menu and dialogs close; accesskeys stay.
   With `configuration` the settings dialog shows name and content URL only and does not open at the start.

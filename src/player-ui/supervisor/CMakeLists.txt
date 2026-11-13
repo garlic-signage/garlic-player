@@ -9,6 +9,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network)
 
 add_library(player_supervisor STATIC
     screen_control.hpp
+    device_control.hpp
     blank_screen.hpp
     blank_screen.cpp
     supervisor_client.hpp
