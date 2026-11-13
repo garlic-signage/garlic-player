@@ -176,13 +176,9 @@ namespace garlic::core::httpd
                 return MHD_YES;
             }
 
-            // resumed after a later answer: send it (MhdServer::poll resumes only completed ones)
+            // resumed after a later answer: send it (poll() and stop() resume only completed ones)
             if (c->pending)
-            {
-                if (c->pending->isComplete())
-                    return sendResponse(connection, *c->pending->response);
-                return MHD_YES;
-            }
+                return sendResponse(connection, *c->pending->response);
 
             if (*upload_data_size != 0)
             {

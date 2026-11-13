@@ -378,6 +378,18 @@ TEST_CASE("MhdServer: the headers of the response are sent")
     CHECK(response.find("Cache-Control: no-cache\r\n") != std::string::npos);
 }
 
+TEST_CASE("MhdServer: destroying the server closes its port")
+{
+    Fixture       f;
+    std::uint16_t port = 0;
+    {
+        MhdServer server{f.router, f.fs};
+        REQUIRE(server.start(f.settings()).has_value());
+        port = server.port();
+    }
+    CHECK(sendRaw(port, "GET / HTTP/1.1\r\n\r\n") == "connect failed");
+}
+
 TEST_CASE("MhdServer: a body of exactly the maximum size is accepted")
 {
     Fixture     f;
@@ -440,6 +452,9 @@ TEST_CASE("MhdServer: stop() answers a waiting request with 503")
     auto response = slow.get();
     CHECK(statusOf(response) == 503);
     CHECK(bodyOf(response) == R"({"error":"server stopped"})");
+
+    f.start(f.settings()); // the closed connection is not resumed again
+    CHECK(statusOf(f.request("GET /nothing HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")) == 404);
 }
 
 TEST_CASE("MhdServer: start() again closes the old port")

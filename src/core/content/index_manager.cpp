@@ -88,8 +88,7 @@ namespace garlic::core::content
         if (next_check && clock.monotonic() >= *next_check)
         {
             next_check.reset();
-            if (!remote_url.empty())
-                queue.add(remote_url, file_name);
+            queue.add(remote_url, file_name); // only set by checkIn(), so the source is remote
         }
     }
 
@@ -181,10 +180,11 @@ namespace garlic::core::content
         on_index(std::move(document), std::move(base));
 
         next_check.reset();
-        if (!remote_url.empty() && refresh > std::chrono::seconds(0))
+        if (refresh > std::chrono::seconds(0))
             checkIn(std::max(refresh, min_refresh));
     }
 
+    /// Only for a remote source: a download of a remote index can end after a local one was started.
     void IndexManager::checkIn(std::chrono::seconds delay)
     {
         if (!remote_url.empty())

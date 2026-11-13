@@ -50,7 +50,7 @@ namespace garlic::core::configuration
                 out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
                 out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
             }
-            else if (cp < 0x10000)
+            else // at most 0xFFFF: one QChar
             {
                 out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
                 out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
@@ -154,11 +154,16 @@ namespace garlic::core::configuration
                         case 'v': out.push_back('\v'); break;
                         case 'x':
                         {
+                            // like QSettings: all hex digits, the QChar keeps their last 16 bits; without one nothing
                             std::size_t start = i + 1;
                             std::size_t end   = start;
-                            while (end < value.size() && isHex(value[end])) // like QSettings: all hex digits
+                            while (end < value.size() && isHex(value[end]))
                                 ++end;
-                            appendUtf8(out, parseHex(value.substr(start, end - start)));
+                            auto digits = value.substr(start, end - start);
+                            if (digits.size() > 4)
+                                digits.remove_prefix(digits.size() - 4);
+                            if (!digits.empty())
+                                appendUtf8(out, parseHex(digits));
                             i = end - 1;
                             break;
                         }

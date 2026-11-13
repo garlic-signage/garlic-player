@@ -213,6 +213,22 @@ TEST_CASE("\\x and %U: one, two and three bytes of UTF-8, upper and lower case h
     CHECK(ini.value("a%U123") == "4"); // too short for %U: as it is
 }
 
+TEST_CASE("\\x like QSettings: more than four hex digits keep the last 16 bits, without a digit nothing")
+{
+    auto ini = IniFile::parse("long=\\x10041\n"
+                              "none=a\\xg\n");
+    CHECK(ini.value("long") == "A");
+    CHECK(ini.value("none") == "ag");
+}
+
+TEST_CASE("comments after quotes: the quote ends, spaces before the comment go")
+{
+    auto ini = IniFile::parse("quoted=\"a\" ; comment\n"
+                              "empty=\"\" ; comment\n");
+    CHECK(ini.value("quoted") == "a");
+    CHECK(ini.value("empty") == "");
+}
+
 TEST_CASE("written as they are: letters, digits, _ - . and UTF-8 in keys; spaces at one end are quoted")
 {
     IniFile ini;
@@ -220,11 +236,13 @@ TEST_CASE("written as they are: letters, digits, _ - . and UTF-8 in keys; spaces
     ini.setValue("lead", " a");
     ini.setValue("trail", "b ");
     ini.setValue("control", std::string("\x1f\r\t"));
+    ini.setValue("no_hex", std::string("\x01g")); // g is no hex digit: not escaped after \x01
 
     auto text = ini.serialize();
     CHECK(text.find("\nAZaz09_-.Ā=1\n") != std::string::npos);
     CHECK(text.find("\nlead=\" a\"\n") != std::string::npos);
     CHECK(text.find("\ntrail=\"b \"\n") != std::string::npos);
     CHECK(text.find("\ncontrol=\\x1f\\r\\t\n") != std::string::npos);
+    CHECK(text.find("\nno_hex=\\x01g\n") != std::string::npos);
     CHECK(IniFile::parse(text).values() == ini.values());
 }

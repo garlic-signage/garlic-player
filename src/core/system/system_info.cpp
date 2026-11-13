@@ -29,7 +29,7 @@ namespace garlic::core::system
         /// The number after "Key:" in a /proc file, e.g. "MemTotal:  16314508 kB".
         std::optional<std::uint64_t> field(std::string_view text, std::string_view key)
         {
-            for (std::size_t start = 0; start < text.size();)
+            for (std::size_t start = 0;;)
             {
                 auto end  = text.find('\n', start);
                 auto line = text.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
@@ -43,10 +43,9 @@ namespace garlic::core::system
                     return value;
                 }
                 if (end == std::string_view::npos)
-                    break;
+                    return std::nullopt;
                 start = end + 1;
             }
-            return std::nullopt;
         }
 
         std::optional<std::uint64_t> kilobytes(std::string_view text, std::string_view key)
@@ -77,8 +76,8 @@ namespace garlic::core::system
     std::string normalizeLocale(std::string_view value)
     {
         value = value.substr(0, value.find_first_of(".@"));
-        if (value.empty() || value == "POSIX" || value == "C")
-            return "C";
+        if (value.empty() || value == "POSIX")
+            return "C"; // "C" stays as it is
         std::string name(value);
         for (char &c : name)
             if (c == '-')

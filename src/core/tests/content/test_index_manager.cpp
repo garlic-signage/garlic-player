@@ -153,6 +153,9 @@ TEST_CASE("refresh: at least 60 s, an update is handed on, not modified is not")
     f.wait(30s);                                                 // 60 s: the minimum
     CHECK(f.requests("http://hub/player/index.smil?id=1") > 2);
     CHECK(f.titles.size() == 1); // not modified
+    REQUIRE(f.index.nextDeadline().has_value());
+    CHECK(*f.index.nextDeadline() == f.clock.monotonic() + 60s); // the next check, not the one just done
+    CHECK_FALSE(f.fs.content("logs/debug.log").value_or("").contains("index download failed"));
 
     f.serve("http://hub/player/index.smil?id=1", indexText("v2", 10), "application/smil+xml", "v2");
     f.wait(60s);
@@ -202,6 +205,56 @@ TEST_CASE("refresh 0: no check any more")
     CHECK_FALSE(f.index.nextDeadline().has_value());
 }
 
+TEST_CASE("refresh 0 of an update ends the check of the cached index")
+{
+    Fixture f;
+    writeFile(f.fs, "cache/index.smil", indexText("cached", 300));
+    f.config.setLastPlayedIndexPath("cache/index.smil");
+    f.serve("http://hub/player/index.smil?id=1", indexText("once", 0), "application/smil+xml");
+    f.index.start();
+    REQUIRE(f.index.nextDeadline().has_value());
+    f.runUntilIdle();
+    CHECK(f.titles == std::vector<std::string>{"cached", "once"});
+    CHECK_FALSE(f.index.nextDeadline().has_value());
+}
+
+TEST_CASE("the cached index plays at once only if it was the last played")
+{
+    Fixture f;
+    writeFile(f.fs, "cache/index.smil", indexText("cached"));
+    f.config.setLastPlayedIndexPath("/usb/index.smil");
+    f.index.start();
+    CHECK(f.titles.empty());
+}
+
+TEST_CASE("a failed download without a cached copy: logged with its error, no SMIL_NOT_AVAILABLE")
+{
+    Fixture f;
+    downloader::tests::FakeHttpTransport::Response offline;
+    offline.error = downloader::TransportError{downloader::TransportErrorCode::ConnectionFailed, "offline"};
+    f.transport.respond(downloader::HttpMethod::Head, "http://hub/player/index.smil?id=1", offline);
+    f.index.start();
+    f.runUntilIdle();
+    CHECK(f.titles.empty());
+    CHECK(f.fs.content("logs/debug.log").value_or("").contains("index download failed: "));
+    CHECK_FALSE(f.events().contains("SMIL_NOT_AVAILABLE"));
+    CHECK(f.index.nextDeadline().has_value());
+}
+
+TEST_CASE("a local index started while the remote one downloads: the late result plans no check")
+{
+    Fixture f;
+    downloader::tests::FakeHttpTransport::Response offline;
+    offline.error = downloader::TransportError{downloader::TransportErrorCode::ConnectionFailed, "offline"};
+    f.transport.respond(downloader::HttpMethod::Head, "http://hub/player/index.smil?id=1", offline);
+    f.index.start();
+    writeFile(f.fs, "/usb/event.smil", indexText("event", 0));
+    f.index.startTemporary("/usb/event.smil");
+    f.runUntilIdle();
+    CHECK(f.titles == std::vector<std::string>{"event"});
+    CHECK_FALSE(f.index.nextDeadline().has_value());
+}
+
 TEST_CASE("local index: read directly, base is its directory")
 {
     Fixture f("/usb/show/index.smil");
@@ -225,6 +278,9 @@ TEST_CASE("local index with file://, and a local temporary index after a remote 
     remote.serve("http://hub/player/index.smil?id=1", indexText("hub", 60), "application/smil+xml");
     remote.index.start();
     remote.runUntilIdle();
+    REQUIRE(remote.index.nextDeadline().has_value());
+    remote.index.startTemporary("/usb/missing.smil"); // the remote check stops, also without a new index
+    CHECK_FALSE(remote.index.nextDeadline().has_value());
     writeFile(remote.fs, "/usb/event.smil", indexText("event"));
     remote.index.startTemporary("/usb/event.smil");
     CHECK(remote.titles == std::vector<std::string>{"hub", "event"});

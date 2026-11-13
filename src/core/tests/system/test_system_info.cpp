@@ -104,6 +104,7 @@ TEST_CASE("/proc fields: the key exactly, the number of its own line, too large 
     CHECK(memory.available == 400ULL * 1024);   // MemAvailable without a number: MemFree
     CHECK_FALSE(parseMeminfo("MemTotal kB 5\n").total.has_value());
     CHECK_FALSE(parseMeminfo("MemTotal: kB\nMemFree: 400 kB\n").total.has_value()); // not the number of the next line
+    CHECK_FALSE(parseMeminfo("MemFree: 1 kB\nMemTotal: kB\nMemAvailable: 2 kB\n").total.has_value()); // also further down
     CHECK_FALSE(parseMeminfo("MemTotal: 99999999999999999999999 kB\n").total.has_value());
 }
 
