@@ -161,9 +161,9 @@ namespace garlic::core::reports
 
     // ------------------------------------------------------------------ uploads
 
+    /// Every way out sets the next due (schedule, retry, finished); while the upload runs, request blocks it.
     void Reporter::send(Job &job)
     {
-        job.due.reset();
         std::string log; // the content of the log file to upload
         if (job.kind == Kind::PlayLog || job.kind == Kind::EventLog)
         {
@@ -211,8 +211,7 @@ namespace garlic::core::reports
         }
         if (is_log)
         {
-            (void)fs.remove(job.sending);
-            job.sending.clear();
+            (void)fs.remove(job.sending); // the next send() names the next file
             job.due = clock.monotonic(); // the next file at once
             return;
         }

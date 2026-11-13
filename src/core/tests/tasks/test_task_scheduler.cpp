@@ -410,6 +410,18 @@ TEST_CASE("start without a pending task: no task state")
     CHECK(f.taskLog().empty());
 }
 
+TEST_CASE("a task without id is not run, also when one of its kind with id was done before")
+{
+    Fixture f;
+    f.serveList(R"(<shutdownPlayer id="r1"/>)");
+    f.newIndex();
+    REQUIRE(f.actions.size() == 1);
+
+    f.serveList(R"(<shutdownPlayer/><applyCommand><command>clear_cache</command></applyCommand>)", "v2");
+    f.newIndex();
+    CHECK(f.actions.size() == 1);
+}
+
 TEST_CASE("the last 20 done ids per kind are kept")
 {
     Fixture f;

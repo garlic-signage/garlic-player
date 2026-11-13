@@ -302,6 +302,42 @@ TEST_CASE("a subscription with another refresh, retry or method counts as change
     CHECK(f.puts().size() == 4);
 }
 
+TEST_CASE("another report type at the same URL is a new subscription")
+{
+    Fixture f;
+    f.logger.played("first", f.clock.now());
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.run();
+    REQUIRE(f.puts().size() == 1);
+    CHECK(f.puts()[0].starts_with("http://hub/logs/playlog-"));
+
+    f.logger.event(logger::Severity::Error, "Test", "SOMETHING", {});
+    f.reporter.subscribe({subscription("EventlogCollection", "http://hub/logs", 60)});
+    f.run();
+    REQUIRE(f.puts().size() == 2);
+    CHECK(f.puts()[1].starts_with("http://hub/logs/event-"));
+}
+
+TEST_CASE("system and inventory report carry the information of the system")
+{
+    Fixture  f;
+    Reporter reporter{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", []
+                      {
+                          SystemInfo system;
+                          system.free_space = 4242;
+                          return system;
+                      }};
+    reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("InventoryReport", "http://hub/b.xml")});
+    for (int i = 0; i < 10; ++i)
+    {
+        reporter.poll();
+        f.transport.poll();
+    }
+    REQUIRE(f.transport.requests.size() == 2);
+    for (const auto &request : f.transport.requests)
+        CHECK(request.body.contains("<totalFreeSpace>4242</totalFreeSpace>"));
+}
+
 TEST_CASE("the same report type twice: the last subscription counts")
 {
     Fixture f;
@@ -345,12 +381,17 @@ TEST_CASE("nextDeadline is the earliest report")
     f.reporter.subscribe({subscription("InventoryReport", "http://hub/b.xml", 120), subscription("SystemReport", "http://hub/a.xml", 60)});
     f.run();
     CHECK(f.reporter.nextDeadline() == f.clock.monotonic() + 60s);
+
+    Fixture reverse; // the earlier one first
+    reverse.reporter.subscribe({subscription("SystemReport", "http://hub/a.xml", 60), subscription("InventoryReport", "http://hub/b.xml", 120)});
+    reverse.run();
+    CHECK(reverse.reporter.nextDeadline() == reverse.clock.monotonic() + 60s);
 }
 
-TEST_CASE("no log to send: tried again after refreshInterval")
+TEST_CASE("no log to send: tried again after refreshInterval, not after retryInterval")
 {
     Fixture f;
-    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60)});
+    f.reporter.subscribe({subscription("PlaylogCollection", "http://hub/logs", 60, 10)});
     f.run();
     CHECK(f.puts().empty());
     CHECK(f.reporter.nextDeadline() == f.clock.monotonic() + 60s);

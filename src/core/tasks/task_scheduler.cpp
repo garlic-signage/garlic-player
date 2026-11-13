@@ -18,6 +18,7 @@
 #include "tasks/task_scheduler.hpp"
 
 #include "common/md5.hpp"
+#include "common/text.hpp"
 #include "common/time_format.hpp"
 
 #include <algorithm>
@@ -53,14 +54,6 @@ namespace garlic::core::tasks
                 start = end + 1;
             }
             return items;
-        }
-
-        std::string lower(std::string text)
-        {
-            for (char &c : text)
-                if (c >= 'A' && c <= 'Z')
-                    c = static_cast<char>(c - 'A' + 'a');
-            return text;
         }
 
         constexpr std::size_t kept_ids = 20; // done ids remembered per kind
@@ -113,7 +106,7 @@ namespace garlic::core::tasks
 
     bool TaskScheduler::downloaded(const downloader::DownloadResult &result)
     {
-        if (!list_url.empty() && result.url == list_url)
+        if (result.url == list_url) // a download has a URL: an empty list_url matches none
         {
             std::string path = takeFile(result);
             if (path.empty())
@@ -186,7 +179,7 @@ namespace garlic::core::tasks
     void TaskScheduler::finish(const Task &task, const downloader::DownloadResult &result)
     {
         std::string path = takeFile(result);
-        auto        data = path.empty() ? std::nullopt : readChecked(task, path);
+        auto        data = readChecked(task, path); // "" cannot be read
         if (!data)
         {
             logger.taskState(task.id, "aborted"); // not done: tried again with the next index
@@ -309,14 +302,14 @@ namespace garlic::core::tasks
         if (task.content_checksum.empty())
             return std::move(*data);
 
-        std::string method = lower(task.checksum_method);
+        std::string method = common::toLower(task.checksum_method);
         if (!method.empty() && method != "md5")
         {
             logger.event(logger::Severity::Error, "TaskScheduler", "CHECKSUM_UNKNOWN_METHOD",
                          {{"taskId", task.id}, {"checksumMethod", task.checksum_method}});
             return std::nullopt;
         }
-        if (common::Md5::hex(*data) != lower(task.content_checksum))
+        if (common::Md5::hex(*data) != common::toLower(task.content_checksum))
         {
             logger.event(logger::Severity::Error, "TaskScheduler", "CHECKSUM_ERROR",
                          {{"taskId", task.id}, {"resourceURI", task.source_uri}});
