@@ -109,7 +109,7 @@ namespace garlic::core::smil
         {
             s            = trim(s);
             double value = 0;
-            std::from_chars(s.data(), s.data() + s.size(), value);
+            common::fromChars(s.data(), s.data() + s.size(), value);
             return value;
         }
 
@@ -117,7 +117,7 @@ namespace garlic::core::smil
         double toNumber(std::string_view s)
         {
             double value = 0;
-            auto [end, error] = std::from_chars(s.data(), s.data() + s.size(), value);
+            auto [end, error] = common::fromChars(s.data(), s.data() + s.size(), value);
             return error == std::errc() && end == s.data() + s.size() ? value : 0;
         }
 

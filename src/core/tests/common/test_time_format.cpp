@@ -66,3 +66,14 @@ TEST_CASE("toLocalTime gives the local wall time")
         CHECK(toLocalTime(new_year) == local_days{December / 31 / 2025} + 19h + 30min);
     }
 }
+
+TEST_CASE("isoDateTime and compactDateTime write the time as it is, without zone")
+{
+    sys_seconds  utc   = sys_days{October / 28 / 2026} + 3h + 4min + 5s;
+    local_seconds local = local_days{December / 31 / 1999} + 23h + 59min + 59s;
+
+    CHECK(isoDateTime(utc) == "2026-10-28T03:04:05");
+    CHECK(isoDateTime(local) == "1999-12-31T23:59:59");
+    CHECK(compactDateTime(local) == "19991231235959");
+    CHECK(isoDateTime(sys_seconds{}) == "1970-01-01T00:00:00");
+}

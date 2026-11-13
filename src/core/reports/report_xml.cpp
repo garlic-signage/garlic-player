@@ -16,6 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "reports/report_xml.hpp"
+#include "common/time_format.hpp"
 
 #include <format>
 
@@ -61,7 +62,7 @@ namespace garlic::core::reports
             auto utc = std::chrono::floor<std::chrono::seconds>(now);
             return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                    "<report xmlns=\"http://schemas.garlic-player.com/gapi-1.0\">" +
-                   tag("date", std::format("{:%Y-%m-%dT%H:%M:%S}Z", utc)) + tag("version", "1.0") + "<player id=\"" +
+                   tag("date", common::isoDateTime(utc) + "Z") + tag("version", "1.0") + "<player id=\"" +
                    escape(uuid) + "\">";
         }
 

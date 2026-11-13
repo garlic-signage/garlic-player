@@ -17,6 +17,7 @@ config.index_uri = command_line_uri;                          // empty: the one 
 config.supports  = [](const smil::Media &m) { return …; };    // what the frontend can show
 config.random_seed = std::random_device{}();
 config.supervisor  = &supervisor;                             // launcher, daemon, service; nullptr: none
+config.uuid        = launcher_uuid;                           // only for a new player; empty: a random one
 
 PlayerRuntimeApi runtime(fs, clock, http, config);
 if (auto started = runtime.start(); !started) … started.error()
@@ -47,6 +48,8 @@ while (running)
 | `playerSettings()`         | what the settings dialog shows: player name, index URI, HTTP server on/off and port |
 | `changePlayerSettings(s)`  | check and store them; error text of the core if not valid         |
 | `debugInfo()`              | resources and identity for the debug dialog                       |
+| `applyConfigurationFile(path)` | a local `configuration.xml` now, e.g. from the launcher: like the task `updateSettings`, the index is loaded again |
+| `remainingTime(id)`        | time until a playing instance ends by its `dur` or `end`, rounded up; for the deep standby of `adapi:blankScreen` |
 | `configuration()`          | read and change any setting                                       |
 | `stop()`                   | stop the playback (standby, quitting); the `StopMedia` come with the next `poll()` |
 

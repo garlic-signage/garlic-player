@@ -17,6 +17,9 @@
 */
 #include "player.hpp"
 
+#include "configuration/configuration.hpp"
+
+#include <QCoreApplication>
 #include <QCursor>
 #include <QDateTime>
 #include <QDebug>
@@ -39,6 +42,7 @@ namespace player
         {
             using Functions::operator()...;
         };
+        template <typename... Functions> Overloaded(Functions...) -> Overloaded<Functions...>; // Clang before 19
 
         QString qt(const std::string &text)
         {
@@ -203,7 +207,7 @@ namespace player
         if (kind == "command") // garlic-lib only knew adapi:blankScreen, which needs the launcher
         {
             if (qt(command.source).compare("adapi:blankScreen", Qt::CaseInsensitive) == 0)
-                qInfo() << "blankScreen: no launcher, the screen stays on";
+                blankScreen(id);
             else
                 mediaFailed(id, "unknown command " + qt(command.source));
             return;
@@ -233,12 +237,51 @@ namespace player
 
     void Player::stop(int instance)
     {
+        if (auto blank = blank_screens.find(instance); blank != blank_screens.end())
+        {
+            if (blank->second && screen_control != nullptr)
+                screen_control->screenOn();
+            blank_screens.erase(blank);
+        }
         auto it = instances.find(instance);
         if (it == instances.end())
             return;
         for (int row : it->second)
             region_model.media(row)->remove(instance);
         instances.erase(it);
+    }
+
+    /**
+     * adapi:blankScreen with the standby_mode of the configuration, garlic-lib: PlayerRefCommand. partially: the screen
+     * goes off until the element ends; deep: the launcher sleeps until the planned end of the element and wakes the
+     * device; no_standby: nothing.
+     */
+    void Player::blankScreen(int instance)
+    {
+        namespace cfg    = garlic::core::configuration;
+        std::string mode = ask<std::string>(runtime, [](PlayerRuntimeApi &api) { return api.configuration().standbyMode(); });
+        if (mode != cfg::standby_partially && mode != cfg::standby_deep)
+            return;
+        if (screen_control == nullptr)
+        {
+            qInfo() << "blankScreen: no launcher, the screen stays on";
+            return;
+        }
+        if (mode == cfg::standby_deep)
+        {
+            auto id   = static_cast<smil::InstanceId>(instance);
+            auto rest = ask<std::optional<std::chrono::seconds>>(runtime, [id](PlayerRuntimeApi &api)
+                                                                 { return api.remainingTime(id); });
+            if (rest)
+            {
+                screen_control->deepStandby(*rest);
+                blank_screens[instance] = false; // the launcher wakes the device
+                return;
+            }
+            qWarning() << "blankScreen: deep standby without a planned end, the screen goes off instead";
+        }
+        screen_control->screenOff();
+        blank_screens[instance] = true;
     }
 
     void Player::forEach(int instance, void (MediaModel::*action)(int))
@@ -321,6 +364,38 @@ namespace player
                 lines << name + ": " + media.label;
         }
         return lines;
+    }
+
+    // ------------------------------------------------------------------ launcher
+
+    void Player::applyConfiguration(const QString &path)
+    {
+        runtime.post([file = path.toStdString()](PlayerRuntimeApi &r) { r.applyConfigurationFile(file); });
+    }
+
+    /// garlic-lib: reloadWithNewIndex - stored as the index URI and loaded
+    void Player::playIndex(const QString &uri)
+    {
+        runtime.post(
+            [given = uri.toStdString()](PlayerRuntimeApi &r)
+            {
+                auto valid = garlic::core::configuration::Configuration::validateIndexUri(given);
+                if (!valid)
+                {
+                    qWarning().noquote() << "index of the launcher not taken:" << qt(valid.error());
+                    return;
+                }
+                PlayerSettings next = r.playerSettings();
+                next.index_uri      = *valid;
+                if (auto changed = r.changePlayerSettings(next); !changed)
+                    qWarning().noquote() << "index of the launcher not taken:" << qt(changed.error());
+            });
+    }
+
+    void Player::quit()
+    {
+        Q_EMIT quitRequested();
+        QCoreApplication::quit();
     }
 
     // ------------------------------------------------------------------ window

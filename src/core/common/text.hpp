@@ -18,6 +18,7 @@
 #ifndef GARLIC_CORE_COMMON_TEXT_HPP
 #define GARLIC_CORE_COMMON_TEXT_HPP
 
+#include <charconv>
 #include <string>
 #include <string_view>
 
@@ -25,6 +26,12 @@ namespace garlic::core::common
 {
     /// Only A-Z become a-z, independent of the locale (header names, file extensions, MIME types).
     std::string toLower(std::string_view text);
+
+    /**
+     * std::from_chars for double, independent of the locale. Where the standard library has no floating point
+     * from_chars (libc++ before 20, e.g. NDK 26 of Qt 6.8 for Android) a stream with the classic locale reads it.
+     */
+    std::from_chars_result fromChars(const char *first, const char *last, double &value);
 }
 
 #endif // GARLIC_CORE_COMMON_TEXT_HPP

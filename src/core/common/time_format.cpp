@@ -36,6 +36,29 @@ namespace garlic::core::common
             return local;
         }
 
+        struct DateTime
+        {
+            int      year;
+            unsigned month, day;
+            long     hour, minute, second;
+        };
+
+        template <typename Clock> DateTime fields(std::chrono::time_point<Clock, std::chrono::seconds> time)
+        {
+            using namespace std::chrono;
+            auto                 day = floor<days>(time);
+            year_month_day       date{local_days{day.time_since_epoch()}};
+            hh_mm_ss<seconds>    clock{time - day};
+            return {static_cast<int>(date.year()), static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()),
+                    static_cast<long>(clock.hours().count()), static_cast<long>(clock.minutes().count()),
+                    static_cast<long>(clock.seconds().count())};
+        }
+
+        std::string iso(const DateTime &t)
+        {
+            return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", t.year, t.month, t.day, t.hour, t.minute, t.second);
+        }
+
         /// Offset of the local time zone at this moment, in seconds east of UTC.
         long utcOffset(std::time_t t, const std::tm &local)
         {
@@ -44,6 +67,22 @@ namespace garlic::core::common
                                 hours{local.tm_hour} + minutes{local.tm_min} + seconds{local.tm_sec};
             return static_cast<long>((local_as_utc - floor<seconds>(system_clock::from_time_t(t))).count());
         }
+    }
+
+    std::string isoDateTime(std::chrono::sys_seconds time)
+    {
+        return iso(fields(time));
+    }
+
+    std::string isoDateTime(std::chrono::local_seconds time)
+    {
+        return iso(fields(time));
+    }
+
+    std::string compactDateTime(std::chrono::local_seconds time)
+    {
+        DateTime t = fields(time);
+        return std::format("{:04}{:02}{:02}{:02}{:02}{:02}", t.year, t.month, t.day, t.hour, t.minute, t.second);
     }
 
     std::string isoLocalTime(std::chrono::system_clock::time_point time)

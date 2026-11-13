@@ -1014,3 +1014,66 @@ TEST_CASE("the HTTP server: a port that is in use is written to debug.log, a new
     REQUIRE(f.runtime->changePlayerSettings(next).has_value());
     CHECK(tests::statusOf(f.http(next.httpd_port, request("GET", "/nothing"))) == 404);
 }
+
+// ------------------------------------------------------------------ launcher
+
+TEST_CASE("a configuration.xml of the launcher at runtime: applied, user agent and index follow; missing: false")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="img/a.jpg" dur="10s"/>)x", 60),
+            "application/smil+xml");
+    f.serve("http://hub/img/a.jpg", "jpeg", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+
+    f.write("usb/config.xml", R"(<configuration><prop name="info.playerName" value="Lobby"/>
+        <prop name="content.serverUrl" value="http://hub/usb.smil"/></configuration>)");
+    CHECK(f.runtime->applyConfigurationFile("usb/config.xml"));
+    f.run(1s);
+
+    CHECK(f.runtime->configuration().playerName() == "Lobby");
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/usb.smil");
+    auto request = std::ranges::find(f.transport.requests, std::string("http://hub/usb.smil"), &downloader::HttpRequest::url);
+    REQUIRE(request != f.transport.requests.end());
+    CHECK(request->headers.find("User-Agent").value_or("").find("NAME:Lobby") != std::string::npos);
+
+    CHECK_FALSE(f.runtime->applyConfigurationFile("usb/missing.xml"));
+    CHECK(f.runtime->configuration().indexUri() == "http://hub/usb.smil");
+}
+
+TEST_CASE("remainingTime: the rest of the dur of a playing instance, rounded up; nothing without a planned end")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil",
+            indexText(R"x(<par><img xml:id="a" src="img/a.jpg" dur="10s"/><img xml:id="b" src="img/b.jpg" dur="indefinite"/></par>)x", 60),
+            "application/smil+xml");
+    f.serve("http://hub/img/a.jpg", "jpeg", "image/jpeg");
+    f.serve("http://hub/img/b.jpg", "jpeg", "image/jpeg");
+    CHECK_FALSE(f.runtime->remainingTime(1).has_value()); // before start(): no engine
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    REQUIRE(f.instances.contains("a"));
+
+    f.clock.advance(2500ms);
+    auto rest = f.runtime->remainingTime(f.instances["a"]);
+    REQUIRE(rest.has_value());
+    CHECK(*rest > 5s); // the download took a moment of the second
+    CHECK(*rest <= 8s);
+    CHECK_FALSE(f.runtime->remainingTime(f.instances["b"]).has_value());
+}
+
+TEST_CASE("uuid of the supervisor: taken at the first start, a stored uuid stays")
+{
+    Fixture f; // its ini has no uuid
+    auto config = f.base();
+    config.uuid = "11111111-2222-4333-8444-555555555555";
+    f.runtime   = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.runtime->configuration().uuid() == "11111111-2222-4333-8444-555555555555");
+
+    f.runtime.reset();
+    config.uuid = "99999999-2222-4333-8444-555555555555";
+    f.runtime   = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.runtime->configuration().uuid() == "11111111-2222-4333-8444-555555555555");
+}

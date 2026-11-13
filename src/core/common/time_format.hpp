@@ -29,6 +29,14 @@ namespace garlic::core::common
     /// Local time with milliseconds for text logs: "2026-10-28 03:30:56,123".
     std::string logTimestamp(std::chrono::system_clock::time_point time);
 
+    /**
+     * "2026-10-28T03:30:56", without zone; compactDateTime: "20261028033056". Instead of std::format with chrono
+     * specifiers, which the libc++ of NDK 26 (the NDK of Qt 6.8 for Android) does not have.
+     */
+    std::string isoDateTime(std::chrono::sys_seconds time);
+    std::string isoDateTime(std::chrono::local_seconds time);
+    std::string compactDateTime(std::chrono::local_seconds time);
+
     /// The local wall time of a moment, e.g. for SMIL wallclock values. Uses the C library, not the tz database.
     std::chrono::local_seconds toLocalTime(std::chrono::system_clock::time_point time);
 }

@@ -50,7 +50,7 @@ Dialog {
     }
 
     footer: RowLayout {
-        Button { text: "Quit player"; onClicked: Qt.quit(); Layout.leftMargin: 12; Layout.bottomMargin: 12 }
+        Button { text: "Quit player"; onClicked: Player.quit(); Layout.leftMargin: 12; Layout.bottomMargin: 12 }
         Item { Layout.fillWidth: true }
         Button { text: "Close"; highlighted: true; onClicked: dialog.close(); Layout.rightMargin: 12; Layout.bottomMargin: 12 }
     }

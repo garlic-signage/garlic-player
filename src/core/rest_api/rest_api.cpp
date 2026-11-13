@@ -166,7 +166,7 @@ namespace garlic::core::rest_api
 
         std::string isoTime(std::chrono::system_clock::time_point time)
         {
-            return std::format("{:%FT%T}", std::chrono::floor<std::chrono::seconds>(time));
+            return common::isoDateTime(std::chrono::floor<std::chrono::seconds>(time));
         }
     }
 
@@ -515,7 +515,7 @@ namespace garlic::core::rest_api
         {
             // garlic-lib: "httpd: " + QDateTime::currentDateTime().toString(Qt::ISODate)
             if (actions.reboot)
-                actions.reboot(std::format("httpd: {:%Y-%m-%dT%H:%M:%S}", common::toLocalTime(clock.now())));
+                actions.reboot("httpd: " + common::isoDateTime(common::toLocalTime(clock.now())));
             return respondText("");
         }
         if (name == "screenshot")
@@ -530,7 +530,7 @@ namespace garlic::core::rest_api
     Response RestApi::screenshot()
     {
         std::string path = config.logDir() + "/" +
-                           std::format("{:%Y%m%d%H%M%S}", common::toLocalTime(clock.now())) + ".jpg";
+                           common::compactDateTime(common::toLocalTime(clock.now())) + ".jpg";
         if (!actions.screenshot)
             return screenshotFile(path);
 

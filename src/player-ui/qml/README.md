@@ -1,6 +1,7 @@
 # qml
 
-The Qt Quick frontend of the garlic-player on the core, meant for iOS (and on the desktop to try it). It behaves like
+The Qt Quick frontend of the garlic-player on the core, for Android (with launcher 1.x and Philips displays, like the
+legacy player), meant for iOS (and on the desktop to try it). It behaves like
 the [qwidget](../qwidget/README.md) player: the same command line, menu, dialogs and shortcuts. Like there, the core
 (`PlayerRuntimeApi`) runs in a thread of its own (`ThreadedRuntime`); the frontend only shows.
 
@@ -38,6 +39,8 @@ the start; cancelled, the player ends.
 | `PlayerMenu.qml`         | the menu with the shortcuts                                                     |
 | `SettingsDialog.qml`     | player name, content URL, HTTP server on/off and port                           |
 | `DebugDialog.qml`        | resources from the core and the media playing now, every second                 |
+| `android_launcher.hpp/.cpp` | Android: launcher 1.x or Philips through `GarlicActivity` (supervisor, screen, uuid, content URL), storage, CA bundle |
+| `android/`               | Android: manifest, icons, the Java classes (`GarlicActivity`, `GarlicLauncher`, `PhilipsLauncher`, receivers) |
 
 ## Flow
 
@@ -54,7 +57,7 @@ ThreadedRuntime: poll() → events, wake()  →   Player::takeEvents()
                                                 ├── RepeatMedia      role generation + 1: QML plays again from the start
                                                 ├── Screenshot       screen as JPEG (quality 60) → screenshotTaken
                                                 ├── ClearCaches      the player restarts itself
-                                                └── Reboot, InstallSoftware, adapi:blankScreen: only logged, no launcher
+                                                └── adapi:blankScreen: ScreenControl (Android: the launcher)
 Player.mediaFinished / mediaFailed /     ←    MediaView: end of a video or audio, a file that cannot be played,
        activated / accessKey                    a click, a key (Main.qml)
 ```
@@ -89,7 +92,68 @@ Qt WebView is the system WebView on iOS (WKWebView) and Android, WebEngine on th
 - Debian Trixie needs at runtime `qml6-module-qtquick`, `-qtquick-controls`, `-qtquick-layouts`, `-qtquick-templates`,
   `-qtquick-window`, `-qtqml-workerscript`, `-qtmultimedia` and `-qtwebview`.
 
+## Android
+
+The same package as the legacy player, `com.sagiadinos.garlic.player` with the activity
+`com.sagiadinos.garlic.player.java.GarlicActivity`: launcher 1.x and the Philips firmware start and update the player
+by these names, and the update keeps the ini (uuid, settings). versionCode from `VERSION` (`2.0.0-beta.566` →
+20000566), above the legacy 671. Android 9 (API 28) or newer, arm64-v8a.
+
+**Launcher.** `GarlicActivity` looks for it before Qt starts: `com.sagiadinos.garlic.launcher` (launcher 1.x), else
+`com.tpv.app.tpvlauncher` (Philips), else none. The protocol of launcher 1.x stays as it is (frozen); no heartbeat.
+
+| Player                                   | launcher 1.x                                                      | Philips                     |
+|------------------------------------------|-------------------------------------------------------------------|-----------------------------|
+| start: uuid, content URL, version        | ContentProvider `SettingsProvider` (`uuid`, `smil_content_url`, `launcher_version`) | SICP: model-serial, firmware |
+| `reboot(task_id)` (core)                 | broadcast `CommandReceiver`, `command=reboot`, `task_id`           | `php.intent.action.REBOOT`  |
+| `installSoftware(path)` (core)           | broadcast `InstallAppReceiver`, `apk_path`                         | `php.intent.action.UPDATE_APK` |
+| `adapi:blankScreen`, `partially`         | `command=screen_off`, at the end `screen_on`                       | SICP backlight off/on       |
+| `adapi:blankScreen`, `deep`              | `command=deep_standby`, `seconds_to_wakeup` (rest of dur/end)      | -                           |
+| Exit (menu, keys, debug dialog)          | broadcast `PlayerClosedReceiver`: the launcher does not restart it | -                           |
+| launcher → `ConfigReceiver`, `config_path` | `applyConfigurationFile()`: applied, index loaded again          |                             |
+| launcher → `SmilIndexReceiver`, `smil_index_path` | stored as index URI and played (USB stick)                |                             |
+
+- **uuid** of the launcher only for a new player (no uuid in the ini yet); a stored one stays.
+- **Content URL** of the garlic-launcher wins at every start, as in the legacy player; the settings dialog shows name
+  and URL but does not change them, and does not open at the start without an index (the launcher sends one). Philips:
+  `https://indexes.smil-control.com` only as default when the settings have no index.
+- **Broadcasts** name the package of the launcher: its receivers are declared in its manifest, and Android 8+ does not
+  deliver implicit broadcasts to those.
+- **Storage**: cache and logs in `/sdcard/garlic-player/{cache,logs}` like the legacy player, because launcher 1.x
+  installs the downloaded APK from there. targetSdk 29 with `requestLegacyExternalStorage`, so `WRITE_EXTERNAL_STORAGE`
+  is enough also on Android 11+. Without the permission (20 s for the dialog at the start) inside the app, with a
+  warning: then the launcher cannot install updates.
+- **HTTPS**: libcurl gets the CA certificates of the system as one PEM (`ca-bundle.pem`, written at every start from
+  `/apex/com.android.conscrypt/cacerts` or `/system/etc/security/cacerts`).
+- **Permissions**: only internet, network and Wi-Fi state, storage, wake lock; the ones Qt Multimedia would add
+  (camera, microphone, location, bluetooth) are left out.
+
+### Build
+
+Qt 6.8 for Android (arm64-v8a) and for the host, Android SDK with NDK 26.1, JDK 17, vcpkg (the triplet builds curl,
+OpenSSL, SQLite, libxml2 and libmicrohttpd).
+
+```
+export ANDROID_SDK_ROOT=~/Android/Sdk ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/26.1.10909125
+export ANDROID_NDK_HOME=$ANDROID_NDK_ROOT JAVA_HOME=/usr/lib/jvm/java-17-openjdk VCPKG_ROOT=~/vcpkg
+QT=~/Qt/6.8.5
+cmake -S . -B build/android-arm64 -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+  -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$QT/android_arm64_v8a/lib/cmake/Qt6/qt.toolchain.cmake \
+  -DVCPKG_TARGET_TRIPLET=arm64-android -DVCPKG_MANIFEST_DIR=$PWD/src/core \
+  -DQT_HOST_PATH=$QT/gcc_64 -DANDROID_PLATFORM=android-28 \
+  -DANDROID_SDK_ROOT=$ANDROID_SDK_ROOT -DANDROID_NDK_ROOT=$ANDROID_NDK_ROOT \
+  -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_CORE_BUILD_TESTS=OFF
+cmake --build build/android-arm64
+```
+
+The APK is `build/android-arm64/src/player-ui/qml/android-build/build/outputs/apk/release/android-build-release-unsigned.apk`.
+It has to be signed with the key of the legacy player, otherwise Android refuses it as update and launcher 1.x cannot
+install it over the old one.
+
 ## Not yet
 
-- iOS and Android builds (the core is not built for them yet; Android is meant to get a native Java frontend later).
-- Launcher/daemon: reboot, software installation, screen off.
+- iOS.
+- Android armeabi-v7a (32-bit boxes): a second build with the triplet `arm-neon-android` and the Qt kit `android_armv7`.
+- The supervisor protocol of [supervisor_protocol](../../core/docs/supervisor_protocol.md) (new launcher, garlic-daemon,
+  garlic-service): until then Android only with launcher 1.x or Philips, the desktop without supervisor.

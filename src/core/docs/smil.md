@@ -401,6 +401,10 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 | `accessKey(key)`       | a key was pressed: `accesskey(…)`                                     |
 | `notify(name)`         | notification from outside (REST API `/v2/task`): `notify(…)`          |
 
+`plannedEnd(id)` gives when a playing instance ends by its own `dur` or `end`, the earlier one; nothing if neither
+plans a time (a video without dur, an end with a trigger) or it does not play. The ends of its containers do not count,
+as in garlic-lib (`determineNextEndTime`). The player needs it for the deep standby of `adapi:blankScreen`.
+
 - `InstanceId` is a running number per start, the basis for transitions later (two instances in one region).
 - `source` is ready to use: local path from the cache, the URL of uncachable media, widgets with their query. A brush
   has no source.

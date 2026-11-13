@@ -172,6 +172,10 @@ Why the core is built the way it is. The decisions of single modules are in thei
 - **CMake 3.31, not 4.x.** The Android SDK offers 3.31 and ESP-IDF 6 ships 4.0, so 3.31 is the lowest version that both
   toolchains have. Hence the alias for `SQLite3::SQLite3` (CMake < 4.3) and `CMAKE_POLICY_VERSION_MINIMUM 3.10` for the
   fetched miniz and doctest.
+- **Android with NDK 26, the NDK of Qt 6.8.** Its libc++ 17 has `std::format` only as experimental feature
+  (`-fexperimental-library`, set in `GarlicCoreOptions.cmake`), no chrono formatters and no `from_chars` for `double`.
+  So the core formats times with `common::isoDateTime` and reads doubles with `common::fromChars`, not with the
+  chrono specifiers of `std::format` and `std::from_chars`.
 - **doctest, no GoogleTest/GoogleMock.** CLion supports doctest, it is leaner, and a later change would be mechanical.
   Instead of mocks there are hand-written fakes (`FakeHttpTransport`, `MemoryFileSystem`, `FakeClock`): tests check the
   end state ("the old file is unchanged, the new one waits as `.ready`") instead of call chains that break with every

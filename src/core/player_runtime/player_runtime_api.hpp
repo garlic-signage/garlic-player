@@ -107,6 +107,7 @@ namespace garlic::core
         std::string index_uri; // from the command line; empty: the one in the ini
         std::string database_path; // SQLite file of the inventory; empty: <log_dir>/garlic.db like garlic-lib
         std::string configuration_file; // -c config.xml, e.g. of the launcher: applied at every start; empty: none
+        std::string uuid; // of the supervisor (launcher, display): taken only if the ini has none yet; empty: a new one
 
         content::MediaManager::Supports     supports;    // what the frontend can show; empty: everything
         reports::Reporter::SystemInfoSource system_info; // empty: system::collectSystemInfo where it exists
@@ -198,6 +199,16 @@ namespace garlic::core
 
             /// Resources and identity for the debug dialog; also updates the maxima.
             DebugInfo debugInfo();
+
+            /**
+             * Applies a local configuration.xml now, e.g. one the launcher sends (garlic-lib: setConfigFromExternal):
+             * like the task updateSettings, the index is loaded again. Missing or broken: an event, false.
+             */
+            bool applyConfigurationFile(std::string_view path);
+
+            /// Time until the playing instance ends by its own dur or end (Engine::plannedEnd), rounded up; nullopt:
+            /// nothing planned. For the deep standby of adapi:blankScreen (garlic-lib: determineNextEndTime).
+            std::optional<std::chrono::seconds> remainingTime(smil::InstanceId id) const;
 
             /// Stops the playback, e.g. for standby or before quitting; the StopMedia come with the next poll().
             void stop();

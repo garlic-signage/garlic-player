@@ -135,6 +135,12 @@ namespace garlic::core::smil
 
             /// Touch or click on a medium: id.activateEvent and id.click triggers.
             void elementActivated(InstanceId id);
+            /**
+             * When the playing instance ends by its own dur or end attribute, the earlier of both. nullopt: no time is
+             * planned (no dur and no timed end, an end with a trigger, paused) or it does not play. The end of its
+             * containers is not counted. For the deep standby of adapi:blankScreen; garlic-lib: determineNextEndTime.
+             */
+            std::optional<std::chrono::steady_clock::time_point> plannedEnd(InstanceId id) const;
 
         private:
             enum class State

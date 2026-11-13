@@ -53,7 +53,7 @@ namespace garlic::core::smil
 
         std::string isoDate(local_seconds time)
         {
-            return std::format("{:%Y-%m-%dT%H:%M:%S}", time);
+            return common::isoDateTime(time);
         }
 
         /// adapi-date(): local time "2026-10-28T08:00:00"

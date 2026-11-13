@@ -24,5 +24,5 @@ Menu {
 
     Entry { text: "Settings"; keys: "Ctrl+S"; onTriggered: menu.settingsChosen() }
     Entry { text: "Debug infos"; keys: "Ctrl+D"; onTriggered: menu.debugChosen() }
-    Entry { text: "Exit"; keys: "Ctrl+Q"; onTriggered: Qt.quit() }
+    Entry { text: "Exit"; keys: "Ctrl+Q"; onTriggered: Player.quit() }
 }

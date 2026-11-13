@@ -16,6 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "configuration/configuration.hpp"
+#include "common/time_format.hpp"
 
 #include "common/md5.hpp"
 
@@ -92,7 +93,7 @@ namespace garlic::core::configuration
     {
     }
 
-    std::expected<void, std::string> Configuration::load()
+    std::expected<void, std::string> Configuration::load(std::string_view uuid_seed)
     {
         auto text = fs.readFile(ini_path);
         if (text)
@@ -101,7 +102,7 @@ namespace garlic::core::configuration
             return std::unexpected(text.error().message);
 
         if (uuid().empty())
-            setValue("uuid", createUuid());
+            setValue("uuid", uuid_seed.empty() ? createUuid() : std::string(uuid_seed));
 
         // like garlic-lib: without a name the player is called after the last part of its uuid
         if (playerName().empty())
@@ -177,11 +178,11 @@ namespace garlic::core::configuration
     {
         // ISO strings of the same format sort like the times they stand for
         auto        now_seconds = std::chrono::floor<std::chrono::seconds>(clock.now());
-        std::string now         = std::format("{:%FT%T}", now_seconds);
+        std::string now         = common::isoDateTime(now_seconds);
         if (now < value("api_access_token_expire") && !apiAccessToken().empty())
             return apiAccessToken();
 
-        std::string expire = std::format("{:%FT%T}", now_seconds + std::chrono::days{1});
+        std::string expire = common::isoDateTime(now_seconds + std::chrono::days{1});
         std::string token  = upper(common::Md5::hex(std::string(username) + std::string(password) + expire));
         setValue("api_access_token_expire", expire);
         setValue("api_access_token", token);

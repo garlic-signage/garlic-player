@@ -73,7 +73,7 @@ namespace garlic::core
      */
     std::expected<void, std::string> PlayerRuntimeApi::start()
     {
-        if (auto loaded = config.load(); !loaded)
+        if (auto loaded = config.load(settings.uuid); !loaded)
             return std::unexpected("configuration: " + loaded.error());
         config.setVersion(settings.version);
         config.setCacheDir(settings.cache_dir);
@@ -380,6 +380,26 @@ namespace garlic::core
         engine_config.random_seed = settings.random_seed;
         engine = std::make_unique<smil::Engine>(*document, clock, *media, *logger, engine_config);
         engine->start();
+    }
+
+    bool PlayerRuntimeApi::applyConfigurationFile(std::string_view path)
+    {
+        if (!tasks || !tasks->applyConfigurationFile(path))
+            return false;
+        queue->setUserAgent(config.userAgent()); // a new player name
+        onTask(tasks::ApplyConfiguration{});
+        return true;
+    }
+
+    std::optional<std::chrono::seconds> PlayerRuntimeApi::remainingTime(smil::InstanceId id) const
+    {
+        if (!engine)
+            return std::nullopt;
+        auto end = engine->plannedEnd(id);
+        if (!end)
+            return std::nullopt;
+        auto rest = std::max(*end - clock.monotonic(), std::chrono::steady_clock::duration::zero());
+        return std::chrono::ceil<std::chrono::seconds>(rest);
     }
 
     /// garlic-lib: changeConfig, reboot, applyCommand

@@ -28,3 +28,19 @@ TEST_CASE("toLower changes only A-Z")
     CHECK(toLower("AZ@[") == "az@["); // both ends of A-Z, the characters next to them stay
     CHECK(toLower("\xC3\x84rger 123") == "\xC3\x84rger 123"); // UTF-8 stays as it is
 }
+
+TEST_CASE("fromChars reads a double like std::from_chars, also where the library has none")
+{
+    auto read = [](std::string_view text) -> std::pair<double, std::ptrdiff_t>
+    {
+        double value = -1;
+        auto [end, error] = garlic::core::common::fromChars(text.data(), text.data() + text.size(), value);
+        return {value, error == std::errc() ? end - text.data() : -1};
+    };
+    CHECK(read("1.5") == std::pair<double, std::ptrdiff_t>{1.5, 3});
+    CHECK(read("960px") == std::pair<double, std::ptrdiff_t>{960, 3});
+    CHECK(read("-2.25e1") == std::pair<double, std::ptrdiff_t>{-22.5, 7});
+    CHECK(read("abc").second == -1);
+    CHECK(read("").second == -1);
+    CHECK(read(" 1").second == -1);
+}

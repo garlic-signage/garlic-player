@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  garlic-player for Android, from the template of Qt 6.8. Package and activity are the ones of the legacy player:
+  launcher 1.x and the Philips firmware start and update the player by these names, and an update keeps the settings
+  (uuid) only with the same package.
+  targetSdk 29 (CMakeLists.txt) with requestLegacyExternalStorage: cache and logs stay in /sdcard/garlic-player
+  with WRITE_EXTERNAL_STORAGE also on Android 11+, where launcher 1.x reads the downloaded APK.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.sagiadinos.garlic.player"
+    android:installLocation="auto"
+    android:versionCode="-- %%INSERT_VERSION_CODE%% --"
+    android:versionName="-- %%INSERT_VERSION_NAME%% --">
+    <!-- Without the permission placeholder of the template: Qt Multimedia would add camera, microphone, location
+         and bluetooth, which a player does not need. These are all it needs. -->
+    <!-- %%INSERT_FEATURES -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Android 11+: the launcher packages must be visible to find them and to query the SettingsProvider -->
+    <queries>
+        <package android:name="com.sagiadinos.garlic.launcher" />
+        <package android:name="com.tpv.app.tpvlauncher" />
+        <provider android:authorities="com.sagiadinos.garlic.launcher.SettingsProvider" />
+    </queries>
+
+    <supports-screens
+        android:anyDensity="true"
+        android:largeScreens="true"
+        android:normalScreens="true"
+        android:smallScreens="true" />
+    <application
+        android:name="org.qtproject.qt.android.bindings.QtApplication"
+        android:hardwareAccelerated="true"
+        android:label="garlic-player"
+        android:icon="@drawable/icon"
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false">
+        <activity
+            android:name="com.sagiadinos.garlic.player.java.GarlicActivity"
+            android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
+            android:label="garlic-player"
+            android:launchMode="singleTop"
+            android:screenOrientation="unspecified"
+            android:theme="@style/NormalTheme"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="-- %%INSERT_APP_LIB_NAME%% --" />
+
+            <meta-data
+                android:name="android.app.arguments"
+                android:value="-- %%INSERT_APP_ARGUMENTS%% --" />
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.qtprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/qtprovider_paths"/>
+        </provider>
+    </application>
+</manifest>

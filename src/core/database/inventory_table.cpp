@@ -16,6 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "database/inventory_table.hpp"
+#include "common/time_format.hpp"
 
 #include <sqlite3.h>
 
@@ -142,7 +143,7 @@ namespace garlic::core::database
 
     void InventoryTable::save(const InventoryEntry &entry)
     {
-        save(entry, std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(clock.now())));
+        save(entry, common::isoDateTime(std::chrono::floor<std::chrono::seconds>(clock.now())) + "Z");
     }
 
     void InventoryTable::save(const InventoryEntry &entry, std::string_view last_update)

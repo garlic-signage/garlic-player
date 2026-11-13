@@ -17,6 +17,12 @@
 */
 #include "common/text.hpp"
 
+#if !(defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L)
+#include <locale>
+#include <sstream>
+#include <system_error>
+#endif
+
 namespace garlic::core::common
 {
     std::string toLower(std::string_view text)
@@ -28,5 +34,25 @@ namespace garlic::core::common
                 c = static_cast<char>(c - 'A' + 'a');
         }
         return result;
+    }
+
+    std::from_chars_result fromChars(const char *first, const char *last, double &value)
+    {
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+        return std::from_chars(first, last, value);
+#else
+        // from_chars reads no leading white space and no '+', the stream would
+        if (first == last || *first == '+' || *first == ' ' || *first == '\t' || *first == '\n' || *first == '\r')
+            return {first, std::errc::invalid_argument};
+        std::istringstream in(std::string(first, last));
+        in.imbue(std::locale::classic());
+        double read = 0;
+        in >> read;
+        if (in.fail())
+            return {first, std::errc::invalid_argument};
+        auto consumed = in.eof() ? static_cast<std::ptrdiff_t>(last - first) : static_cast<std::ptrdiff_t>(in.tellg());
+        value         = read;
+        return {first + consumed, std::errc()};
+#endif
     }
 }

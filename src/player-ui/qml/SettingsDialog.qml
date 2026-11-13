@@ -1,5 +1,6 @@
 // Player name, content URL, HTTP server on/off and port. Reading, checking and storing is done by the core; the
-// dialog closes only when the core has stored them, otherwise it shows the error text of the core.
+// dialog closes only when the core has stored them, otherwise it shows the error text of the core. With the
+// garlic-launcher name and content URL come from it and are only shown (Player.identityLocked).
 import QtQuick
 import Garlic
 import QtQuick.Controls
@@ -64,9 +65,14 @@ Dialog {
             columnSpacing: 12
             Layout.fillWidth: true
             Label { text: "Player name" }
-            TextField { id: playerName; Layout.fillWidth: true }
+            TextField { id: playerName; Layout.fillWidth: true; enabled: !Player.identityLocked }
             Label { text: "Content URL" }
-            TextField { id: indexUri; Layout.fillWidth: true; placeholderText: "e.g. https://indexes.smil-control.com" }
+            TextField {
+                id: indexUri
+                Layout.fillWidth: true
+                enabled: !Player.identityLocked
+                placeholderText: "e.g. https://indexes.smil-control.com"
+            }
             Label { text: "HTTP server" }
             CheckBox { id: httpdEnabled; text: "active" }
             Label { text: "Port" }

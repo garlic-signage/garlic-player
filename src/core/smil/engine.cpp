@@ -166,6 +166,23 @@ namespace garlic::core::smil
             fire(*node, Listener::Symbol::Activate);
     }
 
+    std::optional<steady_clock::time_point> Engine::plannedEnd(InstanceId id) const
+    {
+        auto node = findInstance(id);
+        if (!node)
+            return std::nullopt;
+        const Runtime                          &n = nodes[*node];
+        std::optional<steady_clock::time_point> earliest;
+        for (const Scheduled &event : schedule)
+        {
+            bool valid = (event.type == EventType::SimpleEnd && event.generation == n.generation) ||
+                         (event.type == EventType::End && event.generation == n.activation);
+            if (event.node == *node && valid && (!earliest || event.time < *earliest))
+                earliest = event.time;
+        }
+        return earliest;
+    }
+
     // ------------------------------------------------------------------ helpers
 
     void Engine::at(steady_clock::time_point time, std::size_t node, EventType type, std::size_t wallclock,

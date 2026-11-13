@@ -255,3 +255,24 @@ TEST_CASE("every resolve() gets one release(), also for instances stopped, displ
     }
 }
 
+
+TEST_CASE("plannedEnd: the earlier of dur and end of the playing instance, nothing without a planned time")
+{
+    auto runner = EngineRunner::body(R"(
+        <par>
+            <img xml:id="both" src="a.jpg" dur="60s" end="30s"/>
+            <img xml:id="dur" src="b.jpg" dur="60s"/>
+            <video xml:id="own" src="v.mp4"/>
+        </par>)");
+    runner.run(10s);
+    auto begin = runner.clock.monotonic() - 10s;
+
+    REQUIRE(runner.starts.size() == 3);
+    CHECK(runner.engine->plannedEnd(runner.starts[0].id) == begin + 30s);
+    CHECK(runner.engine->plannedEnd(runner.starts[1].id) == begin + 60s);
+    CHECK_FALSE(runner.engine->plannedEnd(runner.starts[2].id).has_value()); // the player reports the end
+    CHECK_FALSE(runner.engine->plannedEnd(999).has_value());
+
+    runner.runFor(40s); // "both" has ended
+    CHECK_FALSE(runner.engine->plannedEnd(runner.starts[0].id).has_value());
+}

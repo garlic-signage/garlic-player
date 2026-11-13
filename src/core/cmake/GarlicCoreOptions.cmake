@@ -15,6 +15,13 @@ function(garlic_core_set_options target)
     target_compile_features(${target} PUBLIC cxx_std_23)
     set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
 
+    # NDK 26 (libc++ 17, the NDK of Qt 6.8) has std::format only as experimental feature: -fexperimental-library
+    # enables it and links libc++experimental. NDK 27 (libc++ 18) has it complete.
+    if(ANDROID AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 18)
+        target_compile_options(${target} PUBLIC -fexperimental-library)
+        target_link_options(${target} PUBLIC -fexperimental-library)
+    endif()
+
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /permissive-)
         if(arg_TEST)

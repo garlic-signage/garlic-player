@@ -18,8 +18,10 @@ config.determineIndexUri(command_line_uri);
 std::string ua = config.userAgent();
 ```
 
-- `load()` reads the file; a missing file is no error. If `uuid` or `player_name` are missing they are created and
-  stored (the name is the last part of the uuid, like garlic-lib).
+- `load(uuid_seed)` reads the file; a missing file is no error. If `uuid` or `player_name` are missing they are created
+  and stored (the name is the last part of the uuid, like garlic-lib). The new uuid is `uuid_seed` if given, e.g. the
+  one of the launcher, otherwise a random one; a stored uuid is never replaced (garlic-lib took the uuid of the
+  launcher at every start).
 - Every change is written immediately, via a temporary file and rename, so a power cut never leaves a broken ini.
   Write errors are kept in `lastError()` and never stop the player.
 - Keys the core does not know (e.g. `firmware_update_task_id`) are kept unchanged.

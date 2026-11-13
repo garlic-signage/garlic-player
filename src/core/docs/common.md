@@ -62,6 +62,15 @@ std::string hex = Md5::toHex(md5.finish());
 
 Own implementation of RFC 1321, because OpenSSL is not available on WASM and ESP32. Not for security purposes.
 
+## Text
+
+Header: `common/text.hpp`
+
+- `toLower(text)`: only A-Z become a-z, independent of the locale (header names, file extensions, MIME types)
+- `fromChars(first, last, value)`: `std::from_chars` for `double`. Where the standard library has none (libc++
+  before 20, e.g. NDK 26 of Qt 6.8 for Android) a stream with the classic locale reads it, so a "," locale never
+  changes SMIL values.
+
 ## Time format
 
 Header: `common/time_format.hpp`
@@ -69,6 +78,9 @@ Header: `common/time_format.hpp`
 - `isoLocalTime(time)`: local time with offset like Qt::ISODate, `2026-10-28T03:30:56+01:00`, `…Z` at UTC
 - `logTimestamp(time)`: `2026-10-28 03:30:56,123` for text logs
 - `toLocalTime(time)`: the local wall time of a moment as `std::chrono::local_seconds`, e.g. for SMIL wallclocks
+- `isoDateTime(time)`: `2026-10-28T03:30:56` of `sys_seconds` or `local_seconds`, without zone;
+  `compactDateTime(time)`: `20261028033056`. Instead of `std::format("{:%FT%T}", …)`: the libc++ of NDK 26 (Qt 6.8
+  for Android) has no chrono formatters.
 
 Uses the C library for the time zone, because the time zone database of `std::chrono` is not available on every
 platform (ESP32, older Android).

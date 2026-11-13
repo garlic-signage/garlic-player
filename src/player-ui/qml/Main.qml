@@ -49,7 +49,7 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+B"; onActivated: Player.showOverAllScreens() }
     Shortcut { sequence: "Ctrl+S"; onActivated: settingsDialog.open() }
     Shortcut { sequence: "Ctrl+D"; onActivated: debugDialog.open() }
-    Shortcut { sequence: "Ctrl+Q"; onActivated: Qt.quit() }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: Player.quit() }
 
     // ten fast clicks or one held for 10 s (counted in C++ on the window)
     Connections {

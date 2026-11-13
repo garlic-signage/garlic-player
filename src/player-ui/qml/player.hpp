@@ -31,7 +31,9 @@
 #include <QTimer>
 #include <QVariantMap>
 
+#include <chrono>
 #include <map>
+#include <string>
 #include <vector>
 
 class QQuickWindow;
@@ -39,6 +41,16 @@ class QScreen;
 
 namespace player
 {
+    /// The screen of adapi:blankScreen: what can switch it off, e.g. the Android launcher. Called in the UI thread.
+    class ScreenControl
+    {
+        public:
+            virtual ~ScreenControl()                             = default;
+            virtual void screenOff()                             = 0;
+            virtual void screenOn()                              = 0;
+            virtual void deepStandby(std::chrono::seconds wake_up) = 0;
+    };
+
     /**
      * The bridge between the core and QML, the singleton "Player" of the QML module Garlic. It takes the events of the ThreadedRuntime
      * and turns them into the region and media models QML binds to; QML reports back what only it knows (end of a
@@ -57,6 +69,7 @@ namespace player
             Q_PROPERTY(QString rootImage READ rootImage NOTIFY layoutChanged)
             Q_PROPERTY(QString rootRepeat READ rootRepeat NOTIFY layoutChanged)
             Q_PROPERTY(bool needsSettings READ needsSettings CONSTANT)
+            Q_PROPERTY(bool identityLocked READ identityLocked CONSTANT)
 
         public:
             explicit Player(garlic::core::ThreadedRuntime &runtime);
@@ -71,6 +84,18 @@ namespace player
             QString  rootRepeat() const { return root_repeat; }
             bool     needsSettings() const noexcept { return needs_settings; }
             void     setNeedsSettings(bool needed) { needs_settings = needed; } // before QML is loaded
+
+            /// Player name and content URL come from the launcher: the settings dialog shows them, but does not change
+            /// them (garlic-launcher 1.x). Before QML is loaded.
+            bool identityLocked() const noexcept { return identity_locked; }
+            void setIdentityLocked(bool locked) { identity_locked = locked; }
+
+            /// What switches the screen off at adapi:blankScreen; nullptr: nothing, the screen stays on.
+            void setScreenControl(ScreenControl *control) { screen_control = control; }
+
+            /// From the launcher: a configuration.xml to apply, a SMIL index to play from now on.
+            void applyConfiguration(const QString &path);
+            void playIndex(const QString &uri);
 
             void setWindow(QQuickWindow *window);
 
@@ -88,6 +113,9 @@ namespace player
             Q_INVOKABLE QVariantMap debugInfo();
             Q_INVOKABLE QStringList playingMedia() const;
 
+            /// Ends the player on purpose (menu, keys, debug dialog): quitRequested() first, e.g. for the launcher.
+            Q_INVOKABLE void quit();
+
             Q_INVOKABLE void showCursor(bool shown); // for menus and dialogs; hidden again in full screen
             Q_INVOKABLE void toggleFullScreen();
             Q_INVOKABLE void showOverAllScreens();
@@ -97,6 +125,7 @@ namespace player
         Q_SIGNALS:
             void layoutChanged();
             void menuRequested(QPoint position); // ten fast clicks or one held for 10 s
+            void quitRequested();                // before the player ends on purpose
 
         protected:
             bool eventFilter(QObject *watched, QEvent *event) override;
@@ -104,6 +133,9 @@ namespace player
         private:
             garlic::core::ThreadedRuntime &runtime;
             bool                           needs_settings = false;
+            bool                           identity_locked = false;
+            ScreenControl                 *screen_control  = nullptr;
+            std::map<int, bool>            blank_screens;   // instance of adapi:blankScreen → screen switched off
             QQuickWindow                  *window         = nullptr;
             bool                           cursor_hidden  = false;
             QSize                          windowed_size{980, 540};
@@ -126,6 +158,7 @@ namespace player
             void stop(int instance);
             void forEach(int instance, void (MediaModel::*action)(int));
             void screenshot(const std::string &path);
+            void blankScreen(int instance);
     };
 }
 

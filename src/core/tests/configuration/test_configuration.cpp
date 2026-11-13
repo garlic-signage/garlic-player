@@ -92,6 +92,25 @@ TEST_CASE("first start: uuid and player name are created and stored")
     CHECK(f.ini().find("uuid=" + uuid) != std::string::npos);
 }
 
+TEST_CASE("first start with a uuid of the supervisor: it is taken, the name is its last part")
+{
+    Fixture f;
+    REQUIRE(f.config.load("11111111-2222-4333-8444-555555555555").has_value());
+
+    CHECK(f.config.uuid() == "11111111-2222-4333-8444-555555555555");
+    CHECK(f.config.playerName() == "555555555555");
+    CHECK(f.ini().find("uuid=11111111-2222-4333-8444-555555555555") != std::string::npos);
+}
+
+TEST_CASE("a stored uuid wins over the one of the supervisor")
+{
+    Fixture f;
+    f.putIni("[General]\nplayer_name=Lobby\nuuid=u-1\n");
+    REQUIRE(f.config.load("11111111-2222-4333-8444-555555555555").has_value());
+
+    CHECK(f.config.uuid() == "u-1");
+}
+
 TEST_CASE("changes are written to the file immediately, without a temporary file left")
 {
     Fixture f;

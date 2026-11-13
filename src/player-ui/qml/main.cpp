@@ -16,6 +16,9 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "player.hpp"
+#ifdef Q_OS_ANDROID
+#include "android_launcher.hpp"
+#endif
 
 #include "common/clock.hpp"
 #include "common/std_file_system.hpp"
@@ -35,6 +38,7 @@
 
 #include <future>
 #include <iostream>
+#include <memory>
 #include <random>
 
 namespace
@@ -45,7 +49,9 @@ namespace
     }
 
     /// The places of garlic-lib, so an existing player keeps its settings, cache and logs (as in the qwidget player).
-    garlic::core::PlayerRuntimeConfig runtimeConfig(const QString &index_uri, const QString &configuration_file)
+    /// Android: cache and logs as given by android::storage().
+    garlic::core::PlayerRuntimeConfig runtimeConfig(const QString &index_uri, const QString &configuration_file,
+                                                    const QString &cache_dir = {}, const QString &log_dir = {})
     {
         garlic::core::PlayerRuntimeConfig config;
         config.ini_path = utf8(QSettings(QSettings::IniFormat, QSettings::UserScope, "SmilControl", "garlic-player").fileName());
@@ -55,6 +61,10 @@ namespace
         config.cache_dir = utf8(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
 #endif
         config.log_dir     = utf8(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs");
+        if (!cache_dir.isEmpty())
+            config.cache_dir = utf8(cache_dir);
+        if (!log_dir.isEmpty())
+            config.log_dir = utf8(log_dir);
         config.version     = PLAYER_VERSION;
         config.index_uri   = utf8(index_uri);
         if (!configuration_file.isEmpty())
@@ -79,7 +89,11 @@ int main(int argc, char *argv[])
     parser.addOptions({
         {{"c", "config"}, "path to a config.xml, applied at every start (e.g. by a launcher)", "config"},
         {{"m", "windows-mode"}, "fullscreen, bigscreen (over all screens) or windowed", "fullscreen|bigscreen|windowed",
+#ifdef Q_OS_ANDROID
+         "fullscreen"},
+#else
          "windowed"},
+#endif
         {{"z", "windows-size"}, "size in windows mode, e.g. 980x540", "width x height", "980x540"},
         {{"s", "screen-select"}, "number of the screen to start on", "screen", "0"},
     });
@@ -98,11 +112,32 @@ int main(int argc, char *argv[])
         index_uri = QString::fromStdString(*valid);
     }
 
+    garlic::core::downloader::CurlTransportConfig transport_config;
+    QString                                       fallback_index; // when the settings have none
+#ifdef Q_OS_ANDROID
+    // launcher 1.x or Philips (as the legacy player): uuid, content URL, restarts, installations, screen
+    std::unique_ptr<player::android::Launcher> launcher = player::android::Launcher::detect();
+    player::android::Storage                   storage  = player::android::storage();
+    auto config = runtimeConfig(index_uri, parser.value("config"), storage.cache_dir, storage.log_dir);
+    transport_config.ca_bundle = player::android::caBundle(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    if (launcher)
+    {
+        config.supervisor = launcher.get();
+        config.uuid       = utf8(launcher->uuid()); // only for a new player: a stored uuid stays
+        if (launcher->ownsIdentity() && config.index_uri.empty() && !launcher->contentUrl().isEmpty())
+            config.index_uri = utf8(launcher->contentUrl()); // the content URL of the garlic-launcher wins
+        else if (!launcher->ownsIdentity())
+            fallback_index = launcher->contentUrl(); // Philips: only a default
+    }
+#else
+    auto config = runtimeConfig(index_uri, parser.value("config"));
+#endif
+
     garlic::core::common::StdFileSystem     fs;
     garlic::core::common::SystemClock       clock;
-    garlic::core::downloader::CurlTransport http;
+    garlic::core::downloader::CurlTransport http(transport_config);
     player::Player                         *bridge = nullptr;
-    garlic::core::ThreadedRuntime           runtime(fs, clock, http, runtimeConfig(index_uri, parser.value("config")),
+    garlic::core::ThreadedRuntime           runtime(fs, clock, http, config,
                                                     [&bridge]
                                                     {
                                                         // core thread: into the UI thread
@@ -120,8 +155,35 @@ int main(int argc, char *argv[])
 
     // without an index nothing can be played: QML opens the settings dialog first, cancelled ends the player
     std::promise<std::string> stored_uri;
-    runtime.post([&](garlic::core::PlayerRuntimeApi &r) { stored_uri.set_value(r.configuration().indexUri()); });
-    player.setNeedsSettings(stored_uri.get_future().get().empty());
+    runtime.post(
+        [&](garlic::core::PlayerRuntimeApi &r)
+        {
+            std::string uri = r.configuration().indexUri();
+            if (uri.empty() && !fallback_index.isEmpty())
+            {
+                garlic::core::PlayerSettings next = r.playerSettings();
+                next.index_uri                    = utf8(fallback_index);
+                if (r.changePlayerSettings(next))
+                    uri = next.index_uri;
+            }
+            stored_uri.set_value(uri);
+        });
+    bool without_index = stored_uri.get_future().get().empty();
+    player.setNeedsSettings(without_index);
+#ifdef Q_OS_ANDROID
+    if (launcher)
+    {
+        // the garlic-launcher gives name and content URL; without them the player waits for its configuration
+        player.setIdentityLocked(launcher->ownsIdentity());
+        player.setNeedsSettings(without_index && !launcher->ownsIdentity());
+        player.setScreenControl(launcher.get());
+        QObject::connect(launcher.get(), &player::android::Launcher::configurationReceived, &player,
+                         &player::Player::applyConfiguration);
+        QObject::connect(launcher.get(), &player::android::Launcher::indexReceived, &player, &player::Player::playIndex);
+        QObject::connect(&player, &player::Player::quitRequested, launcher.get(),
+                         [&launcher] { launcher->closedCorrectly(); });
+    }
+#endif
 
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); },

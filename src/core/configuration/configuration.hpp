@@ -44,8 +44,11 @@ namespace garlic::core::configuration
         public:
             Configuration(common::FileSystem &fs, const common::Clock &clock, std::string ini_path);
 
-            /// Reads the ini file. A missing file is no error. Creates uuid and player name if they are missing.
-            std::expected<void, std::string> load();
+            /**
+             * Reads the ini file. A missing file is no error. Creates uuid and player name if they are missing; the
+             * uuid is uuid_seed if given (e.g. of the launcher), otherwise a new one. A stored uuid is never replaced.
+             */
+            std::expected<void, std::string> load(std::string_view uuid_seed = {});
 
             // --- any key, e.g. "audio/volume", "time/server"
             std::string value(std::string_view key) const;

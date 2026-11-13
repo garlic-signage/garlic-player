@@ -1,4 +1,4 @@
-# qml: the Qt Quick frontend of the garlic-player on the core, meant for iOS (and the desktop to try it). The same
+# qml: the Qt Quick frontend of the garlic-player on the core, for Android, meant for iOS (and the desktop to try it). The same
 # behaviour as qwidget; video and audio with Qt Multimedia, web pages with Qt WebView (the system WebView on mobiles).
 cmake_minimum_required(VERSION 3.31)
 
@@ -43,4 +43,26 @@ garlic_player_version(qml)
 target_link_libraries(qml PRIVATE garlic::core Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia Qt6::WebView)
 if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(qml PRIVATE $<$<CONFIG:Release>:-s>)
+endif()
+
+# Android: the package of the legacy player, so launcher 1.x and Philips start and update it and an update keeps the
+# settings. versionCode above the legacy one (671): 2.0.0-beta.566 → 20000566, 2.0.0-dev → 20000000.
+# targetSdk 29: the shared storage with WRITE_EXTERNAL_STORAGE also on Android 11+ (see android/AndroidManifest.xml).
+if(ANDROID)
+    target_sources(qml PRIVATE android_launcher.hpp android_launcher.cpp)
+    set(_build 0) # the number of the build server after the last dot, e.g. 2.0.0-beta.566
+    if(GARLIC_PLAYER_VERSION MATCHES "-.*\\.([0-9]+)$")
+        set(_build ${CMAKE_MATCH_1})
+    endif()
+    string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _version "${GARLIC_PLAYER_VERSION}")
+    math(EXPR _version_code
+         "${CMAKE_MATCH_1} * 10000000 + ${CMAKE_MATCH_2} * 100000 + ${CMAKE_MATCH_3} * 1000 + ${_build} % 1000")
+    set_target_properties(qml PROPERTIES
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        QT_ANDROID_PACKAGE_NAME "com.sagiadinos.garlic.player"
+        QT_ANDROID_MIN_SDK_VERSION 28
+        QT_ANDROID_TARGET_SDK_VERSION 29
+        QT_ANDROID_VERSION_NAME "${GARLIC_PLAYER_VERSION}"
+        QT_ANDROID_VERSION_CODE ${_version_code}
+    )
 endif()
