@@ -74,8 +74,7 @@ namespace garlic::core::smil
         body.state    = State::Ended;
         ++body.activation;
         ++body.generation;
-        schedule.clear();
-        frozen.clear();
+        schedule.clear(); // the frozen events went with stopChildren(): every paused element is stopped
     }
 
     std::vector<Command> Engine::poll()
@@ -672,12 +671,10 @@ namespace garlic::core::smil
                     activate(child);
                 break;
             case ContainerKind::Excl:
-                c.playing.reset();
-                c.queue.clear();
+                // playing and queue are empty: stopChildren() cleared them, or the last element has ended. Without
+                // elements the excl is a pause: startContainer() started it only with a dur or an end.
                 for (std::size_t priority_class : c.children)
                     startPriorityClass(priority_class);
-                if (std::ranges::all_of(c.children, [&](std::size_t pc) { return nodes[pc].state == State::Ended; }))
-                    childrenDone(container); // no elements: a pause with dur or end
                 break;
             case ContainerKind::PriorityClass:
                 break; // started by its excl
@@ -809,7 +806,7 @@ namespace garlic::core::smil
         const Timing &timing = nodes[container].container->timing;
         if (hasDur(timing))
             return;
-        if (!timing.end.empty() && isEmpty(container))
+        if (isEmpty(container)) // without dur it has an end, otherwise startContainer() had skipped it
             return;
         containerSimpleEnd(container);
     }

@@ -71,6 +71,23 @@ TEST_CASE("negative begin: started in the past, plays the rest of its dur if the
     CHECK(no_dur.run(10s) == "0.100s start next | 1.100s stop next"); // like garlic-lib: no dur, no start
 }
 
+TEST_CASE("negative begin list: the latest past begin counts, whatever the order")
+{
+    for (std::string begin : {"-1s;-5s", "-5s;-1s"})
+    {
+        CAPTURE(begin);
+        auto runner = EngineRunner::body(R"(<par><img xml:id="a" src="a.jpg" begin=")" + begin + R"(" dur="3s"/></par>)");
+        CHECK(runner.run(10s) == "0s start a | 2s stop a");
+    }
+}
+
+TEST_CASE("end indefinite does not keep an element waiting that can never start")
+{
+    auto runner = EngineRunner::body(R"(<par><img xml:id="a" src="a.jpg" begin="-5s" dur="2s" end="indefinite"/>
+                                        <img xml:id="b" src="b.jpg" dur="1s"/></par><img xml:id="next" src="n.jpg" dur="1s"/>)");
+    CHECK(runner.run(10s) == "0s start b | 1s stop b | 1s start next | 2s stop next");
+}
+
 TEST_CASE("end cuts, but does not extend")
 {
     auto cuts = EngineRunner::body(R"(<img xml:id="a" src="a.jpg" dur="10s" end="3s"/><img xml:id="b" src="b.jpg" dur="1s"/>)");

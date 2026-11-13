@@ -168,6 +168,13 @@ TEST_CASE("pickNumber: shuffled once, then N children per run in this fixed orde
     CHECK(again.run(20s) == timeline);
 }
 
+TEST_CASE("pickNumber without children and with dur: a pause")
+{
+    auto runner = EngineRunner::body(R"(<seq dur="2s"><metadata><meta name="adapi:pickNumber" content="1"/></metadata></seq>
+                                        <img xml:id="next" src="n.jpg" dur="1s"/>)");
+    CHECK(runner.run(10s) == "2s start next | 3s stop next");
+}
+
 TEST_CASE("seq/1_simple.smil")
 {
     auto runner = EngineRunner::file("seq/1_simple.smil");

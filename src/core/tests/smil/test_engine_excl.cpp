@@ -165,6 +165,35 @@ TEST_CASE("excl endsync first: a stopped element is no end, the stopping one is"
     CHECK(runner.run(10s) == "0s start a | 1s stop a | 1s start b | 2s stop b | 2s start next | 3s stop next");
 }
 
+TEST_CASE("excl endsync id: the end of that element ends the excl, a dur decides instead")
+{
+    std::string elements = R"(<img xml:id="a" src="a.jpg" begin="0s" dur="1s"/>
+                              <img xml:id="b" src="b.jpg" begin="2s" dur="1s"/>
+                              <img xml:id="c" src="c.jpg" begin="5s" dur="1s"/>)";
+    auto by_id = EngineRunner::body(R"(<excl endsync="b">)" + elements + R"(</excl><img xml:id="next" src="n.jpg" dur="1s"/>)");
+    CHECK(by_id.run(10s) == "0s start a | 1s stop a | 2s start b | 3s stop b | 3s start next | 4s stop next");
+
+    auto with_dur = EngineRunner::body(R"(<excl endsync="b" dur="4s">)" + elements + R"(</excl><img xml:id="next" src="n.jpg" dur="1s"/>)");
+    CHECK(with_dur.run(10s) == "0s start a | 1s stop a | 2s start b | 3s stop b | 4s start next | 5s stop next");
+}
+
+TEST_CASE("an empty priorityClass is done at once, the excl ends with the other one")
+{
+    auto runner = EngineRunner::body(R"(<excl><priorityClass/><priorityClass>
+        <img xml:id="a" src="a.jpg" begin="0s" dur="1s"/></priorityClass></excl><img xml:id="next" src="n.jpg" dur="1s"/>)");
+    CHECK(runner.run(10s) == "0s start a | 1s stop a | 1s start next | 2s stop next");
+}
+
+TEST_CASE("a medium that stops in the moment another one is paused: the pause stays")
+{
+    auto runner = EngineRunner::body(R"(<par><excl><priorityClass peers="pause">
+        <img xml:id="a" src="a.jpg" begin="0s" dur="4s"/>
+        <img xml:id="b" src="b.jpg" begin="1s" dur="2s"/>
+    </priorityClass></excl><img xml:id="c" src="c.jpg" dur="indefinite" end="b.begin"/></par>)"); // ends after b has begun
+    CHECK(runner.run(10s) == "0s start c | 0s start a | 1s pause a | 1s start b | 1s stop c | 3s stop b"
+                             " | 3s resume a | 6s stop a");
+}
+
 TEST_CASE("empty excl is skipped like an empty seq, an excl with dur waits for it")
 {
     auto runner = EngineRunner::body(R"(<excl/><excl dur="2s"/><img xml:id="a" src="a.jpg" dur="1s"/>)");

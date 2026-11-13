@@ -131,6 +131,54 @@ TEST_CASE("regions: by regionName, all with the same name, by id, unknown is the
     CHECK(runner.starts[3].regions == std::vector<std::size_t>{0});
 }
 
+TEST_CASE("regions: a name at the first region and at another one, an id at a later region")
+{
+    auto runner = EngineRunner::body(R"(<img xml:id="x" src="a.jpg" region="x" dur="1s"/>
+                                        <img xml:id="by_id" src="a.jpg" region="r3" dur="1s"/>)",
+                                     R"(<layout>
+        <region xml:id="r1" regionName="x" z-index="0"/>
+        <region xml:id="r2" regionName="x" z-index="1"/>
+        <region xml:id="r3" z-index="2"/>
+    </layout>)");
+    runner.run(10s);
+    REQUIRE(runner.starts.size() == 2);
+    CHECK(runner.starts[0].regions == std::vector<std::size_t>{0, 1});
+    CHECK(runner.starts[1].regions == std::vector<std::size_t>{2});
+}
+
+TEST_CASE("input for unknown instances and an access key in upper case")
+{
+    auto runner = EngineRunner::body(R"x(<par><video xml:id="v" src="v.mp4"/>
+                                        <img xml:id="k" src="k.jpg" begin="accesskey(z)" dur="1s"/></par>)x");
+    CHECK(runner.run(1s) == "0s start v");
+    runner.engine->mediaFinished(999);
+    runner.engine->mediaFailed(999);
+    runner.engine->elementActivated(999);
+    runner.engine->accessKey('Z');
+    CHECK(runner.runFor(3s) == "0s start v | 1s start k | 2s stop k");
+}
+
+TEST_CASE("a skipped element has no instance: the end of the video next to it is not taken for it")
+{
+    auto runner = EngineRunner::body(R"(<par><img xml:id="skipped" src="a.jpg" dur="5s"/><video xml:id="v" src="v.mp4"/></par>)");
+    runner.media.missing.insert("a.jpg"); // not in the cache: skipped
+    runner.media_length["v.mp4"] = 50ms;
+    CHECK(runner.run(1s) == "0s start v | 0.050s stop v");
+}
+
+TEST_CASE("play log: a pass that failed and is repeated is logged when the repeat plays")
+{
+    TimeZone tz("UTC");
+    auto runner = EngineRunner::body(R"(<video xml:id="v" src="v.mp4" repeatCount="2"><param name="logContentId" value="c"/></video>)");
+    CHECK(runner.run(1s) == "0s start v");
+    InstanceId id = runner.starts.at(0).id;
+    runner.engine->mediaFailed(id);
+    runner.collect();
+    runner.engine->mediaFinished(id);
+    runner.collect();
+    CHECK(runner.playLog().contains("<contentId>c</contentId>"));
+}
+
 TEST_CASE("source: cache path, widget with query, brush without")
 {
     auto runner = EngineRunner::body(R"(
@@ -165,6 +213,9 @@ TEST_CASE("stop: stops what is playing, writes its play log, nothing follows")
         <img xml:id="b" src="b.jpg" dur="1s"/>)");
     CHECK(runner.run(3s) == "0s start a");
     runner.engine->stop();
+    CHECK(runner.engine->nextDeadline() == runner.clock.monotonic()); // the stop is there for poll()
+    runner.collect();
+    CHECK_FALSE(runner.engine->nextDeadline().has_value()); // the planned end of a is void
     CHECK(runner.runFor(20s) == "0s start a | 3s stop a");
     CHECK(runner.playLog().find("<endTime>2026-01-01T00:00:03Z</endTime>") != std::string::npos);
     CHECK_FALSE(runner.engine->nextDeadline().has_value());

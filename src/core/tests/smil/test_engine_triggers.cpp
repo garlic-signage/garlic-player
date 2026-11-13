@@ -44,6 +44,18 @@ TEST_CASE("syncbase: begin and end of another element, with offset")
     CHECK(runner.run(10s) == "0s start a | 0s start with_a | 3s stop a | 3s stop with_a | 4s start after_a | 5s stop after_a");
 }
 
+TEST_CASE("syncbase: every new interval fires the begin again, a container cut by its parent fires its end")
+{
+    auto again = EngineRunner::body(R"(<par><img xml:id="a" src="a.jpg" begin="0s;2s" dur="1s"/>
+                                       <img xml:id="b" src="b.jpg" begin="a.begin" dur="500ms"/></par>)");
+    CHECK(again.run(5s) == "0s start a | 0s start b | 0.500s stop b | 1s stop a | 2s start a | 2s start b"
+                           " | 2.500s stop b | 3s stop a");
+
+    auto cut = EngineRunner::body(R"(<par><seq dur="2s"><seq xml:id="s"><img xml:id="a" src="a.jpg" dur="10s"/></seq></seq>
+                                     <img xml:id="b" src="b.jpg" begin="s.end" dur="1s"/></par>)");
+    CHECK(cut.run(5s) == "0s start a | 2s stop a | 2s start b | 3s stop b");
+}
+
 TEST_CASE("events: beginEvent, endEvent")
 {
     auto runner = EngineRunner::body(R"x(<par>
