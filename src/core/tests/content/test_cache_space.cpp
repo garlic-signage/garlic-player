@@ -210,14 +210,14 @@ TEST_CASE("an empty cache: false, nothing to remove")
 TEST_CASE("a widget is not extracted when its unpacked size does not fit")
 {
     ContentFixture f;
-    writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", std::string(1000, 'h')}}));
+    writeFile(f.fs, "cache/clock.wgt", makeZip({{"index.html", std::string(1000, 'h')}, {"app.js", std::string(234, 'j')}}));
 
     std::uint64_t asked  = 0;
     auto          no     = [&](std::uint64_t bytes) { asked = bytes; return false; };
     auto          denied = extractWidget(f.fs, "cache/clock.wgt", no);
     REQUIRE_FALSE(denied.has_value());
     CHECK(denied.error() == "not enough disk space to extract the widget");
-    CHECK(asked == 1000);
+    CHECK(asked == 1234); // all entries
     CHECK_FALSE(f.fs.exists("cache/clock"));
 
     CHECK(extractWidget(f.fs, "cache/clock.wgt", [](std::uint64_t) { return true; }).has_value());

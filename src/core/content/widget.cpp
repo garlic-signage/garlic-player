@@ -36,18 +36,16 @@ namespace garlic::core::content
         {
             if (name.empty() || name.front() == '/' || name.front() == '\\' || name.contains(':'))
                 return false;
-            std::size_t start = 0;
-            while (start <= name.size())
+            for (std::size_t start = 0;;)
             {
                 std::size_t end  = name.find_first_of("/\\", start);
                 auto        part = name.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
                 if (part == "..")
                     return false;
                 if (end == std::string_view::npos)
-                    break;
+                    return true;
                 start = end + 1;
             }
-            return true;
         }
 
         std::string parentOf(std::string_view path)

@@ -43,6 +43,7 @@ TEST_CASE("widget paths: the directory next to the file, index.html inside")
 {
     CHECK(widgetDirectory("cache/abc.wgt") == "cache/abc");
     CHECK(widgetDirectory("cache/xyz.secret.wgt") == "cache/xyz.secret"); // garlic-lib cut at the first dot
+    CHECK(widgetDirectory("cache/abc") == "cache/abc"); // without .wgt nothing is cut off
     CHECK(widgetIndex("cache/abc.wgt") == "cache/abc/index.html");
 }
 
@@ -103,7 +104,8 @@ TEST_CASE("zip slip: an entry outside the directory rejects the whole widget")
 TEST_CASE("zip slip: absolute paths, drive letters and backslashes are rejected too")
 {
     for (auto [placeholder, name] : {std::pair{"Xabs.txt", "/abs.txt"}, std::pair{"Xback.txt", "\\back.txt"},
-                                     std::pair{"CXx.txt", "C:x.txt"}, std::pair{"aXYYXx.txt", "a\\..\\x.txt"}})
+                                     std::pair{"CXx.txt", "C:x.txt"}, std::pair{"aXYYXx.txt", "a\\..\\x.txt"},
+                                     std::pair{"XYZx.txt", "../x.txt"}})
     {
         CAPTURE(name);
         ContentFixture f;

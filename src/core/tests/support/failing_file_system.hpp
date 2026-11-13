@@ -32,7 +32,7 @@ namespace garlic::core::tests
 
     /// A MemoryFileSystem whose operations can fail (as IoError with a fixed message), and that counts opened files
     /// and created directories. For the error paths MemoryFileSystem cannot reach. With "only" set, only paths that
-    /// contain it fail (for rename: the source), so e.g. the logs of a test go on working.
+    /// contain it fail (for rename: the source, which must end with it), so e.g. the logs of a test go on working.
     class FailingFileSystem : public common::FileSystem
     {
         public:
@@ -77,7 +77,7 @@ namespace garlic::core::tests
             }
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override
             {
-                if (fail_rename && hits(from))
+                if (fail_rename && (only.empty() || from.ends_with(only))) // "cache/clock" fails, "cache/clock.part" not
                     return error("rename failed");
                 return memory.rename(from, to);
             }
