@@ -231,9 +231,10 @@ core thread
   same commands; only the way to them differs (JNI and broadcasts, SICP, a socket, a pipe). So the core decides once
   what has to be done, and every player has one counterpart per platform that passes it on. The core knows no
   platform: Java and SICP stay in the player. The name: "host" already means what calls `poll()`.
-- **Only what all supervisors share is in the interface.** The exchange of uuid, player name and content URL with the
-  Android launcher is a matter of the launcher alone (the daemon and the service set nothing), so it stays in its
-  counterpart in the player.
+- **Only restart and installation are in the interface**, what the core itself decides. The screen of
+  `adapi:blankScreen` is a matter of the frontend (`ScreenControl` of the qml player). uuid and content URL of a
+  supervisor are only start values (`PlayerRuntimeConfig::uuid`, the index URI); the player stays the one truth of its
+  identity ([supervisor_protocol](supervisor_protocol.md#settings)).
 
 ## When something goes wrong
 

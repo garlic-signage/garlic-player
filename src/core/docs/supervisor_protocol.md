@@ -1,32 +1,36 @@
 # supervisor protocol
 
-The protocol between the player and its supervisor: the launcher on Android, garlic-daemon on Linux, garlic-service
-on Windows. The supervisor starts the player, watches it and does what the player may not: restart the device,
-install software, switch the screen. The core reaches it through the interface `Supervisor`
-([player_runtime](player_runtime.md#supervisor)); the platform part of the player speaks this protocol. The Java
-frontend later speaks the same.
+What the player sends to its supervisor and gets from it: the launcher on Android, garlic-daemon on Linux,
+garlic-service on Windows. The supervisor starts the player, watches it and does what the player may not: restart the
+device, install software, switch the screen, apply device settings. The core reaches restart and installation through
+the interface `Supervisor` ([player_runtime](player_runtime.md#supervisor)), the frontend the screen through its
+`ScreenControl`; the platform part of the player speaks this protocol. The Java frontend later speaks the same.
 
-Protocol version **1**. garlic-lib: `LauncherInterface` (Java), `Launcher` (C++), broadcasts and the ContentProvider
-of launcher 1.x.
+Protocol version **1**. Not implemented in the player yet: today it speaks only launcher 1.x and Philips
+([Without protocol](#without-protocol)). garlic-lib: `LauncherInterface` (Java), `Launcher` (C++).
 
 ## Transport
 
-[JSON-RPC 2.0](https://www.jsonrpc.org/specification), one message per line: a JSON object in UTF-8, ended by `\n`,
-no `\n` inside (JSON escapes it). No batches.
+[JSON-RPC 2.0](https://www.jsonrpc.org/specification), one message per line: a JSON object in UTF-8, ended by `\n`
+(`\r\n` is accepted), no `\n` inside (JSON escapes it). At most 64 KiB per line, a longer one closes the connection.
+No batches.
 
-| Platform | Supervisor                 | Endpoint                                                    |
-|----------|----------------------------|-------------------------------------------------------------|
-| Linux    | garlic-daemon              | Unix domain socket, e.g. `$XDG_RUNTIME_DIR/garlic-daemon.sock`, mode `0600` |
-| Windows  | garlic-service             | named pipe, e.g. `\\.\pipe\garlic-service`, ACL for the user of the player only |
-| Android  | launcher (from version 2)  | `LocalSocket`, abstract namespace, e.g. `garlic-launcher`; both sides check the uid of the other (`getPeerCredentials()`) against its package |
+| Platform | Endpoint                                             |
+|----------|------------------------------------------------------|
+| Linux    | Unix domain socket, e.g. `/run/garlic-daemon/garlic-daemon.sock` |
+| Windows  | named pipe, e.g. `\\.\pipe\garlic-service`           |
+| Android  | `LocalSocket` in the abstract namespace, e.g. `garlic-launcher`; the player checks the uid of the other side against the package of the launcher |
 
-The supervisor is the server, the player the client. The supervisor chooses the endpoint and hands it to the player
-when it starts it:
+The supervisor is the server, the player a client; who may connect is the matter of the supervisor. It hands the
+endpoint to the player when it starts it:
 
-- Linux, Windows: command line `--supervisor <endpoint>`, besides `-c <config.xml>` and the index as now.
+- Linux, Windows: command line `--supervisor <endpoint>`, besides `-c <config.xml>` and the index.
 - Android: intent extra `supervisor` with the name of the socket.
 
-Without an endpoint the player looks for another counterpart (see [Without protocol](#without-protocol)).
+Without an endpoint the player looks for another counterpart ([Without protocol](#without-protocol)).
+
+The player says in `hello` that it is the player (`client`): a supervisor may have other clients, which get no
+requests for the player.
 
 ## Flow
 
@@ -35,33 +39,36 @@ supervisor                                   player
 starts the player with --supervisor <ep>  →
                                           ←  connects
                                           ←  hello            (request, the first message)
-result: version, capabilities, device     →
+result: version, capabilities, locked,    →
+        device
                                           ←  heartbeat        (notification, every heartbeat_interval)
                                           ←  reboot, installSoftware, screenOff …   (requests)
 result or error                           →
 applyConfiguration, setIndex, quit        →  (requests)
                                           ←  result or error
+setLocked                                 →  (notification, when the service mode changes)
                                           ←  closing          (notification, before a wanted end)
                                              connection closed, process ends
 ```
 
-- **Before `hello`** both sides send nothing else. A request of the supervisor before it is answered gets
-  `-32001 not ready`.
+- **Before `hello`** neither side sends anything else. A request to a client without `hello` gets `-32001 not ready`.
 - **Both sides send requests**, each with its own `id` (number or string, unique per sender and connection). The
   answer goes back on the same connection.
 - **Timeouts**: a request without answer after 10 s counts as failed for the sender; a late answer is dropped.
-- **Connection lost**: the player keeps playing and connects again every 5 s, starting with `hello`. The supervisor
-  treats a player without connection like one without heartbeat.
+- **Connection lost** (supervisor restarts): the player keeps playing and connects again every 5 s, starting with
+  `hello`. Messages while there is no connection are lost. The supervisor treats a player without connection like one
+  without heartbeat.
 
 ## Lifecycle
 
-### `hello` - player → supervisor, request
+### `hello` - client → supervisor, request
 
 ```json
 {"jsonrpc": "2.0", "id": 1, "method": "hello", "params": {
   "protocol": 1,
-  "player": {"name": "garlic-player", "version": "1.0.0", "platform": "linux", "pid": 4711},
-  "capabilities": ["applyConfiguration", "setIndex", "quit"]
+  "client": "player",
+  "player": {"name": "garlic-player", "version": "2.0.0", "platform": "linux", "pid": 4711},
+  "capabilities": ["applyConfiguration", "setIndex", "quit", "setLocked"]
 }}
 ```
 
@@ -69,20 +76,25 @@ applyConfiguration, setIndex, quit        →  (requests)
 {"jsonrpc": "2.0", "id": 1, "result": {
   "protocol": 1,
   "supervisor": {"name": "garlic-daemon", "version": "2.0.0"},
-  "capabilities": ["reboot", "install", "screen", "deep_standby", "volume", "brightness"],
+  "capabilities": ["reboot", "install", "screen", "deep_standby", "volume", "brightness", "configuration"],
   "heartbeat_interval": 10,
+  "locked": true,
   "device": {"uuid": "…", "content_url": "https://…", "player_name": "…"}
 }}
 ```
 
 - `protocol`: the highest version the sender speaks. Both use the lower one; a supervisor that does not speak the
-  player's version at all answers `-32002 protocol not supported` and closes.
+  client's version at all answers `-32002 protocol not supported` and closes.
+- `client`: always `player` for the player.
 - `capabilities`: what the side implements (see the tables below). The other side calls only what is listed; unknown
-  names are ignored. The player's list tells the supervisor which requests it may send.
-- `heartbeat_interval`: seconds, chosen by the supervisor, default 10.
-- `device`: optional, every field optional. `uuid` and `content_url` replace the ContentProvider queries of launcher
-  1.x (`uuid`, `smil_content_url`); the core takes them like garlic-lib took them from the launcher. Missing fields:
-  the player uses its own.
+  names are ignored. `configuration` of the supervisor: it delivers the configuration, see
+  [Settings](#settings).
+- `heartbeat_interval`: seconds, chosen by the supervisor, default 10. `0`: no hang detection.
+- `locked`: the device is in strict mode, see [Lock](#lock). Missing: `false`.
+- `device`: optional, every field optional. **Only start values**: the player takes `uuid` only if its ini has none
+  yet (the player is the one truth of its identity; `Configuration::load(uuid_seed)`), `content_url` and `player_name`
+  only if it has none. Later changes come with `applyConfiguration`. Replaces the ContentProvider queries of launcher
+  1.x (`uuid`, `smil_content_url`).
 
 ### `heartbeat` - player → supervisor, notification
 
@@ -90,9 +102,9 @@ applyConfiguration, setIndex, quit        →  (requests)
 {"jsonrpc": "2.0", "method": "heartbeat", "params": {"uptime": 3600}}
 ```
 
-Every `heartbeat_interval` seconds. It must prove that the player works, not only that its socket thread lives: the
-player sends it only while the core thread runs its loop (`poll()`) and the UI thread answers. The supervisor counts a
-player as hung after three intervals without a heartbeat, ends the process and starts it again.
+Every `heartbeat_interval` seconds. It must prove that the player works, not only that a thread of it lives: the
+player sends it from a timer in the UI thread and only while the core thread runs its loop (`poll()`). The supervisor
+counts a player as hung after some intervals without a heartbeat, ends it and starts it again.
 
 ### `closing` - player → supervisor, notification
 
@@ -104,6 +116,12 @@ Before a wanted end (exit in the menu, after `quit`, before a restart of the pla
 `ClearCaches`). `reason`: `user`, `quit`, `restart`. The supervisor does not start the player again after `user`; it
 does after `restart`. A process that ends without `closing` crashed and is started again. garlic-lib:
 `closePlayerCorrect()`, broadcast `PlayerClosedReceiver`.
+
+### End
+
+- After `quit` the player answers, sends `closing` and ends.
+- After `SIGTERM` the player ends within 5 s.
+- The player never ends with exit code 127: a start shell reports a missing program with it.
 
 ## Player → supervisor
 
@@ -123,18 +141,46 @@ Requests. The result is `{}`: the supervisor has taken the command over and carr
 
 - `task_id`: of the task, `DailyReboot` or `httpd: <local time>`, as in `Supervisor::reboot()`.
 - Before `reboot` and `installSoftware` the supervisor may send `quit` and wait for `closing`, at most 10 s.
-- `setVolume` and `setBrightness`: from `audio/volume` and `display/brightness` of the `configuration.xml`, which
-  nobody applied so far ([tasks](tasks.md#who-applies-them)).
+- `screenOff`, `screenOn`, `deepStandby`: at `adapi:blankScreen` with the `standby_mode` of the configuration;
+  `deepStandby` with `remainingTime()` of the element ([tasks](tasks.md#who-applies-them)).
+- `setVolume`, `setBrightness`: from `audio/volume` and `display/brightness` of a `configuration.xml`, see
+  [Settings](#settings).
 
 ## Supervisor → player
 
-Requests, result `{}`.
+| Method               | Kind         | Capability           | Params   | Does                                                  | Launcher 1.x                        |
+|----------------------|--------------|----------------------|----------|-------------------------------------------------------|-------------------------------------|
+| `applyConfiguration` | request      | `applyConfiguration` | `path`   | applies a local `configuration.xml` (`applyConfigurationFile()`), the index is loaded again | `ConfigReceiver`, `config_path`     |
+| `setIndex`           | request      | `setIndex`           | `uri`    | stores and plays this index, a path or a URL (e.g. from a USB stick) | `SmilIndexReceiver`, `smil_index_path` |
+| `quit`               | request      | `quit`               | –        | the player answers, sends `closing` with `quit` and ends | –                                   |
+| `setLocked`          | notification | `setLocked`          | `locked` | strict mode on or off, see [Lock](#lock)              | –                                   |
 
-| Method               | Capability           | Params  | Does                                                  | Launcher 1.x                        |
-|----------------------|----------------------|---------|-------------------------------------------------------|-------------------------------------|
-| `applyConfiguration` | `applyConfiguration` | `path`  | applies a local `configuration.xml` (`applyConfigurationFile()`) | `ConfigReceiver`, `config_path`     |
-| `setIndex`           | `setIndex`           | `uri`   | plays this index, a path or a URL (e.g. from a USB stick) | `SmilIndexReceiver`, `smil_index_path` |
-| `quit`               | `quit`               | –       | the player answers, sends `closing` with `quit` and ends | –                                   |
+Requests are answered with `{}`. Paths may be on a USB stick that is gone a moment later: a missing file is `-32000`
+with `file not found`.
+
+## Settings
+
+Who applies a setting owns it, no matter whether a supervisor is connected. So the player runs alone as it runs with
+a supervisor, and no setting exists twice.
+
+| Setting                                                   | The player                                           |
+|-----------------------------------------------------------|------------------------------------------------------|
+| uuid, player name, content URL, HTTP server, reboot times | stores them in its ini and uses them, with and without supervisor |
+| master volume, brightness, rotation, time zone, NTP       | reads them from every `configuration.xml` (task, `-c`, `applyConfiguration`), stores them and passes them on (`setVolume`, `setBrightness`, …) if the supervisor offers it |
+
+- **Supervisor with `configuration`** (the launcher): it is the way name and content URL come in, by
+  `applyConfiguration`. The settings dialog of the player shows them but does not change them. With launcher 1.x the
+  dialog does the same (`Player.identityLocked`).
+- An `updateSettings` task of the hub changes name and content URL also with a supervisor: the hub stands above both.
+
+## Lock
+
+So nobody changes a public screen with a keyboard. The supervisor decides, the player follows: `locked` in `hello`,
+`setLocked` when it changes (also while the connection was lost: the next `hello` brings the state).
+
+Locked, the player opens nothing a keyboard or a touch could reach: no settings, no debug infos, no exit, no menu
+gesture, no `Ctrl+S`/`Ctrl+D`/`Ctrl+Q`. Accesskeys of the SMIL stay. Name and content URL then change only through
+the hub or `applyConfiguration`.
 
 ## Errors
 
@@ -164,50 +210,57 @@ The core logs every error under the category `Supervisor` to `debug.log`.
 
 The player tries in this order:
 
-| Order | Condition                                         | Counterpart                                                       |
-|-------|---------------------------------------------------|-------------------------------------------------------------------|
-| 1     | `--supervisor` / intent extra `supervisor`        | this protocol                                                     |
-| 2     | Android, package `com.sagiadinos.garlic.launcher` with version 1.x | adapter launcher 1.x                             |
-| 3     | Android on a Philips display (SICP reachable)     | adapter Philips                                                   |
-| 4     | –                                                 | none: `Supervisor` is `nullptr`, the core only logs               |
+| Order | Condition                                                   | Counterpart                                  |
+|-------|-------------------------------------------------------------|----------------------------------------------|
+| 1     | `--supervisor` / intent extra `supervisor`                  | this protocol (not yet)                      |
+| 2     | Android, package `com.sagiadinos.garlic.launcher` installed | launcher 1.x                                 |
+| 3     | Android, package `com.tpv.app.tpvlauncher` installed        | Philips                                      |
+| 4     | –                                                           | none: `Supervisor` is `nullptr`, the core only logs, the screen stays on |
 
-The adapters implement the same interface in the player, the core sees no difference:
+Launcher 1.x and Philips are implemented in the qml player for Android (`android_launcher.hpp/.cpp`, the Java classes
+in `android/`, see [its README](../../player-ui/qml/README.md#android)); `GarlicActivity` finds them before Qt starts.
 
-- **Launcher 1.x** (from `GarlicLauncher.java`): capabilities `reboot`, `install`, `screen`, `deep_standby`; `device`
-  from the ContentProvider `com.sagiadinos.garlic.launcher.SettingsProvider` (`uuid`, `smil_content_url`,
-  `launcher_version`); commands as the broadcasts of the tables above. The broadcasts give no answer: the adapter
-  answers `{}` at once, logged as unconfirmed. No heartbeat, no `quit`. `applyConfiguration` and `setIndex` come as
-  before through `ConfigReceiver` and `SmilIndexReceiver`; `closing` as broadcast `PlayerClosedReceiver`.
-- **Philips** (from `PhilipsLauncher.java`): capabilities `reboot` (`php.intent.action.REBOOT`), `install`
-  (`php.intent.action.UPDATE_APK`), `screen` (SICP backlight). `uuid` is model number and serial over SICP, the
-  version the firmware build. No heartbeat, nobody watches the player.
+- **Launcher 1.x** (frozen): `reboot`, `install`, `screen`, `deep_standby`. uuid, content URL and version from the
+  ContentProvider `com.sagiadinos.garlic.launcher.SettingsProvider` (`uuid`, `smil_content_url`, `launcher_version`);
+  commands as the broadcasts of the tables above, with the package of the launcher set (its receivers are declared in
+  its manifest, Android 8+ delivers no implicit broadcasts to those). No answers, no heartbeat, no `quit`, no lock.
+  `ConfigReceiver` and `SmilIndexReceiver` bring configuration and index; the exit in the menu sends
+  `PlayerClosedReceiver`. The uuid is a start value as in protocol 1; the content URL wins at every start, as in the
+  legacy player.
+- **Philips**: `reboot` (`php.intent.action.REBOOT`), `install` (`php.intent.action.UPDATE_APK`), `screen` (SICP
+  backlight over `127.0.0.1:5000`). uuid is model number and serial over SICP, the version the firmware build;
+  `https://indexes.smil-control.com` only as default without an index. No deep standby, nobody watches the player.
 
 ## Decisions
 
 - **JSON-RPC 2.0 instead of an own format.** Ids, answers, errors and notifications are defined, libraries exist for
-  C++, Java and C#; only the methods are ours.
-- **One message per line** instead of `Content-Length` headers: simple to read and to test (`socat`, a pipe client),
-  JSON has no raw line break.
+  C++ and Java; only the methods are ours.
+- **One message per line** instead of `Content-Length` headers: simple to read and to test (`socat`), JSON has no raw
+  line break.
 - **The supervisor is the server and starts the player.** It is there first and stays; the player connects to the
-  endpoint it gets and knows no fixed path. So several players or a test supervisor need no change in the player.
+  endpoint it gets. Several clients, a test supervisor or `socat` need no change in the player.
 - **The vocabulary of launcher 1.x** (`task_id`, `seconds_to_wakeup`, `screen_off/on`, `config_path`,
-  `smil_index_path`), so the adapter only translates. Neutral where 1.x was Android-only: `path` instead of
+  `smil_index_path`), so its adapter only translates. Neutral where 1.x was Android-only: `path` instead of
   `apk_path`, `seconds_to_wakeup` as integer.
 - **Capabilities instead of a fixed set.** The device decides what it can (Philips no deep standby, garlic-daemon so
   far only the restart); the core calls only what is offered, a new capability breaks nobody.
 - **Answers, but no proof of a restart.** `{}` means taken over. Whether the device really restarted or installed the
   core sees at the next start (`checkPending()`), the only point that works for every supervisor.
-- **A heartbeat that proves work**, sent only while the core loop and the UI thread run. A heartbeat from a socket
-  thread of its own would hide exactly the hang it is for.
-- **Launcher 1.x stays as it is.** It belongs to the legacy player; the new player reaches it through an adapter with
-  less: no answer, no heartbeat.
+- **A heartbeat that proves work**, from the UI thread while the core loop runs. A heartbeat from a socket thread of
+  its own would hide exactly the hang it is for.
+- **The player is the one truth of its identity.** The uuid of a supervisor is only a start value; garlic-lib took the
+  one of the launcher at every start, so a reset launcher gave the device a new identity.
+- **Who applies a setting owns it.** No setting is kept in two places, the player runs alone as with a supervisor.
+- **The supervisor decides the lock, the player follows.** The protection needs only the state, not the settings.
+- **Launcher 1.x stays as it is.** It belongs to the legacy player; the new player reaches it with less: no answer, no
+  heartbeat, no lock.
 
 ## When something goes wrong
 
-- **The player restarts again and again**: no heartbeat within three intervals (core or UI thread blocked), or it ends
+- **The player restarts again and again**: no heartbeat within the timeout (core or UI thread blocked), or it ends
   without `closing`. The log of the supervisor says which.
-- **A command is ignored**: the capability is not in the `hello` of the supervisor (`-32601`), or launcher 1.x
-  dropped the broadcast (no answer, the adapter logs `unconfirmed`).
+- **A command is ignored**: the capability is not in the `hello` of the supervisor (`-32601`); with launcher 1.x the
+  broadcast was dropped (no answer: the launcher is not installed or older).
 - **`pending` stays in the task log**: the supervisor took the restart over, but it never happened.
-- **No connection**: the endpoint of `--supervisor` does not exist or has the wrong permissions; the player keeps
-  playing and tries every 5 s.
+- **No connection**: the endpoint of `--supervisor` does not exist, or the supervisor does not let the user of the
+  player connect; the player keeps playing and tries every 5 s.
