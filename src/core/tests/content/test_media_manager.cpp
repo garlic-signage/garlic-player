@@ -119,6 +119,54 @@ TEST_CASE("not supported local media is not resolved either")
     CHECK_FALSE(media.resolve(std::get<smil::Media>(parsed->body.children[0])).has_value());
 }
 
+TEST_CASE("supported media with a filter: downloaded and resolved, also inside containers")
+{
+    ContentFixture f;
+    MediaManager   media(f.queue, f.inventory, f.fs, f.logger, "cache",
+                         [](const smil::Media &m) { return m.kind != smil::MediaKind::Video; });
+    f.on_result = [&](const downloader::DownloadResult &r) { media.downloaded(r); };
+    f.serve("http://hub/a.jpg", "jpeg", "image/jpeg");
+    auto parsed = smil::parse(R"(<smil><body><seq><par><img src="http://hub/a.jpg" dur="1s"/></par></seq></body></smil>)");
+    REQUIRE(parsed.has_value());
+    media.load(*parsed, "http://hub/");
+    f.runUntilIdle();
+
+    CHECK(f.requests("http://hub/a.jpg") > 0);
+    const auto &seq = std::get<smil::Container>(parsed->body.children.at(0));
+    const auto &par = std::get<smil::Container>(seq.children.at(0));
+    CHECK(media.resolve(std::get<smil::Media>(par.children.at(0))).has_value());
+}
+
+TEST_CASE("local files: only a .wgt is extracted, a broken one is written to debug.log")
+{
+    Fixture f;
+    writeFile(f.fs, "/usb/a.jpg", "jpeg");
+    writeFile(f.fs, "/usb/broken.wgt", "no zip");
+    f.load(R"(<img src="a.jpg" dur="1s"/><ref src="adapi:x.wgt" dur="1s"/>)", "/usb/");
+    CHECK_FALSE(f.fs.content("logs/debug.log").value_or("").contains("ContentManager"));
+
+    f.load(R"(<ref src="broken.wgt" type="application/widget" dur="1s"/>)", "/usb/");
+    CHECK(f.fs.content("logs/debug.log").value_or("").contains("/usb/broken.wgt: "));
+}
+
+TEST_CASE("a local widget that is no .wgt is resolved as it is, an empty src with a local base is nothing")
+{
+    Fixture f;
+    f.load(R"(<ref src="clock/index.html" type="application/widget" dur="1s"/><img src="" dur="1s"/>)", "/usb/");
+    CHECK(f.media.resolve(f.at(0)) == "/usb/clock/index.html");
+    CHECK_FALSE(f.media.resolve(f.at(1)).has_value());
+}
+
+TEST_CASE("prefetch and locate: local files are not downloaded, locate returns them as they are")
+{
+    Fixture f;
+    f.load(R"(<prefetch src="/usb/a.jpg"/>)", "/usb/");
+    f.media.prefetch(f.at(0));
+    f.runUntilIdle();
+    CHECK(f.transport.requests.empty());
+    CHECK(f.media.locate("/usb/bg.png") == "/usb/bg.png");
+}
+
 TEST_CASE("local widget: extracted when the index is loaded, resolved to its index.html")
 {
     Fixture f;

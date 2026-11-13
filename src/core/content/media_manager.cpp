@@ -96,7 +96,7 @@ namespace garlic::core::content
     /// Remote files go to the download queue; a local widget is extracted (garlic-lib: registerFile).
     void MediaManager::registerSrc(std::string_view src)
     {
-        if (src.empty() || src == "none" || src == "inherited")
+        if (src == "none" || src == "inherited") // "" becomes "" and is neither remote nor a widget
             return;
         std::string path = absolute(src);
         if (isRemote(path))

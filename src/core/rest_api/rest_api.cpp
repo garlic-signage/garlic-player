@@ -18,6 +18,7 @@
 #include "rest_api/rest_api.hpp"
 
 #include "common/md5.hpp"
+#include "common/text.hpp"
 #include "common/time_format.hpp"
 
 #include <nlohmann/json.hpp>
@@ -75,7 +76,7 @@ namespace garlic::core::rest_api
         std::optional<json> parseObject(const std::string &body)
         {
             json parsed = json::parse(body, nullptr, false);
-            if (parsed.is_discarded() || !parsed.is_object())
+            if (!parsed.is_object()) // also when discarded
                 return std::nullopt;
             return parsed;
         }
@@ -139,10 +140,7 @@ namespace garlic::core::rest_api
                 {"txt", "text/plain"},        {"pdf", "application/pdf"},
             }};
 
-            std::string lower(ext);
-            for (char &c : lower)
-                c = static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
-
+            std::string lower = common::toLower(ext);
             for (const auto &[e, type] : types)
             {
                 if (e == lower)

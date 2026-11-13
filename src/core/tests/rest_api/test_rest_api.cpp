@@ -193,6 +193,13 @@ TEST_CASE("files without, with wrong or with expired token: 403")
 
     auto auth = f.auth();
     CHECK(f.call("GET", "/v2/files/find", auth).status == 200);
+    // a token exists now: a wrong one is still wrong, on every path
+    for (const char *path : {"/v2/files/find", "/v2/files/new", "/v2/files/delete", "/v2/files/abc", "/v2/system/modelInfo",
+                             "/v2/app/start", "/v2/task/notify"})
+    {
+        CAPTURE(path);
+        CHECK(f.call("POST", path, {{"access_token", "WRONG"}}).status == 403);
+    }
     f.clock.advance(25h);
     CHECK(f.call("GET", "/v2/files/find", auth).status == 403);
 }
@@ -531,6 +538,26 @@ TEST_CASE("JSON bodies: not an object is no JSON, values of another type count a
     CHECK(all["nextPageToken"] == 0);
 }
 
+TEST_CASE("JSON bodies: app/start with a URI, files/find without keys, files/delete with a number as id")
+{
+    Fixture f;
+    CHECK(body(f.call("POST", "/v2/app/start", f.auth(), {}, R"({"uri":"http://hub/other.smil"})"))["uri"] ==
+          "http://hub/other.smil");
+    CHECK(f.config.indexUri() == "http://hub/other.smil");
+
+    f.upload("/v2/files/new", {{"downloadPath", "http://x/a.jpg"}, {"fileSize", "1"}}, "x");
+    CHECK(body(f.call("POST", "/v2/files/find", f.auth(), {}, "{}"))["items"].size() == 1);
+    CHECK(body(f.call("POST", "/v2/files/delete", f.auth(), {}, R"({"id":5})"))["error"] == "Record not found: ");
+}
+
+TEST_CASE("files/{id}: createdDate is the time of the file in the cache")
+{
+    Fixture f;
+    f.upload("/v2/files/new", {{"downloadPath", "http://x/a.jpg"}, {"fileSize", "1"}}, "x");
+    auto item = body(f.call("GET", "/v2/files/" + common::Md5::hex("http://x/a.jpg"), f.auth()));
+    CHECK(item["createdDate"] == "2026-01-01T00:00:00");
+}
+
 TEST_CASE("files/find: pageToken from the JSON body")
 {
     Fixture f;
@@ -586,6 +613,8 @@ TEST_CASE("files/new: modifiedDate only as ISO date, otherwise the time of the f
     CHECK(modified("2025-05-01 10:00:00") == "2026-01-01T00:00:00");
     CHECK(modified("2025/05/01T10:00:00") == "2026-01-01T00:00:00");
     CHECK(modified("yesterday") == "2026-01-01T00:00:00");
+    CHECK(modified("x025-05-01T10:00:00") == "2026-01-01T00:00:00"); // the first character counts too
+    CHECK(modified("2025-0x-01T10:00:00") == "2026-01-01T00:00:00"); // digits where digits belong
 }
 
 TEST_CASE("files: modifiedDate without Z, no createdDate without a file; the cache directory with or without /")
