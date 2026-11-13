@@ -1,0 +1,12 @@
+# Mutation tests with Mull (.github/workflows/mutation.yml): only the code of the core, not the tests and not the
+# fetched dependencies. The paths are regular expressions on the absolute file names.
+includePaths:
+  - .*/src/core/.*
+excludePaths:
+  - .*/src/core/tests/.*
+  - .*/_deps/.*
+# All operators, also calls (removed void calls, replaced return values) and the logical ones; the default set
+# has only comparisons, boundaries, arithmetic and increments.
+mutators:
+  - cxx_all
+  - experimental

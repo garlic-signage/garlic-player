@@ -1,0 +1,138 @@
+# Mutation tests of the core with Mull in Debian Trixie: once a month and by hand under Actions. The config (paths,
+# operators) is src/core/mull.yml. Mull is a clang plugin: the core is built with clang-19, the plugin builds every
+# mutant into the test programs, mull-runner switches them on one after the other. Only lines covered by a test are
+# mutated, so the score says how well the tests check the code they run; the line coverage is in ci.yml.
+# Every test program links more modules than its own, so all runs go into one SQLite report and a mutant counts as
+# killed when any test program kills it. The score goes into the badge of the README.
+name: Mutation tests
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  MULL_VERSION: 0.38.0
+  LLVM_VERSION: 19
+  LLVM_FULL_VERSION: 19.1.7 # the LLVM of Debian Trixie, in the name of the package
+
+jobs:
+  mull:
+    name: Mutation tests with Mull (Debian Trixie)
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    timeout-minutes: 120
+    permissions:
+      contents: write # the badge goes to the branch "badges"
+
+    steps:
+      - name: Install build dependencies and Mull
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git cmake ninja-build clang-${LLVM_VERSION} libclang-rt-${LLVM_VERSION}-dev \
+            pkg-config python3 tzdata \
+            libcurl4-openssl-dev libmicrohttpd-dev libsqlite3-dev libxml2-dev nlohmann-json3-dev doctest-dev
+          # the packages of Mull are only in its GitHub releases: the tools and the plugin for this LLVM
+          url="https://github.com/mull-project/mull/releases/download/${MULL_VERSION}"
+          curl -fsSLO "${url}/Mull-${MULL_VERSION}-debian-amd64-13.deb"
+          curl -fsSLO "${url}/Mull-${LLVM_VERSION}-${MULL_VERSION}-LLVM-${LLVM_FULL_VERSION}-debian-amd64-13.deb"
+          apt-get install -y --no-install-recommends ./Mull-*.deb
+          rm Mull-*.deb
+
+      - uses: actions/checkout@v4
+
+      # The plugin mutates while compiling. The coverage of clang tells Mull which mutants a test reaches.
+      # No scan for C++ modules: the core has none, and clang-scan-deps is not installed.
+      - name: Configure
+        run: >
+          cmake -S src/core -B build -G Ninja
+          -DCMAKE_C_COMPILER=clang-${LLVM_VERSION}
+          -DCMAKE_CXX_COMPILER=clang++-${LLVM_VERSION}
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
+          -DGARLIC_CORE_BUILD_TESTS=ON
+          -DGARLIC_CORE_BUILD_SHARED=OFF
+          "-DCMAKE_CXX_FLAGS=-O0 -g -grecord-command-line -fprofile-instr-generate -fcoverage-mapping -fpass-plugin=/usr/lib/mull-ir-frontend-${LLVM_VERSION}"
+          -DCMAKE_EXE_LINKER_FLAGS=-fprofile-instr-generate
+        env:
+          MULL_CONFIG: ${{ github.workspace }}/src/core/mull.yml
+
+      - name: Build
+        run: cmake --build build
+        env:
+          MULL_CONFIG: ${{ github.workspace }}/src/core/mull.yml
+
+      - name: Mutation tests
+        env:
+          MULL_CONFIG: ${{ github.workspace }}/src/core/mull.yml
+        run: |
+          mkdir -p mutation
+          # the test programs as CTest knows them
+          (cd build && ctest --show-only=json-v1) \
+            | python3 -c 'import json, sys; print("\n".join(t["command"][0] for t in json.load(sys.stdin)["tests"]))' \
+            > mutation/tests.txt
+          while read -r test; do
+            echo "::group::$(basename "$test")"
+            (cd build && mull-runner-${LLVM_VERSION} --reporters SQLite --report-dir ../mutation --report-name mutation \
+                         --allow-surviving --no-output "$test")
+            echo "::endgroup::"
+          done < mutation/tests.txt
+          # all runs together: the surviving mutants as text, the HTML/JSON report with the score
+          mull-reporter-${LLVM_VERSION} --reporters IDE --reporters Elements --report-dir mutation --report-name mutation \
+                         --allow-surviving mutation/mutation.sqlite
+
+      - name: Show the numbers on the summary page
+        if: always()
+        run: |
+          python3 - mutation/mutation.json >> "$GITHUB_STEP_SUMMARY" <<'EOF' || echo 'no report' >> "$GITHUB_STEP_SUMMARY"
+          import collections, json, sys
+          report = json.load(open(sys.argv[1]))
+          status = collections.Counter(m["status"] for f in report["files"].values() for m in f["mutants"])
+          print("### Mutation tests")
+          print("```")
+          print(f"mutation score {report['mutationScore']:.0f}%")
+          for name, count in sorted(status.items()):
+              print(f"{name:<10} {count}")
+          print("```")
+          EOF
+
+      - name: Make the badge
+        run: python3 .github/scripts/mutation_badge.py mutation/mutation.json mutation/mutation.svg
+
+      # the surviving mutants for the triage; mutation.txt lists them like compiler warnings
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: |
+            mutation/mutation.txt
+            mutation/mutation.html
+            mutation/mutation.json
+
+      - name: Commit badge to the branch badges
+        if: github.ref == 'refs/heads/master'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          badges=$(mktemp -d)
+          cd "$badges"
+          git init -q -b badges
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # the branch keeps the coverage badge of ci.yml as well
+          if git fetch -q --depth 1 origin badges; then git checkout -q -B badges FETCH_HEAD; fi
+          cp "$GITHUB_WORKSPACE/mutation/mutation.svg" .
+          git add mutation.svg
+          if git diff --cached --quiet; then echo "badge unchanged"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "mutation badge for ${GITHUB_SHA::7}"
+          git push -q origin badges
