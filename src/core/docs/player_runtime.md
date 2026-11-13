@@ -74,6 +74,8 @@ it and passes it on. Given as `config.supervisor`, it must outlive the runtime a
 
 Without a supervisor (`nullptr`) both only write a warning of category `Supervisor` to `debug.log`.
 
+The protocol between the player and its supervisor: [supervisor_protocol](supervisor_protocol.md).
+
 One list instead of several, because the order counts: at a new index first the `StopMedia` of the old one, then
 `NewLayout`, then the `StartMedia` of the new one.
 
