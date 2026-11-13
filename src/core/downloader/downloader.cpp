@@ -78,7 +78,7 @@ namespace garlic::core::downloader
 
             std::string_view name = path.substr(path.rfind('/') + 1);
             auto             dot  = name.rfind('.');
-            if (dot == std::string_view::npos || dot + 1 == name.size())
+            if (dot == std::string_view::npos)
                 return {};
 
             std::string_view ext = name.substr(dot + 1);
@@ -408,9 +408,7 @@ namespace garlic::core::downloader
 
         if (file_name.empty())
         {
-            std::string ext = url_ext.empty() || type == "application/octet-stream" ? extensionForType(type) : url_ext;
-            if (ext.empty())
-                ext = url_ext;
+            std::string ext = url_ext.empty() ? extensionForType(type) : url_ext;
             file_name = common::Md5::hex(url) + (ext.empty() ? "" : "." + ext);
         }
 

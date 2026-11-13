@@ -225,6 +225,33 @@ TEST_CASE("file name: no extension from the host, a long one or one with other c
     CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + ".abcde");
 }
 
+TEST_CASE("file name: letters a-z, A-Z and digits 0-9 make an extension, in lowercase")
+{
+    for (auto [url, ext] : {std::pair{"http://example.com/a.az", "az"}, {"http://example.com/a.AZ", "az"},
+                            {"http://example.com/a.09", "09"}})
+    {
+        CAPTURE(url);
+        Fixture f;
+        f.transport.respond(HttpMethod::Head, url, response(200, "image/png", "data"));
+        f.transport.respond(HttpMethod::Get, url, response(200, "image/png", "data"));
+        CHECK(f.download(url).local_path == "cache/" + Md5::hex(url) + "." + ext);
+    }
+}
+
+TEST_CASE("file name: a dot in the query is no extension, a type without extension gives none")
+{
+    Fixture     f;
+    std::string script = "http://example.com/get.php?name=a.gif";
+    f.transport.respond(HttpMethod::Head, script, response(200, "image/png", "data"));
+    f.transport.respond(HttpMethod::Get, script, response(200, "image/png", "data"));
+    CHECK(f.download(script).local_path == "cache/" + Md5::hex(script) + ".png");
+
+    std::string text = "http://example.com/readme";
+    f.transport.respond(HttpMethod::Head, text, response(200, "text/plain", "data"));
+    f.transport.respond(HttpMethod::Get, text, response(200, "text/plain", "data"));
+    CHECK(f.download(text).local_path == "cache/" + Md5::hex(text));
+}
+
 TEST_CASE("file name: spaces around the content type are ignored")
 {
     Fixture     f;
@@ -280,6 +307,34 @@ TEST_CASE("without ETag Last-Modified and size decide")
     CHECK(r.status == DownloadStatus::NotModified);
     CHECK(f.requestHeader(0, "If-Modified-Since") == "Wed, 01 Jan 2025 10:00:00 GMT");
     CHECK_FALSE(f.requestHeader(0, "If-None-Match").has_value()); // none known: not sent empty
+}
+
+TEST_CASE("server ignores the condition: another ETag or another Last-Modified is a new file")
+{
+    SUBCASE("another ETag, the same Last-Modified and size")
+    {
+        Fixture f;
+        f.putFile(cache_file, "old");
+        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "\"v1\"", "Wed, 01 Jan 2025 10:00:00 GMT",
+                          "image/jpeg", 3, InventoryState::Complete});
+        auto head = response(200, "image/jpeg", "new", "\"v2\"");
+        head.headers.add("Last-Modified", "Wed, 01 Jan 2025 10:00:00 GMT");
+        f.transport.respond(HttpMethod::Head, media_url, head);
+        f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "new"));
+        CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+    }
+    SUBCASE("no ETag, another Last-Modified, the same size")
+    {
+        Fixture f;
+        f.putFile(cache_file, "old");
+        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "", "Wed, 01 Jan 2025 10:00:00 GMT", "image/jpeg",
+                          3, InventoryState::Complete});
+        auto head = response(200, "image/jpeg", "new");
+        head.headers.add("Last-Modified", "Thu, 02 Jan 2025 10:00:00 GMT");
+        f.transport.respond(HttpMethod::Head, media_url, head);
+        f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "new"));
+        CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+    }
 }
 
 TEST_CASE("without ETag the same Last-Modified with another size is a new file")
@@ -350,6 +405,12 @@ TEST_CASE("relative redirect without leading slash")
     f.transport.respond(HttpMethod::Get, "http://example.com/media/b.jpg", response(200, "image/jpeg", "data"));
 
     CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+
+    // a slash in the query of the request is not part of its path
+    std::string query = "http://example.com/media/get?file=x/y";
+    f.transport.respond(HttpMethod::Head, query, redirect);
+    CHECK(f.download(query).status == DownloadStatus::Downloaded);
+    CHECK(f.transport.requests.back().url == "http://example.com/media/b.jpg");
 }
 
 TEST_CASE("redirect without scheme (//host/path) keeps the scheme of the request")
@@ -402,10 +463,49 @@ TEST_CASE("HTTP error: the cached file stays and is returned")
 TEST_CASE("HTTP error without cached file: no local path")
 {
     Fixture f;
+    f.putFile("cache/other.jpg", "other"); // the cache directory is there
     auto    r = f.download(media_url); // fake answers 404
 
     CHECK(r.status == DownloadStatus::Failed);
+    CHECK(r.http_status == 404);
     CHECK(r.local_path.empty());
+}
+
+TEST_CASE("HTTP error for a file with a fixed name: the copy in the cache is returned")
+{
+    Fixture f;
+    f.putFile("cache/index.smil", "<smil/>"); // not in the inventory
+    f.transport.respond(HttpMethod::Head, "http://example.com/index.smil", response(500, "", ""));
+
+    auto r = f.download("http://example.com/index.smil", "index.smil");
+    CHECK(r.status == DownloadStatus::Failed);
+    CHECK(r.local_path == "cache/index.smil");
+}
+
+TEST_CASE("the connection fails during HEAD: failed with the error of the transport")
+{
+    Fixture f;
+    auto    head = response(200, "image/jpeg", "data");
+    head.error   = TransportError{TransportErrorCode::ConnectionFailed, "connection reset"};
+    f.transport.respond(HttpMethod::Head, media_url, head);
+
+    auto r = f.download(media_url);
+    CHECK(r.status == DownloadStatus::Failed);
+    CHECK(r.error == "connection reset");
+    CHECK(f.transport.requests.size() == 1);
+}
+
+TEST_CASE("without Content-Length any size is taken")
+{
+    Fixture f;
+    auto    r = response(200, "image/jpeg", "data");
+    r.headers = {};
+    r.headers.add("Content-Type", "image/jpeg");
+    f.transport.respond(HttpMethod::Head, media_url, r);
+    f.transport.respond(HttpMethod::Get, media_url, r);
+
+    CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+    CHECK(f.content(cache_file) == "data");
 }
 
 TEST_CASE("connection lost during GET: the cached file stays")
@@ -571,7 +671,10 @@ TEST_CASE("unknown content type fails, except for .wgt and .smil")
 {
     Fixture f;
     f.transport.respond(HttpMethod::Head, "http://example.com/x.bin", response(200, "application/x-unknown", "x"));
-    CHECK(f.download("http://example.com/x.bin").status == DownloadStatus::Failed);
+    auto unknown = f.download("http://example.com/x.bin");
+    CHECK(unknown.status == DownloadStatus::Failed);
+    CHECK(unknown.error == "unsupported content type: application/x-unknown");
+    CHECK(f.transport.requests.size() == 1); // no GET
 
     f.transport.respond(HttpMethod::Head, "http://example.com/app.wgt", response(200, "application/x-unknown", "x"));
     f.transport.respond(HttpMethod::Get, "http://example.com/app.wgt", response(200, "application/x-unknown", "x"));
@@ -646,6 +749,22 @@ TEST_CASE("no resume if the file changed on the server")
     CHECK(f.content(cache_file) == "new!");
 }
 
+TEST_CASE("no resume without ETag if Last-Modified changed")
+{
+    Fixture f;
+    f.putFile(cache_file + ".part", "01234");
+    f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "", "Wed, 01 Jan 2025 10:00:00 GMT", "image/jpeg", 10,
+                      InventoryState::Transfer});
+    auto head = response(200, "image/jpeg", "abcdefghij");
+    head.headers.add("Last-Modified", "Thu, 02 Jan 2025 10:00:00 GMT");
+    f.transport.respond(HttpMethod::Head, media_url, head);
+    f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "abcdefghij"));
+
+    CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+    CHECK_FALSE(f.requestHeader(1, "Range").has_value());
+    CHECK(f.content(cache_file) == "abcdefghij");
+}
+
 TEST_CASE("resume without ETag: Last-Modified is the If-Range validator")
 {
     Fixture f;
@@ -672,9 +791,11 @@ TEST_CASE("no resume with a weak ETag or an empty .part file")
     {
         Fixture f;
         f.putFile(cache_file + ".part", "01234");
-        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "W/\"v1\"", "", "image/jpeg", 10,
-                          InventoryState::Transfer});
-        f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789", "W/\"v1\""));
+        f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "W/\"v1\"", "Wed, 01 Jan 2025 10:00:00 GMT",
+                          "image/jpeg", 10, InventoryState::Transfer});
+        auto head = response(200, "image/jpeg", "0123456789", "W/\"v1\"");
+        head.headers.add("Last-Modified", "Wed, 01 Jan 2025 10:00:00 GMT"); // not taken instead of the weak ETag
+        f.transport.respond(HttpMethod::Head, media_url, head);
         f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "0123456789", "W/\"v1\""));
 
         CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
@@ -758,6 +879,73 @@ TEST_CASE("cancel() stops the job without callback")
     CHECK(f.transport.activeCount() == 0);
 }
 
+TEST_CASE("cancel() during GET and the destructor stop the request at the transport")
+{
+    Fixture f;
+    auto    slow = response(200, "image/jpeg", "0123456789");
+    slow.chunk_size = 1;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789"));
+    f.transport.respond(HttpMethod::Get, media_url, slow);
+    REQUIRE(f.downloader.start(media_url, {}, [](const DownloadResult &) {}));
+    for (int i = 0; i < 100 && f.transport.requests.size() < 2; ++i)
+        f.transport.poll();
+    REQUIRE(f.transport.requests.size() == 2); // the GET runs
+    f.downloader.cancel();
+    CHECK(f.transport.activeCount() == 0);
+
+    {
+        Downloader other{f.transport, f.fs, f.inventory, f.clock, config()};
+        REQUIRE(other.start(media_url, {}, [](const DownloadResult &) {}));
+        CHECK(f.transport.activeCount() == 1);
+    }
+    CHECK(f.transport.activeCount() == 0);
+}
+
+TEST_CASE("a new job starts clean: no error and no status of the one before")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data"));
+    f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "data"));
+
+    // refused and cancelled before poll() reported it
+    f.transport.refuse_start = true;
+    REQUIRE(f.downloader.start(media_url, {}, [](const DownloadResult &) {}));
+    f.downloader.cancel();
+    f.transport.refuse_start = false;
+    CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+
+    // a write error
+    f.failing.fail_write = true;
+    REQUIRE(f.download("http://example.com/b.jpg").status == DownloadStatus::Failed); // 404, no write
+    f.transport.respond(HttpMethod::Head, "http://example.com/b.jpg", response(200, "image/jpeg", "b"));
+    f.transport.respond(HttpMethod::Get, "http://example.com/b.jpg", response(200, "image/jpeg", "b"));
+    REQUIRE(f.download("http://example.com/b.jpg").error == "write failed");
+    f.failing.fail_write = false;
+    CHECK(f.download("http://example.com/b.jpg").status == DownloadStatus::Downloaded);
+
+    // a refused start has no HTTP status, also after a 404
+    REQUIRE(f.download("http://example.com/missing.jpg").http_status == 404);
+    f.transport.refuse_start = true;
+    CHECK(f.download(media_url).http_status == 0);
+}
+
+TEST_CASE("the GET is refused: failed with the error of the transport")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data"));
+    DownloaderConfig c = config();
+    c.make_space       = [&](std::uint64_t) { return f.transport.refuse_start = true; }; // right before the GET
+    Downloader downloader{f.transport, f.failing, f.inventory, f.clock, c};
+
+    std::optional<DownloadResult> result;
+    REQUIRE(downloader.start(media_url, {}, [&](const DownloadResult &r) { result = r; }));
+    for (int i = 0; i < 100 && downloader.isBusy(); ++i)
+        f.transport.poll();
+    REQUIRE(result.has_value());
+    CHECK(result->status == DownloadStatus::Failed);
+    CHECK(result->error == "refused");
+}
+
 // ------------------------------------------------------------------ errors of the file system
 
 TEST_CASE("the .part file cannot be opened, written or closed: failed, the cached copy stays")
@@ -781,6 +969,16 @@ TEST_CASE("the .part file cannot be opened, written or closed: failed, the cache
         CHECK_FALSE(f.fs.exists(cache_file + ".ready"));
         CHECK(f.inventory.find(media_url)->state == InventoryState::Transfer); // the next try loads it again
     }
+}
+
+TEST_CASE("the .part file cannot be written and not closed: the first error counts")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data"));
+    f.transport.respond(HttpMethod::Get, media_url, response(200, "image/jpeg", "data"));
+    f.failing.fail_write = true;
+    f.failing.fail_close = true;
+    CHECK(f.download(media_url).error == "write failed");
 }
 
 TEST_CASE("the finished .part file cannot be renamed: failed, not in the inventory as complete")
