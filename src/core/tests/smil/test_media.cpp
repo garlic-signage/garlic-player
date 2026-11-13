@@ -151,16 +151,21 @@ TEST_CASE("widget: the other params become a percent-encoded query")
 
     CHECK(media.log_content_id == "w1");
     CHECK(media.query == "?city=K%C3%B6ln%20S%C3%BCd&format=a%26b%3Dc");
+
+    Media plain = parseOne(R"(<ref src="clock.wgt" type="application/widget"><param name="p" value="AZaz09-._~@[`{/:"/></ref>)");
+    CHECK(plain.query == "?p=AZaz09-._~%40%5B%60%7B%2F%3A"); // the characters around A-Z, a-z and 0-9 are encoded
 }
 
 TEST_CASE("src with placeholder from the head")
 {
-    Container body = parseBody(R"(<img src="{logo}"/><img src="{unknown}"/><img src=""/>)",
+    Container body = parseBody(R"(<img src="{logo}"/><img src="{unknown}"/><img src=""/><img src="{logo"/><img src="logo}"/>)",
                                "<state><data><logo>http://example.com/logo.png</logo></data></state>");
 
     CHECK(std::get<Media>(body.children[0]).src == "http://example.com/logo.png");
     CHECK(std::get<Media>(body.children[1]).src.empty()); // unknown placeholder: empty like in garlic-lib
     CHECK(std::get<Media>(body.children[2]).src.empty()); // garlic-lib crashed on an empty src
+    CHECK(std::get<Media>(body.children[3]).src == "{logo"); // no placeholder without both braces
+    CHECK(std::get<Media>(body.children[4]).src == "logo}");
 }
 
 TEST_CASE("dur: clock values")
@@ -175,6 +180,7 @@ TEST_CASE("dur: clock values")
     CHECK(dur("1:30").value == 90s);
     CHECK(dur("01:30:00.5").value == 5400500ms);
     CHECK(dur("30d").value == 0ms); // unknown unit
+    CHECK(dur("1:2:3:4").value == 0ms); // too many parts
     CHECK(dur("-5s").value == 0ms); // negative durations are 0
     CHECK(dur("720h").value == 720h); // 30 days, garlic-lib overflowed at about 24 days
     CHECK(dur("´1s").value == 1s);    // like garlic-lib: one leading character that is no digit is dropped

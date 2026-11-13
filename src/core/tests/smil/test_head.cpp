@@ -151,6 +151,24 @@ TEST_CASE("region sizes: percent, pixels, px; empty values keep the default")
     CHECK(region.background_repeat == "no-repeat");
 }
 
+TEST_CASE("region sizes: no number gives 0, a root-layout of size 0 gives 0 for pixels")
+{
+    Head head = parseHead(R"(<layout><region id="text" left="abc" top="x%"/></layout>)");
+    CHECK(head.regions.at(0).left == 0);
+    CHECK(head.regions.at(0).top == 0);
+
+    head = parseHead(R"(<layout><root-layout width="0" height="0"/><region left="10" top="5%"/></layout>)");
+    CHECK(head.regions.at(0).left == 0);
+    CHECK(head.regions.at(0).top == doctest::Approx(0.05));
+}
+
+TEST_CASE("a layout without regions keeps the region 'screen'")
+{
+    Head head = parseHead(R"(<layout><root-layout width="1920" height="1080"/></layout>)");
+    REQUIRE(head.regions.size() == 1);
+    CHECK(head.regions[0].id == "screen");
+}
+
 TEST_CASE("region height and top relative to the root-layout height, not the width")
 {
     Head head = parseHead(R"(<layout>
@@ -169,12 +187,12 @@ TEST_CASE("region height and top relative to the root-layout height, not the wid
 
 TEST_CASE("region ids: xml:id before id, generated ids are unique")
 {
-    Head head = parseHead(R"(<layout><region xml:id="new" id="old"/><region/><region/></layout>)");
+    Head head = parseHead(R"(<layout><region xml:id="new" id="old"/><region/><region id=""/></layout>)");
 
     REQUIRE(head.regions.size() == 3);
     CHECK(head.regions[0].id == "new");
     CHECK(head.regions[1].id == "region_1_1");
-    CHECK(head.regions[2].id == "region_1_2");
+    CHECK(head.regions[2].id == "region_1_2"); // an empty id is no id
 }
 
 TEST_CASE("root-layout: background, missing size keeps the default")
@@ -195,6 +213,7 @@ TEST_CASE("meta: refresh needs content, unknown meta is ignored")
     CHECK(parseHead(R"(<meta http-equiv="Refresh"/>)").refresh == 0s);
     CHECK(parseHead(R"(<meta http-equiv="Refresh" content="abc"/>)").refresh == 0s);
     CHECK(parseHead(R"(<meta name="author" content="x"/>)").title == "No Title");
+    CHECK(parseHead(R"(<meta name="author" content="30"/>)").refresh == 0s); // only http-equiv="Refresh"
 }
 
 TEST_CASE("state: placeholders for src=\"{name}\"")
@@ -219,6 +238,7 @@ TEST_CASE("subscriptions: refresh and retry intervals, values trimmed")
             <method>put</method>
             <refreshInterval>300</refreshInterval>
             <retryInterval>30</retryInterval>
+            <unknown>12</unknown>
         </subscription>
     </subscriptionList></x-server></metadata>)");
 
@@ -235,9 +255,10 @@ TEST_CASE("errors: broken XML with line, wrong root element")
     CHECK(broken.error().line == 3);
     CHECK_FALSE(broken.error().message.empty());
 
-    auto wrong_root = parse("<html/>");
+    auto wrong_root = parse("<?xml version=\"1.0\"?>\n<html/>");
     REQUIRE_FALSE(wrong_root.has_value());
     CHECK(wrong_root.error().message == "root element is not <smil>");
+    CHECK(wrong_root.error().line == 2);
 
     CHECK_FALSE(parse("").has_value());
 }

@@ -84,13 +84,17 @@ TEST_CASE("seq: metadata as first child gives pick_number and is no child")
         <seq xml:id="empty_metadata"><metadata/><img xml:id="d" src="d.jpg"/></seq>
         <seq xml:id="zero"><metadata><meta name="adapi:pickNumber" content="0"/></metadata></seq>
         <seq xml:id="late"><img xml:id="e" src="e.jpg"/><metadata/></seq>
+        <seq xml:id="first"><metadata><meta name="adapi:pickNumber" content="3"/>
+            <meta name="adapi:pickingBehavior" content="pickN"/><meta name="adapi:pickNumber"/>
+            <x name="adapi:pickNumber" content="5"/></metadata></seq>
     )");
 
-    CHECK(outline(body) == "body_1_1(pick2(a b c) empty_metadata(d) zero() late(e))");
+    CHECK(outline(body) == "body_1_1(pick2(a b c) empty_metadata(d) zero() late(e) first())");
     CHECK(container(body.children[0]).pick_number == 2);
     CHECK(container(body.children[1]).pick_number == 1); // empty metadata: shuffle with 1 like garlic-lib
     CHECK(container(body.children[2]).pick_number == 1); // 0 would play nothing
     CHECK_FALSE(container(body.children[3]).pick_number.has_value()); // only as first child
+    CHECK(container(body.children[4]).pick_number == 3); // other metas, one without content, another element
 }
 
 TEST_CASE("par: endsync")

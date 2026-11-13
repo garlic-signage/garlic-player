@@ -17,6 +17,7 @@
 */
 #include "smil/parser.hpp"
 
+#include "common/text.hpp"
 #include "common/time_format.hpp"
 
 #include <libxml/parser.h>
@@ -95,15 +96,6 @@ namespace garlic::core::smil
             return c >= '0' && c <= '9';
         }
 
-        std::string toUpper(std::string_view s)
-        {
-            std::string out(s);
-            for (char &c : out)
-                if (c >= 'a' && c <= 'z')
-                    c = static_cast<char>(c - 'a' + 'A');
-            return out;
-        }
-
         /// Leading number of a value, so "1920px" is 1920; 0 if there is none (like QString::toInt).
         int toInt(std::string_view s)
         {
@@ -129,16 +121,15 @@ namespace garlic::core::smil
             return error == std::errc() && end == s.data() + s.size() ? value : 0;
         }
 
-        /// "50%" → 0.5, "960px" or "960" → 960 / root. Empty values keep the default.
+        /// "50%" → 0.5, "960px" or "960" → 960 / root (the number ends before "%" and "px"). Empty values keep the
+        /// default.
         std::optional<double> relative(std::string_view value, int root)
         {
             value = trim(value);
             if (value.empty())
                 return std::nullopt;
             if (value.ends_with('%'))
-                return toDouble(value.substr(0, value.size() - 1)) / 100;
-            if (value.ends_with("px"))
-                value.remove_suffix(2);
+                return toDouble(value) / 100;
             return root > 0 ? toDouble(value) / root : 0;
         }
 
@@ -275,7 +266,8 @@ namespace garlic::core::smil
 
         /**
          * "img1.begin+2s", "img1.end", "img1.activateEvent-1s", garlic-lib: SyncBase and Event.
-         * The id ends at the "." before a known symbol, so ids may contain "-" and ".".
+         * The id ends at the "." before a known symbol, so ids may contain "-" and ".". The value starts with a letter
+         * (parseTimeCondition), so the id is never empty.
          */
         std::optional<TimeCondition> parseSyncBaseOrEvent(std::string_view value)
         {
@@ -299,7 +291,7 @@ namespace garlic::core::smil
                 std::string_view after = value.substr(dot + 1);
                 for (const Symbol &symbol : symbols)
                 {
-                    if (id.empty() || !after.starts_with(symbol.name))
+                    if (!after.starts_with(symbol.name))
                         continue;
                     auto offset = parseTriggerOffset(after.substr(symbol.name.size()));
                     if (!offset)
@@ -399,7 +391,7 @@ namespace garlic::core::smil
                 return sys_days{parseDate(value)};
 
             char op      = w > 0 ? value[w - 1] : '+';
-            int  weekday = w + 1 < value.size() ? static_cast<int>(toNumber(value.substr(w + 1, 1))) : 0;
+            int  weekday = static_cast<int>(toNumber(value.substr(w + 1, 1))); // "" after a last "w": 0
             auto date    = parseDate(value.substr(0, op == '+' || op == '-' ? w - 1 : w));
             if (weekday < 1 || weekday > 7)
                 return sys_days{date};
@@ -416,7 +408,7 @@ namespace garlic::core::smil
         std::chrono::seconds parseTimeOfDay(std::string_view value)
         {
             auto parts = split(value, ':');
-            if (parts.empty() || parts.size() > 3)
+            if (parts.size() > 3) // "" has no part of 2 digits: 00:00:00 as well
                 return std::chrono::seconds(0);
             int values[3] = {0, 0, 0};
             for (std::size_t i = 0; i < parts.size(); ++i)
@@ -456,7 +448,7 @@ namespace garlic::core::smil
                 time       = time.substr(0, sign);
             }
 
-            seconds time_of_day = time.empty() ? seconds(0) : parseTimeOfDay(time);
+            seconds time_of_day = parseTimeOfDay(time);
             if (!zone)
                 return local_days{date.time_since_epoch()} + time_of_day;
             return common::toLocalTime(sys_seconds{date + time_of_day - *zone});
@@ -1053,7 +1045,7 @@ namespace garlic::core::smil
                                          return;
 
                                      if (*param_name == "cacheControl")
-                                         media.cache_control = toUpper(*value) == "ONLYIFCACHED"
+                                         media.cache_control = common::toLower(*value) == "onlyifcached"
                                                                    ? CacheControl::OnlyIfCached
                                                                    : CacheControl::UseCache;
                                      else if (*param_name == "filename")

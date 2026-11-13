@@ -87,6 +87,8 @@ TEST_CASE("accesskey and notify")
     CHECK(key.key == 'a');
     CHECK(key.offset == 2s);
     CHECK(one<AccessKey>("accesskey(7)").key == '7');
+    CHECK(one<AccessKey>("accesskey(z)").key == 'z');
+    CHECK(one<AccessKey>("accesskey(Z)").key == 'z');
 
     auto notify = one<Notify>("notify(door-open)-500ms"); // garlic-lib cut the name at "-"
     CHECK(notify.name == "door-open");
@@ -102,7 +104,11 @@ TEST_CASE("unreadable trigger values give the default begin")
     CHECK(isDefault("accesskey(ab)"));
     CHECK(isDefault("accesskey(#)"));
     CHECK(isDefault("accesskey(a"));
+    CHECK(isDefault("accesskey(a)x"));
     CHECK(isDefault("notify()"));
+    CHECK(isDefault("notify(door"));
+    CHECK(isDefault("wallclock(2026-01-01T08:00"));
+    CHECK(isDefault("_a.begin"));
     CHECK(isDefault("garbage"));
 }
 
@@ -133,6 +139,7 @@ TEST_CASE("wallclock: invalid date and time like garlic-lib")
     CHECK(wallclock("2026-02-30T08:00").start == local_days{January / 1 / 2000} + 8h);
     CHECK(wallclock("2026-03-15T25:00").start == local_days{March / 15 / 2026});
     CHECK(wallclock("2026-03-15T8:00").start == local_days{March / 15 / 2026});
+    CHECK(wallclock("2026-03-15T08:00:00:00").start == local_days{March / 15 / 2026});
 }
 
 TEST_CASE("wallclock: time zones are converted to local time")
@@ -142,6 +149,8 @@ TEST_CASE("wallclock: time zones are converted to local time")
     CHECK(wallclock("2026-03-15T08:00+03:00").start == local_days{March / 15 / 2026} + 6h);
     CHECK(wallclock("2026-03-15T23:30-05:00").start == local_days{March / 16 / 2026} + 5h + 30min);
     CHECK(wallclock("2026-03-15T08:00+01:00").start == local_days{March / 15 / 2026} + 8h);
+    CHECK(wallclock("2026-03-15T08:00+05:30").start == local_days{March / 15 / 2026} + 3h + 30min);
+    CHECK(wallclock("2026-03-15T08:00+03").start == local_days{March / 15 / 2026} + 6h);
 }
 
 TEST_CASE("wallclock: weekdays")
@@ -179,6 +188,7 @@ TEST_CASE("wallclock: repeats and periods")
 
     CHECK(wallclock("R/2026-01-01T08:00").repeats == 0); // no period: no repeat (GitHub #31)
     CHECK(wallclock("R/2026-01-01T08:00/P").repeats == 0);
+    CHECK(wallclock("R/2026-01-01T08:00/12D").repeats == 0); // a period starts with P
     CHECK(wallclock("R3/2026-01-01/PT1H").repeats == 3);
 }
 
