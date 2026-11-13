@@ -80,10 +80,12 @@ jobs:
           (cd build && ctest --show-only=json-v1) \
             | python3 -c 'import json, sys; print("\n".join(t["command"][0] for t in json.load(sys.stdin)["tests"]))' \
             > mutation/tests.txt
+          # --timeout is for the first, unchanged run (default 3 s, too short for a test built with -O0 and coverage
+          # on the runner); a mutant may take ten times as long as that run.
           while read -r test; do
             echo "::group::$(basename "$test")"
             (cd build && mull-runner-${LLVM_VERSION} --reporters SQLite --report-dir ../mutation --report-name mutation \
-                         --allow-surviving --no-output "$test")
+                         --allow-surviving --no-output --timeout 60000 "$test")
             echo "::endgroup::"
           done < mutation/tests.txt
           # all runs together: the surviving mutants as text, the HTML/JSON report with the score
