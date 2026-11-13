@@ -1,0 +1,12 @@
+{"case": "an unknown method", "send": {"jsonrpc": "2.0", "id": 1, "method": "dance"}, "expect": {"jsonrpc": "2.0", "id": 1, "error": {"code": -32601}}}
+{"case": "applyConfiguration without path", "send": {"jsonrpc": "2.0", "id": 2, "method": "applyConfiguration", "params": {}}, "expect": {"id": 2, "error": {"code": -32602}}}
+{"case": "applyConfiguration of a missing file", "send": {"jsonrpc": "2.0", "id": 3, "method": "applyConfiguration", "params": {"path": "/no/such/config.xml"}}, "expect": {"id": 3, "error": {"code": -32000, "data": {"reason": "file not found"}}}}
+{"case": "setIndex without uri", "send": {"jsonrpc": "2.0", "id": 4, "method": "setIndex", "params": {}}, "expect": {"id": 4, "error": {"code": -32602}}}
+{"case": "setIndex with a URL", "send": {"jsonrpc": "2.0", "id": 5, "method": "setIndex", "params": {"uri": "https://example.com/index.smil"}}, "expect": {"jsonrpc": "2.0", "id": 5, "result": {}}}
+{"case": "setIndex of a missing local file", "send": {"jsonrpc": "2.0", "id": "six", "method": "setIndex", "params": {"uri": "/no/such/index.smil"}}, "expect": {"id": "six", "error": {"code": -32000, "data": {"reason": "file not found"}}}}
+{"case": "an unknown notification is ignored", "send": {"jsonrpc": "2.0", "method": "dance"}, "expect": null}
+{"case": "setLocked is a notification: no answer", "send": {"jsonrpc": "2.0", "method": "setLocked", "params": {"locked": true}}, "expect": null}
+{"case": "an answer to an id the player never sent is dropped", "send": {"jsonrpc": "2.0", "id": 999, "result": {}}, "expect": null}
+{"case": "not JSON", "send_raw": "this is no json", "expect": {"jsonrpc": "2.0", "id": null, "error": {"code": -32700}}}
+{"case": "no jsonrpc 2.0", "send": {"id": 7, "method": "quit"}, "expect": {"id": 7, "error": {"code": -32600}}}
+{"case": "quit is answered, then the player ends", "send": {"jsonrpc": "2.0", "id": 8, "method": "quit"}, "expect": {"jsonrpc": "2.0", "id": 8, "result": {}}}

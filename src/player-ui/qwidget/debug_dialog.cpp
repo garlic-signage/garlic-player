@@ -17,7 +17,6 @@
 */
 #include "debug_dialog.hpp"
 
-#include <QApplication>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLocale>
@@ -70,7 +69,7 @@ namespace player
         auto *quit  = new QPushButton("Quit player");
         auto *close = new QPushButton("Close");
         close->setDefault(true);
-        connect(quit, &QPushButton::clicked, this, [] { QApplication::quit(); });
+        connect(quit, &QPushButton::clicked, this, [this] { done(quit_player); });
         connect(close, &QPushButton::clicked, this, &QDialog::reject);
         auto *buttons = new QHBoxLayout;
         buttons->addWidget(quit);

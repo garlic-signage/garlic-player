@@ -21,6 +21,8 @@
 #include "media.hpp"
 #include "region.hpp"
 
+#include "blank_screen.hpp"
+
 #include "player_runtime/threaded_runtime.hpp"
 
 #include <QTimer>
@@ -54,6 +56,24 @@ namespace player
             /// The media that play now, "region: title or src", for the debug dialog.
             QStringList playingMedia() const;
 
+            /// What switches the screen off at adapi:blankScreen (the supervisor); nullptr: the screen stays on.
+            void setScreenControl(ScreenControl *control) { blank_screen.setControl(control); }
+
+            /// Player name and content URL come from the supervisor: the settings dialog shows them only.
+            void setIdentityLocked(bool locked) { identity_locked = locked; }
+
+            /// Locked by the supervisor: no menu, no dialogs, no shortcuts; accesskeys of the SMIL stay. Closes what
+            /// is open.
+            void setLocked(bool locked);
+            bool locked() const noexcept { return is_locked; }
+
+            /// From the supervisor: a configuration.xml to apply, a SMIL index to play from now on.
+            void applyConfiguration(const QString &path);
+            void playIndex(const QString &uri);
+
+        Q_SIGNALS:
+            void quitRequested(); // the player ends on purpose (menu, Ctrl+Q, debug dialog)
+
         protected:
             bool eventFilter(QObject *watched, QEvent *event) override;
             void keyPressEvent(QKeyEvent *event) override;
@@ -81,6 +101,10 @@ namespace player
             int    fast_clicks = 0;
             QPoint menu_position;
 
+            BlankScreen blank_screen;
+            bool        identity_locked = false;
+            bool        is_locked       = false;
+
             void handle(const garlic::core::CoreEvent &event);
             void newLayout(const garlic::core::NewLayout &next);
             void backgroundImage(const garlic::core::BackgroundImage &image);
@@ -94,6 +118,8 @@ namespace player
             void openMenu();
             void openSettingsDialog();
             void openDebugDialog();
+            void blankScreen(garlic::core::smil::InstanceId id);
+            void quit();
     };
 }
 

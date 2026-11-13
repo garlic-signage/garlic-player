@@ -53,8 +53,8 @@ namespace player
         };
 
         /**
-         * <ref src="adapi:…">. garlic-lib only knew adapi:blankScreen, which switched the screen off through the
-         * launcher of Android; without launcher it did nothing. Other commands could not be played.
+         * <ref src="adapi:…"> other than adapi:blankScreen, which the window handles (BlankScreen): garlic-lib knew
+         * no other command, it cannot be played.
          */
         class Command final : public Media
         {
@@ -63,11 +63,8 @@ namespace player
 
                 void start() override
                 {
-                    if (source.compare("adapi:blankScreen", Qt::CaseInsensitive) == 0)
-                        qInfo() << "blankScreen: no launcher, the screen stays on";
-                    else
-                        QMetaObject::invokeMethod(this, [this] { Q_EMIT failed("unknown command " + source); },
-                                                  Qt::QueuedConnection);
+                    QMetaObject::invokeMethod(this, [this] { Q_EMIT failed("unknown command " + source); },
+                                              Qt::QueuedConnection);
                 }
         };
     }

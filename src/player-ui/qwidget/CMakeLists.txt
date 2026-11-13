@@ -50,7 +50,7 @@ if(APPLE)
     )
 endif()
 
-target_link_libraries(qwidget PRIVATE garlic::core Qt6::Widgets Qt6::WebEngineWidgets)
+target_link_libraries(qwidget PRIVATE garlic::core player_supervisor Qt6::Widgets Qt6::WebEngineWidgets)
 if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(qwidget PRIVATE $<$<CONFIG:Release>:-s>)
 endif()

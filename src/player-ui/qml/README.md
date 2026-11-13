@@ -16,7 +16,8 @@ build/src/player-ui/qml/garlic-player-qml -m fullscreen http://hub/index.smil
 
 ## Command line, menu, keys
 
-As in qwidget: `SMIL_INDEX`, `-c/--config`, `-m/--windows-mode`, `-z/--windows-size`, `-s/--screen-select`; there is
+As in qwidget: `SMIL_INDEX`, `-c/--config`, `-m/--windows-mode`, `-z/--windows-size`, `-s/--screen-select`,
+`--supervisor` (the [supervisor](../qwidget/README.md#supervisor) the same way, locked: `Player.locked`); there is
 no `--media-backend`, video and audio always play with Qt Multimedia (on iOS and Android with the decoders of the
 system).
 
@@ -157,5 +158,6 @@ install it over the old one.
 ## Not yet
 
 - iOS.
-- The supervisor protocol of [supervisor_protocol](../../core/docs/supervisor_protocol.md) (new launcher, garlic-daemon,
-  garlic-service): until then Android only with launcher 1.x or Philips, the desktop without supervisor.
+- Android with the [supervisor protocol](../../core/docs/supervisor_protocol.md) (intent extra `supervisor` of a new
+  launcher): until then launcher 1.x or Philips.
+- Master volume and brightness of a `configuration.xml` to the supervisor (`setVolume`, `setBrightness`).

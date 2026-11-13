@@ -20,6 +20,8 @@
 
 #include "region_model.hpp"
 
+#include "blank_screen.hpp"
+
 #include "player_runtime/threaded_runtime.hpp"
 
 #include <QJSEngine>
@@ -41,16 +43,6 @@ class QScreen;
 
 namespace player
 {
-    /// The screen of adapi:blankScreen: what can switch it off, e.g. the Android launcher. Called in the UI thread.
-    class ScreenControl
-    {
-        public:
-            virtual ~ScreenControl()                             = default;
-            virtual void screenOff()                             = 0;
-            virtual void screenOn()                              = 0;
-            virtual void deepStandby(std::chrono::seconds wake_up) = 0;
-    };
-
     /**
      * The bridge between the core and QML, the singleton "Player" of the QML module Garlic. It takes the events of the ThreadedRuntime
      * and turns them into the region and media models QML binds to; QML reports back what only it knows (end of a
@@ -70,6 +62,7 @@ namespace player
             Q_PROPERTY(QString rootRepeat READ rootRepeat NOTIFY layoutChanged)
             Q_PROPERTY(bool needsSettings READ needsSettings CONSTANT)
             Q_PROPERTY(bool identityLocked READ identityLocked CONSTANT)
+            Q_PROPERTY(bool locked READ locked NOTIFY lockedChanged)
 
         public:
             explicit Player(garlic::core::ThreadedRuntime &runtime);
@@ -91,7 +84,11 @@ namespace player
             void setIdentityLocked(bool locked) { identity_locked = locked; }
 
             /// What switches the screen off at adapi:blankScreen; nullptr: nothing, the screen stays on.
-            void setScreenControl(ScreenControl *control) { screen_control = control; }
+            void setScreenControl(ScreenControl *control) { blank_screen.setControl(control); }
+
+            /// Locked by the supervisor: no menu, no dialogs, no shortcuts; accesskeys of the SMIL stay.
+            bool locked() const noexcept { return is_locked; }
+            void setLocked(bool locked);
 
             /// From the launcher: a configuration.xml to apply, a SMIL index to play from now on.
             void applyConfiguration(const QString &path);
@@ -126,6 +123,7 @@ namespace player
             void layoutChanged();
             void menuRequested(QPoint position); // ten fast clicks or one held for 10 s
             void quitRequested();                // before the player ends on purpose
+            void lockedChanged();
 
         protected:
             bool eventFilter(QObject *watched, QEvent *event) override;
@@ -134,8 +132,8 @@ namespace player
             garlic::core::ThreadedRuntime &runtime;
             bool                           needs_settings = false;
             bool                           identity_locked = false;
-            ScreenControl                 *screen_control  = nullptr;
-            std::map<int, bool>            blank_screens;   // instance of adapi:blankScreen → screen switched off
+            bool                           is_locked       = false;
+            BlankScreen                    blank_screen;
             QQuickWindow                  *window         = nullptr;
             bool                           cursor_hidden  = false;
             QSize                          windowed_size{980, 540};

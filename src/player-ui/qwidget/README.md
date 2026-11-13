@@ -24,6 +24,7 @@ build/src/player-ui/qwidget/garlic-player -m fullscreen http://hub/index.smil
 | `-s`, `--screen-select` | number of the screen to start on                                        |
 | `--media-backend`       | `qtavplayer` (default), `qtmultimedia` or `vlc`; only the ones built in |
 | `-c`, `--config`        | a `config.xml` (e.g. of a launcher), applied by the core at every start before the index; an index on the command line still wins |
+| `--supervisor`          | endpoint of the supervisor (garlic-daemon: Unix socket, garlic-service: named pipe), see [Supervisor](#supervisor) |
 
 Keys: Ctrl+F full screen on/off, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit; other
 keys go to the core as accessKey.
@@ -105,7 +106,7 @@ shows the shortcuts right-aligned. garlic-lib labelled free and total disk space
 | audio         | `AvMedia` | without widget; soundLevel                                                      |
 | text, widget  | `Web`     | `QWebEngineView` with the settings of garlic-lib (local files, remote data, autoplay); scroll bars hidden |
 | brush         | `Brush`   | area in `color`                                                                 |
-| `adapi:…`     | `Command` | `adapi:blankScreen` does nothing without launcher (garlic-lib the same); others fail |
+| `adapi:…`     | `Command` | other commands fail; `adapi:blankScreen` is handled by the window, see [Supervisor](#supervisor) |
 
 fit, mediaAlign and soundLevel come from the medium, otherwise from its region. An image with a URL as source (not
 cacheable) fails like in garlic-lib.
@@ -136,6 +137,18 @@ Program arguments*. `garlic-player --help` lists the backends built in.
 At least one has to be built; `--media-backend` with one that is not built in ends with the list of the available.
 Without the option it is `qtavplayer`, or the first one built in.
 
-## Not yet
+## Supervisor
 
-- Launcher/daemon: reboot, software installation, screen off (`adapi:blankScreen`).
+With `--supervisor` the player speaks the [supervisor protocol](../../core/docs/supervisor_protocol.md) through
+`SupervisorClient` of [../supervisor](../supervisor) (the same in the qml player):
+
+- **Start**: `hello` before the core starts, at most 3 s; its uuid is a start value of a new player, content URL and
+  name where the player has none. Without answer the player starts anyway, the client tries every 5 s.
+- **Core**: restart and installation go to the supervisor if it offers them.
+- **`adapi:blankScreen`**: `BlankScreen` with the `standby_mode` of the configuration: `partially` screen off until
+  the element ends, `deep` deep standby until its planned end; without supervisor the screen stays on.
+- **Heartbeat** from a timer in the UI thread, only while the core thread answers.
+- **Locked** (`locked`, `setLocked`): no menu gesture, no Ctrl keys, open menu and dialogs close; accesskeys stay.
+  With `configuration` the settings dialog shows name and content URL only and does not open at the start.
+- **From the supervisor**: `applyConfiguration`, `setIndex`; `quit` ends the player with `closing`. Exit in the menu,
+  Ctrl+Q and the debug dialog send `closing` with `user`.

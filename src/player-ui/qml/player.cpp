@@ -17,7 +17,7 @@
 */
 #include "player.hpp"
 
-#include "configuration/configuration.hpp"
+#include "runtime_requests.hpp"
 
 #include <QCoreApplication>
 #include <QCursor>
@@ -116,7 +116,12 @@ namespace player
     {
         hold.setSingleShot(true);
         hold.setInterval(10000);
-        connect(&hold, &QTimer::timeout, this, [this] { Q_EMIT menuRequested(menu_position); });
+        connect(&hold, &QTimer::timeout, this,
+                [this]
+                {
+                    if (!is_locked)
+                        Q_EMIT menuRequested(menu_position);
+                });
     }
 
     void Player::setWindow(QQuickWindow *w)
@@ -237,12 +242,7 @@ namespace player
 
     void Player::stop(int instance)
     {
-        if (auto blank = blank_screens.find(instance); blank != blank_screens.end())
-        {
-            if (blank->second && screen_control != nullptr)
-                screen_control->screenOn();
-            blank_screens.erase(blank);
-        }
+        blank_screen.end(instance);
         auto it = instances.find(instance);
         if (it == instances.end())
             return;
@@ -251,37 +251,17 @@ namespace player
         instances.erase(it);
     }
 
-    /**
-     * adapi:blankScreen with the standby_mode of the configuration, garlic-lib: PlayerRefCommand. partially: the screen
-     * goes off until the element ends; deep: the launcher sleeps until the planned end of the element and wakes the
-     * device; no_standby: nothing.
-     */
+    /// adapi:blankScreen with the standby_mode of the configuration (BlankScreen)
     void Player::blankScreen(int instance)
     {
-        namespace cfg    = garlic::core::configuration;
         std::string mode = ask<std::string>(runtime, [](PlayerRuntimeApi &api) { return api.configuration().standbyMode(); });
-        if (mode != cfg::standby_partially && mode != cfg::standby_deep)
-            return;
-        if (screen_control == nullptr)
-        {
-            qInfo() << "blankScreen: no launcher, the screen stays on";
-            return;
-        }
-        if (mode == cfg::standby_deep)
-        {
-            auto id   = static_cast<smil::InstanceId>(instance);
-            auto rest = ask<std::optional<std::chrono::seconds>>(runtime, [id](PlayerRuntimeApi &api)
-                                                                 { return api.remainingTime(id); });
-            if (rest)
-            {
-                screen_control->deepStandby(*rest);
-                blank_screens[instance] = false; // the launcher wakes the device
-                return;
-            }
-            qWarning() << "blankScreen: deep standby without a planned end, the screen goes off instead";
-        }
-        screen_control->screenOff();
-        blank_screens[instance] = true;
+        auto        id   = static_cast<smil::InstanceId>(instance);
+        blank_screen.begin(instance, mode,
+                           [this, id]
+                           {
+                               return ask<std::optional<std::chrono::seconds>>(
+                                   runtime, [id](PlayerRuntimeApi &api) { return api.remainingTime(id); });
+                           });
     }
 
     void Player::forEach(int instance, void (MediaModel::*action)(int))
@@ -370,26 +350,20 @@ namespace player
 
     void Player::applyConfiguration(const QString &path)
     {
-        runtime.post([file = path.toStdString()](PlayerRuntimeApi &r) { r.applyConfigurationFile(file); });
+        player::applyConfiguration(runtime, path);
     }
 
-    /// garlic-lib: reloadWithNewIndex - stored as the index URI and loaded
     void Player::playIndex(const QString &uri)
     {
-        runtime.post(
-            [given = uri.toStdString()](PlayerRuntimeApi &r)
-            {
-                auto valid = garlic::core::configuration::Configuration::validateIndexUri(given);
-                if (!valid)
-                {
-                    qWarning().noquote() << "index of the launcher not taken:" << qt(valid.error());
-                    return;
-                }
-                PlayerSettings next = r.playerSettings();
-                next.index_uri      = *valid;
-                if (auto changed = r.changePlayerSettings(next); !changed)
-                    qWarning().noquote() << "index of the launcher not taken:" << qt(changed.error());
-            });
+        player::playIndex(runtime, uri);
+    }
+
+    void Player::setLocked(bool locked)
+    {
+        if (locked == is_locked)
+            return;
+        is_locked = locked;
+        Q_EMIT lockedChanged();
     }
 
     void Player::quit()
@@ -474,7 +448,7 @@ namespace player
      */
     bool Player::eventFilter(QObject *watched, QEvent *event)
     {
-        if (watched != window)
+        if (watched != window || is_locked) // locked: no menu gesture
             return false;
         bool press   = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin;
         bool release = event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::TouchEnd;

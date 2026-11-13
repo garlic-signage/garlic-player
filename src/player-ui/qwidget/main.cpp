@@ -18,6 +18,7 @@
 #include "main_window.hpp"
 #include "media_player.hpp"
 #include "settings_dialog.hpp"
+#include "supervisor_client.hpp"
 
 #include "common/clock.hpp"
 #include "common/std_file_system.hpp"
@@ -32,8 +33,10 @@
 #include <QSettings>
 #include <QStandardPaths>
 
+#include <chrono>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <random>
 
 namespace
@@ -83,6 +86,7 @@ int main(int argc, char *argv[])
         // default: qtavplayer, or the first one built in if it is not
         {"media-backend", "video and audio: " + player::mediaBackendNames().join(", "), "backend",
          player::mediaBackendNames().first()},
+        {"supervisor", "endpoint of the supervisor (garlic-daemon: Unix socket, garlic-service: named pipe)", "endpoint"},
     });
     parser.addPositionalArgument("SMIL_INDEX", "URI or path of the SMIL index; empty: the one in the settings");
     parser.process(app);
@@ -107,11 +111,23 @@ int main(int argc, char *argv[])
         index_uri = QString::fromStdString(*valid);
     }
 
+    // supervisor protocol (src/core/docs/supervisor_protocol.md): hello before the core starts, its uuid is a
+    // start value; without answer the player starts anyway and the client keeps trying
+    auto                                      config = runtimeConfig(index_uri, parser.value("config"));
+    std::unique_ptr<player::SupervisorClient> supervisor;
+    if (parser.isSet("supervisor"))
+    {
+        supervisor = std::make_unique<player::SupervisorClient>(parser.value("supervisor"), PLAYER_VERSION);
+        supervisor->start(std::chrono::seconds(3));
+        config.supervisor = supervisor.get();
+        supervisor->seed(config);
+    }
+
     garlic::core::common::StdFileSystem      fs;
     garlic::core::common::SystemClock        clock;
     garlic::core::downloader::CurlTransport  http;
     player::MainWindow                      *window = nullptr;
-    garlic::core::ThreadedRuntime            runtime(fs, clock, http, runtimeConfig(index_uri, parser.value("config")), [&window]
+    garlic::core::ThreadedRuntime            runtime(fs, clock, http, config, [&window]
     {
         // core thread: into the UI thread
         QMetaObject::invokeMethod(window, [&window] { window->takeEvents(); }, Qt::QueuedConnection);
@@ -125,11 +141,44 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // without an index nothing can be played: the settings dialog first, cancelled ends the player (garlic-lib)
+    // without an index nothing can be played: the settings dialog first, cancelled ends the player (garlic-lib);
+    // not when the supervisor gives the content URL or has locked the player
     std::promise<std::string> stored_uri;
-    runtime.post([&](garlic::core::PlayerRuntimeApi &r) { stored_uri.set_value(r.configuration().indexUri()); });
-    if (stored_uri.get_future().get().empty() && player::SettingsDialog(runtime).exec() != QDialog::Accepted)
+    runtime.post(
+        [&](garlic::core::PlayerRuntimeApi &r)
+        {
+            if (supervisor && supervisor->ready())
+                player::SupervisorClient::applyStartValues(r, supervisor->hello());
+            stored_uri.set_value(r.configuration().indexUri());
+        });
+    bool without_index = stored_uri.get_future().get().empty();
+    bool configures    = supervisor && supervisor->offers("configuration");
+    bool locked        = supervisor && supervisor->locked();
+    if (without_index && !configures && !locked && player::SettingsDialog(runtime).exec() != QDialog::Accepted)
         return 1;
+
+    if (supervisor)
+    {
+        main_window.setIdentityLocked(configures);
+        main_window.setLocked(locked);
+        main_window.setScreenControl(supervisor.get());
+        supervisor->setCoreProbe([&runtime](std::function<void()> done)
+                                 { runtime.post([done](garlic::core::PlayerRuntimeApi &) { done(); }); });
+        QObject::connect(supervisor.get(), &player::SupervisorClient::lockedChanged, &main_window,
+                         &player::MainWindow::setLocked);
+        QObject::connect(supervisor.get(), &player::SupervisorClient::configurationRequested, &main_window,
+                         &player::MainWindow::applyConfiguration);
+        QObject::connect(supervisor.get(), &player::SupervisorClient::indexRequested, &main_window,
+                         &player::MainWindow::playIndex);
+        QObject::connect(&main_window, &player::MainWindow::quitRequested, supervisor.get(),
+                         [&supervisor] { supervisor->closing("user"); });
+        QObject::connect(supervisor.get(), &player::SupervisorClient::quitRequested, &app,
+                         [&supervisor]
+                         {
+                             supervisor->closing("quit");
+                             QApplication::quit();
+                         });
+    }
 
     QString mode = parser.value("windows-mode");
     QScreen *screen = QGuiApplication::screens().value(parser.value("screen-select").toInt(), QGuiApplication::primaryScreen());

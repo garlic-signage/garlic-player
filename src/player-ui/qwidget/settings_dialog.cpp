@@ -40,8 +40,11 @@ namespace player
         }
     }
 
-    SettingsDialog::SettingsDialog(garlic::core::ThreadedRuntime &r, QWidget *parent) : QDialog(parent), runtime(r)
+    SettingsDialog::SettingsDialog(garlic::core::ThreadedRuntime &r, bool identity_locked, QWidget *parent)
+        : QDialog(parent), runtime(r)
     {
+        player_name.setEnabled(!identity_locked);
+        index_uri.setEnabled(!identity_locked);
         setWindowTitle("garlic-player settings");
         setMinimumWidth(560);
 

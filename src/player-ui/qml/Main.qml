@@ -1,4 +1,5 @@
-// The window of the QML player: regions of the current layout, the menu, the dialogs and the shortcuts.
+// The window of the QML player: regions of the current layout, the menu, the dialogs and the shortcuts. Locked by the
+// supervisor (Player.locked) only the accesskeys of the SMIL work.
 // The same behaviour as the qwidget Player. "player" is the C++ bridge to the core (Player.hpp).
 import QtQuick
 import Garlic
@@ -45,16 +46,24 @@ ApplicationWindow {
         }
     }
 
-    Shortcut { sequence: "Ctrl+F"; onActivated: Player.toggleFullScreen() }
-    Shortcut { sequence: "Ctrl+B"; onActivated: Player.showOverAllScreens() }
-    Shortcut { sequence: "Ctrl+S"; onActivated: settingsDialog.open() }
-    Shortcut { sequence: "Ctrl+D"; onActivated: debugDialog.open() }
-    Shortcut { sequence: "Ctrl+Q"; onActivated: Player.quit() }
+    Shortcut { sequence: "Ctrl+F"; enabled: !Player.locked; onActivated: Player.toggleFullScreen() }
+    Shortcut { sequence: "Ctrl+B"; enabled: !Player.locked; onActivated: Player.showOverAllScreens() }
+    Shortcut { sequence: "Ctrl+S"; enabled: !Player.locked; onActivated: settingsDialog.open() }
+    Shortcut { sequence: "Ctrl+D"; enabled: !Player.locked; onActivated: debugDialog.open() }
+    Shortcut { sequence: "Ctrl+Q"; enabled: !Player.locked; onActivated: Player.quit() }
 
-    // ten fast clicks or one held for 10 s (counted in C++ on the window)
+    // ten fast clicks or one held for 10 s (counted in C++ on the window, not while locked)
     Connections {
         target: Player
         function onMenuRequested(position) { menu.popup(position.x, position.y) }
+        // locked by the supervisor: what is open closes, the shortcuts are off
+        function onLockedChanged() {
+            if (Player.locked) {
+                menu.close()
+                settingsDialog.close()
+                debugDialog.close()
+            }
+        }
     }
 
     PlayerMenu {
@@ -65,6 +74,7 @@ ApplicationWindow {
     SettingsDialog { id: settingsDialog }
     DebugDialog { id: debugDialog }
 
-    // without an index nothing can be played: the settings first, cancelled ends the player (garlic-lib)
-    Component.onCompleted: if (Player.needsSettings) settingsDialog.openAtStart()
+    // without an index nothing can be played: the settings first, cancelled ends the player (garlic-lib);
+    // not while locked
+    Component.onCompleted: if (Player.needsSettings && !Player.locked) settingsDialog.openAtStart()
 }

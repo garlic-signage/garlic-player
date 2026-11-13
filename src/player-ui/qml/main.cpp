@@ -16,6 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "player.hpp"
+#include "supervisor_client.hpp"
 #ifdef Q_OS_ANDROID
 #include "android_launcher.hpp"
 #endif
@@ -36,6 +37,7 @@
 #include <QStandardPaths>
 #include <QtWebView>
 
+#include <chrono>
 #include <future>
 #include <iostream>
 #include <memory>
@@ -96,6 +98,7 @@ int main(int argc, char *argv[])
 #endif
         {{"z", "windows-size"}, "size in windows mode, e.g. 980x540", "width x height", "980x540"},
         {{"s", "screen-select"}, "number of the screen to start on", "screen", "0"},
+        {"supervisor", "endpoint of the supervisor (garlic-daemon: Unix socket, garlic-service: named pipe)", "endpoint"},
     });
     parser.addPositionalArgument("SMIL_INDEX", "URI or path of the SMIL index; empty: the one in the settings");
     parser.process(app);
@@ -114,9 +117,20 @@ int main(int argc, char *argv[])
 
     garlic::core::downloader::CurlTransportConfig transport_config;
     QString                                       fallback_index; // when the settings have none
+
+    // supervisor protocol (src/core/docs/supervisor_protocol.md): hello before the core starts, its uuid is a
+    // start value; without answer the player starts anyway and the client keeps trying
+    std::unique_ptr<player::SupervisorClient> supervisor;
+    if (parser.isSet("supervisor"))
+    {
+        supervisor = std::make_unique<player::SupervisorClient>(parser.value("supervisor"), PLAYER_VERSION);
+        supervisor->start(std::chrono::seconds(3));
+    }
 #ifdef Q_OS_ANDROID
     // launcher 1.x or Philips (as the legacy player): uuid, content URL, restarts, installations, screen
-    std::unique_ptr<player::android::Launcher> launcher = player::android::Launcher::detect();
+    std::unique_ptr<player::android::Launcher> launcher;
+    if (!supervisor)
+        launcher = player::android::Launcher::detect();
     player::android::Storage                   storage  = player::android::storage();
     auto config = runtimeConfig(index_uri, parser.value("config"), storage.cache_dir, storage.log_dir);
     transport_config.ca_bundle = player::android::caBundle(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
@@ -132,6 +146,11 @@ int main(int argc, char *argv[])
 #else
     auto config = runtimeConfig(index_uri, parser.value("config"));
 #endif
+    if (supervisor)
+    {
+        config.supervisor = supervisor.get();
+        supervisor->seed(config);
+    }
 
     garlic::core::common::StdFileSystem     fs;
     garlic::core::common::SystemClock       clock;
@@ -158,6 +177,8 @@ int main(int argc, char *argv[])
     runtime.post(
         [&](garlic::core::PlayerRuntimeApi &r)
         {
+            if (supervisor && supervisor->ready())
+                player::SupervisorClient::applyStartValues(r, supervisor->hello());
             std::string uri = r.configuration().indexUri();
             if (uri.empty() && !fallback_index.isEmpty())
             {
@@ -170,6 +191,29 @@ int main(int argc, char *argv[])
         });
     bool without_index = stored_uri.get_future().get().empty();
     player.setNeedsSettings(without_index);
+    if (supervisor)
+    {
+        // with configuration the supervisor gives name and content URL; locked: no menu, dialogs, shortcuts
+        bool configures = supervisor->offers("configuration");
+        player.setIdentityLocked(configures);
+        player.setNeedsSettings(without_index && !configures);
+        player.setLocked(supervisor->locked());
+        player.setScreenControl(supervisor.get());
+        supervisor->setCoreProbe([&runtime](std::function<void()> done)
+                                 { runtime.post([done](garlic::core::PlayerRuntimeApi &) { done(); }); });
+        QObject::connect(supervisor.get(), &player::SupervisorClient::lockedChanged, &player, &player::Player::setLocked);
+        QObject::connect(supervisor.get(), &player::SupervisorClient::configurationRequested, &player,
+                         &player::Player::applyConfiguration);
+        QObject::connect(supervisor.get(), &player::SupervisorClient::indexRequested, &player, &player::Player::playIndex);
+        QObject::connect(&player, &player::Player::quitRequested, supervisor.get(),
+                         [&supervisor] { supervisor->closing("user"); });
+        QObject::connect(supervisor.get(), &player::SupervisorClient::quitRequested, &app,
+                         [&supervisor]
+                         {
+                             supervisor->closing("quit");
+                             QCoreApplication::quit();
+                         });
+    }
 #ifdef Q_OS_ANDROID
     if (launcher)
     {

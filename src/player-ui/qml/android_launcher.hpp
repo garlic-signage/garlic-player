@@ -18,7 +18,7 @@
 #ifndef PLAYER_UI_QML_ANDROID_LAUNCHER_HPP
 #define PLAYER_UI_QML_ANDROID_LAUNCHER_HPP
 
-#include "player.hpp"
+#include "screen_control.hpp"
 
 #include "player_runtime/supervisor.hpp"
 

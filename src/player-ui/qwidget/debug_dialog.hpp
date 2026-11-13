@@ -38,6 +38,9 @@ namespace player
         public:
             using Playing = std::function<QStringList()>; // "region: title or source"
 
+            /// Result of exec() when "Quit player" was pressed: the window ends the player.
+            static constexpr int quit_player = 2;
+
             DebugDialog(garlic::core::ThreadedRuntime &runtime, Playing playing, QWidget *parent = nullptr);
 
         private:

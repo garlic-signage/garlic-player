@@ -19,6 +19,8 @@
 #include "debug_dialog.hpp"
 #include "settings_dialog.hpp"
 
+#include "runtime_requests.hpp"
+
 #include <QApplication>
 #include <QDateTime>
 #include <QMouseEvent>
@@ -28,6 +30,9 @@
 #include <QWindow>
 #include <QScreen>
 #include <QWebEngineProfile>
+
+#include <functional>
+#include <future>
 
 namespace player
 {
@@ -43,6 +48,14 @@ namespace player
         QString qt(const std::string &text)
         {
             return QString::fromStdString(text);
+        }
+
+        /// Runs call in the core thread and waits for its result.
+        template <typename Result> Result ask(ThreadedRuntime &runtime, std::function<Result(PlayerRuntimeApi &)> call)
+        {
+            std::promise<Result> answer;
+            runtime.post([&](PlayerRuntimeApi &r) { answer.set_value(call(r)); });
+            return answer.get_future().get();
         }
     }
 
@@ -162,6 +175,12 @@ namespace player
     void MainWindow::start(const smil::StartMedia &command)
     {
         stop(command.id); // the same instance again: start anew
+        if (command.media->kind == smil::MediaKind::Command &&
+            qt(command.source).compare("adapi:blankScreen", Qt::CaseInsensitive) == 0)
+        {
+            blankScreen(command.id);
+            return;
+        }
         Instance &instance = instances[command.id];
         for (std::size_t index : command.regions)
         {
@@ -194,6 +213,7 @@ namespace player
 
     void MainWindow::stop(smil::InstanceId id)
     {
+        blank_screen.end(static_cast<int>(id));
         auto it = instances.find(id);
         if (it == instances.end())
             return;
@@ -204,6 +224,18 @@ namespace player
                 region->removeMedia(widget);
         }
         instances.erase(it);
+    }
+
+    /// adapi:blankScreen with the standby_mode of the configuration (BlankScreen)
+    void MainWindow::blankScreen(smil::InstanceId id)
+    {
+        std::string mode = ask<std::string>(runtime, [](PlayerRuntimeApi &r) { return r.configuration().standbyMode(); });
+        blank_screen.begin(static_cast<int>(id), mode,
+                           [this, id]
+                           {
+                               return ask<std::optional<std::chrono::seconds>>(
+                                   runtime, [id](PlayerRuntimeApi &r) { return r.remainingTime(id); });
+                           });
     }
 
     void MainWindow::forEach(smil::InstanceId id, void (Media::*action)())
@@ -236,7 +268,7 @@ namespace player
     {
         // Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit (garlic-lib);
         // other keys are accessKeys
-        if (event->modifiers().testFlag(Qt::ControlModifier))
+        if (event->modifiers().testFlag(Qt::ControlModifier) && !is_locked)
         {
             switch (event->key())
             {
@@ -246,7 +278,7 @@ namespace player
                 case Qt::Key_B: showOverAllScreens(); return;
                 case Qt::Key_D: openDebugDialog(); return;
                 case Qt::Key_S: openSettingsDialog(); return;
-                case Qt::Key_Q: QApplication::quit(); return;
+                case Qt::Key_Q: quit(); return;
                 default: break;
             }
         }
@@ -268,7 +300,7 @@ namespace player
      */
     bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     {
-        if (!isInThisWindow(watched))
+        if (is_locked || !isInThisWindow(watched)) // locked: no menu gesture
             return false;
 
         bool press   = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin;
@@ -346,14 +378,14 @@ namespace player
         else if (chosen == debug)
             openDebugDialog();
         else if (chosen == exit)
-            QApplication::quit();
+            quit();
     }
 
     void MainWindow::openSettingsDialog()
     {
         QCursor hidden = cursor();
         setCursor(Qt::ArrowCursor);
-        SettingsDialog(runtime, this).exec(); // the core stores and loads the index again
+        SettingsDialog(runtime, identity_locked, this).exec(); // the core stores and loads the index again
         setCursor(hidden);
     }
 
@@ -361,8 +393,38 @@ namespace player
     {
         QCursor hidden = cursor();
         setCursor(Qt::ArrowCursor);
-        DebugDialog(runtime, [this] { return playingMedia(); }, this).exec();
+        int result = DebugDialog(runtime, [this] { return playingMedia(); }, this).exec();
         setCursor(hidden);
+        if (result == DebugDialog::quit_player)
+            quit();
+    }
+
+    void MainWindow::quit()
+    {
+        Q_EMIT quitRequested();
+        QApplication::quit();
+    }
+
+    void MainWindow::setLocked(bool locked)
+    {
+        is_locked = locked;
+        if (!locked)
+            return;
+        hold.stop();
+        if (QWidget *popup = QApplication::activePopupWidget()) // the menu
+            popup->close();
+        if (QWidget *dialog = QApplication::activeModalWidget()) // settings, debug infos
+            dialog->close();
+    }
+
+    void MainWindow::applyConfiguration(const QString &path)
+    {
+        player::applyConfiguration(runtime, path);
+    }
+
+    void MainWindow::playIndex(const QString &uri)
+    {
+        player::playIndex(runtime, uri);
     }
 
     QStringList MainWindow::playingMedia() const

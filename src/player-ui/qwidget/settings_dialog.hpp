@@ -36,7 +36,8 @@ namespace player
     class SettingsDialog final : public QDialog
     {
         public:
-            SettingsDialog(garlic::core::ThreadedRuntime &runtime, QWidget *parent = nullptr);
+            /// identity_locked: player name and content URL come from the supervisor, they are only shown.
+            SettingsDialog(garlic::core::ThreadedRuntime &runtime, bool identity_locked = false, QWidget *parent = nullptr);
 
             void accept() override;
 

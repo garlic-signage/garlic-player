@@ -6,8 +6,13 @@ device, install software, switch the screen, apply device settings. The core rea
 the interface `Supervisor` ([player_runtime](player_runtime.md#supervisor)), the frontend the screen through its
 `ScreenControl`; the platform part of the player speaks this protocol. The Java frontend later speaks the same.
 
-Protocol version **1**. Not implemented in the player yet: today it speaks only launcher 1.x and Philips
+Protocol version **1**. In the player: `SupervisorClient` of `src/player-ui/supervisor`, used by the qml and the
+qwidget player with `--supervisor`; not yet on Android (intent extra), there launcher 1.x and Philips
 ([Without protocol](#without-protocol)). garlic-lib: `LauncherInterface` (Java), `Launcher` (C++).
+
+**Test cases**: [supervisor_protocol/player.jsonl](supervisor_protocol/player.jsonl), one per line: what a supervisor
+sends (`send`, or `send_raw` for a line that is no JSON) and what the player answers (`expect`, compared as subset;
+`null`: no answer). The tests of the player read them; a supervisor can play them against a player.
 
 ## Transport
 
@@ -212,7 +217,7 @@ The player tries in this order:
 
 | Order | Condition                                                   | Counterpart                                  |
 |-------|-------------------------------------------------------------|----------------------------------------------|
-| 1     | `--supervisor` / intent extra `supervisor`                  | this protocol (not yet)                      |
+| 1     | `--supervisor` (desktop); intent extra `supervisor` (Android, not yet) | this protocol                 |
 | 2     | Android, package `com.sagiadinos.garlic.launcher` installed | launcher 1.x                                 |
 | 3     | Android, package `com.tpv.app.tpvlauncher` installed        | Philips                                      |
 | 4     | –                                                           | none: `Supervisor` is `nullptr`, the core only logs, the screen stays on |
