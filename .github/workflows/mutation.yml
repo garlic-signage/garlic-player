@@ -97,11 +97,13 @@ jobs:
         run: |
           python3 - mutation/mutation.json >> "$GITHUB_STEP_SUMMARY" <<'EOF' || echo 'no report' >> "$GITHUB_STEP_SUMMARY"
           import collections, json, sys
+          sys.path.insert(0, ".github/scripts")
+          from mutation_badge import mutation_score
           report = json.load(open(sys.argv[1]))
           status = collections.Counter(m["status"] for f in report["files"].values() for m in f["mutants"])
           print("### Mutation tests")
           print("```")
-          print(f"mutation score {report['mutationScore']:.0f}%")
+          print(f"mutation score {mutation_score(report):.0f}% (timeouts count as found)")
           for name, count in sorted(status.items()):
               print(f"{name:<10} {count}")
           print("```")

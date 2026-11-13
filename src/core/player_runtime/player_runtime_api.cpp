@@ -204,7 +204,7 @@ namespace garlic::core
         std::optional<std::chrono::steady_clock::time_point> next = next_resource_log;
         auto earlier = [&](std::optional<std::chrono::steady_clock::time_point> t)
         {
-            if (t && (!next || *t < *next))
+            if (t && *t < *next) // next starts with the resource log
                 next = t;
         };
         if (engine)
@@ -320,9 +320,7 @@ namespace garlic::core
             if (auto started = next->start(httpd); !started)
                 return started;
         }
-        if (server)
-            server->stop();
-        server = std::move(next);
+        server = std::move(next); // the old one stops in its destructor
 #else
         (void)enabled;
         (void)port;
@@ -332,14 +330,15 @@ namespace garlic::core
 
     // ------------------------------------------------------------------ inside
 
-    /// The DownloadQueue has one callback: the index, the files of the task scheduler and the media.
+    /// The DownloadQueue has one callback: the index, the files of the task scheduler and the media. It comes from
+    /// poll() after start(), so all of them are there.
     void PlayerRuntimeApi::dispatch(const downloader::DownloadResult &result)
     {
-        if (index && !index->url().empty() && result.url == index->url())
+        if (result.url == index->url())
             index->downloaded(result);
-        else if (tasks && tasks->downloaded(result))
+        else if (tasks->downloaded(result))
             return;
-        else if (media)
+        else
         {
             media->downloaded(result);
             findBackgrounds(nullptr);

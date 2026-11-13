@@ -184,6 +184,17 @@ TEST_CASE("start: index downloaded, NewLayout, media downloaded and started")
     CHECK(f.runtime->configuration().lastPlayedIndexPath() == "cache/index.smil");
 }
 
+TEST_CASE("start: a web page is not downloaded, it plays from its URL")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<text xml:id="w" src="http://hub/page.html" dur="indefinite"/>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/page.html", "<html>", "text/html");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    CHECK(f.seen() == "layout No Title | start w");
+}
+
 TEST_CASE("a new index: stop the old one, NewLayout, start the new one - in this order")
 {
     Fixture f;
@@ -530,7 +541,7 @@ TEST_CASE("-c config.xml missing: an event, the player starts anyway")
 
 // ------------------------------------------------------------------ start, poll and nextDeadline
 
-TEST_CASE("start: the version is in the user agent of the downloads")
+TEST_CASE("start: the version is in the user agent of the downloads, without -c no configuration file is read")
 {
     Fixture f;
     f.serve("http://hub/index.smil", indexText(""), "application/smil+xml");
@@ -538,6 +549,50 @@ TEST_CASE("start: the version is in the user agent of the downloads")
     f.run(1s);
     REQUIRE_FALSE(f.transport.requests.empty());
     CHECK(f.transport.requests[0].headers.find("User-Agent").value_or("").contains("/2.0 (MODEL:Garlic)"));
+    CHECK_FALSE(f.fs.content("logs/event_log.xml").value_or("").contains("CONFIGURATION_OPEN_ERROR"));
+}
+
+TEST_CASE("before start(): poll, nextDeadline, input, settings and debug info do nothing")
+{
+    Fixture f;
+    auto    config     = f.base();
+    config.system_info = nullptr; // nothing about the system: no resource log, no disk in the debug info
+    f.runtime          = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+
+    CHECK(f.runtime->poll().empty());
+    (void)f.runtime->nextDeadline();
+    f.runtime->mediaFinished(1);
+    f.runtime->mediaFailed(1);
+    f.runtime->elementActivated(1);
+    f.runtime->accessKey('k');
+    f.runtime->notify("door");
+    f.runtime->screenshotTaken("shot.jpg");
+    f.runtime->cachesCleared();
+    f.runtime->stop();
+    CHECK(f.runtime->poll().empty());
+
+    DebugInfo info = f.runtime->debugInfo();
+    CHECK(info.index_title.empty());
+    CHECK_FALSE(info.disk_total.has_value());
+
+    PlayerSettings next = f.runtime->playerSettings();
+    next.player_name    = "lobby";
+    next.index_uri      = "http://hub/index.smil";
+    next.httpd_enabled  = false;
+    CHECK(f.runtime->changePlayerSettings(next).has_value());
+    CHECK(f.transport.requests.empty());
+}
+
+TEST_CASE("a download that cannot start fails at the next poll and does not keep the player busy")
+{
+    Fixture f;
+    f.transport.refuse_start = true;
+    REQUIRE(f.runtime->start().has_value());
+    f.run(1s);
+    REQUIRE_FALSE(f.transport.requests.empty());
+    auto next = f.runtime->nextDeadline();
+    REQUIRE(next.has_value());
+    CHECK(*next - f.clock.monotonic() > PlayerRuntimeApi::busy_poll);
 }
 
 TEST_CASE("start: a task that waited for the restart is completed")
@@ -552,11 +607,22 @@ TEST_CASE("start: a task that waited for the restart is completed")
 TEST_CASE("resources are written to debug.log every 5 minutes")
 {
     Fixture f;
+    auto    config     = f.base();
+    config.system_info = []
+    {
+        reports::SystemInfo system;
+        system.total_capacity = 1000;
+        system.free_space     = 400;
+        system.memory_total   = 2048;
+        system.memory_used    = 512;
+        return system;
+    };
+    f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
     REQUIRE(f.runtime->start().has_value());
     f.run(299s);
     CHECK_FALSE(f.debugLog().contains(" disc "));
     f.run(2s);
-    CHECK(f.debugLog().contains("disc 0/0 memory 0/0"));
+    CHECK(f.debugLog().contains("disc 400/1000 memory 512/2048"));
 }
 
 TEST_CASE("stop(): StopMedia comes with the next poll, nextDeadline is at once")
@@ -711,6 +777,26 @@ TEST_CASE("updateSettings from the hub: the new index URI is loaded and the rest
     CHECK(f.seen().contains("reboot DailyReboot"));
 }
 
+TEST_CASE("updateSettings from the hub with restart days the player does not know: the planned restart is dropped")
+{
+    TimeZone tz("UTC"); // the FakeClock starts on Thursday, 2026-01-01 00:00
+    Fixture  f("[httpd]\nenabled=false\n[schedule]\nreboot_days=thursday\nreboot_time=00:10:00\n");
+    f.serve("http://hub/index.smil", indexText("", 3600,
+                                          R"x(<metadata><subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><updateSettings id="s1"><sourceURI>http://hub/config.xml</sourceURI>
+                                        </updateSettings></timedTaskList></s>)x",
+            "application/xml");
+    f.serve("http://hub/config.xml", R"x(<configuration><prop name="schedule.reboot.days" value="none"/></configuration>)x",
+            "application/xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    REQUIRE(f.runtime->configuration().rebootDays() == "none");
+
+    f.run(15min);
+    CHECK_FALSE(f.seen().contains("reboot DailyReboot"));
+}
+
 TEST_CASE("without a supervisor an installation is only written to debug.log")
 {
     Fixture f;
@@ -762,6 +848,25 @@ TEST_CASE("debug info: more memory used than there is gives 0 free")
     f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
     REQUIRE(f.runtime->start().has_value());
     CHECK(f.runtime->debugInfo().memory_free == 0u);
+}
+
+TEST_CASE("debug info: without total or used memory nothing is free")
+{
+    for (bool total : {true, false})
+    {
+        CAPTURE(total);
+        Fixture f;
+        auto    config = f.base();
+        config.system_info = [total]
+        {
+            reports::SystemInfo system;
+            (total ? system.memory_total : system.memory_used) = 1000;
+            return system;
+        };
+        f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+        REQUIRE(f.runtime->start().has_value());
+        CHECK_FALSE(f.runtime->debugInfo().memory_free.has_value());
+    }
 }
 
 // ------------------------------------------------------------------ the REST API through the HTTP server
@@ -903,4 +1008,9 @@ TEST_CASE("the HTTP server: a port that is in use is written to debug.log, a new
     REQUIRE(f.runtime->changePlayerSettings(next).has_value());
     CHECK(tests::statusOf(f.http(next.httpd_port, request("GET", "/nothing"))) == 404);
     CHECK(tests::sendRaw(old, request("GET", "/nothing")) == "connect failed");
+
+    // only the name changes: the server runs on, it is not started a second time on its own port
+    next.player_name = "lobby";
+    REQUIRE(f.runtime->changePlayerSettings(next).has_value());
+    CHECK(tests::statusOf(f.http(next.httpd_port, request("GET", "/nothing"))) == 404);
 }
