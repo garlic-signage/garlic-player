@@ -230,6 +230,21 @@ TEST_CASE("web pages are not cacheable: the URL itself, unless onlyIfCached")
     CHECK(f.media.locate("http://hub/page.html") == "http://hub/page.html");
 }
 
+TEST_CASE("a web page plays its URL before the download check is done, unless onlyIfCached")
+{
+    Fixture f;
+    f.serve("http://hub/page.html", "<html>", "text/html");
+    f.serve("http://hub/a.jpg", "jpg", "image/jpeg");
+    f.load(R"(<text src="http://hub/page.html" dur="1s"/>
+              <text src="http://hub/page.html" dur="1s"><param name="cacheControl" value="onlyIfCached"/></text>
+              <img src="http://hub/a.jpg" dur="1s"/>)");
+    // no runUntilIdle: the downloads are only queued
+
+    CHECK(f.media.resolve(f.at(0)) == "http://hub/page.html");
+    CHECK_FALSE(f.media.resolve(f.at(1)).has_value());
+    CHECK_FALSE(f.media.resolve(f.at(2)).has_value()); // other media still wait for their download
+}
+
 TEST_CASE("an update replaces the file only when no instance plays it")
 {
     Fixture f;

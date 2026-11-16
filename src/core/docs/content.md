@@ -75,6 +75,9 @@ hands them to the frontend with `NewLayout` or `BackgroundImage`. The playback d
 - not supported, or not downloaded yet → `nullopt`: the engine skips it and tries again next time
 - the cache file comes from the inventory of the downloader (URL → file name)
 - not cacheable (a web page) → the URL itself, unless `cacheControl="onlyIfCached"`
+- a web page (`text`) whose download check is not done yet → the URL itself as well, unless
+  `cacheControl="onlyIfCached"`. Otherwise it would be skipped at the first start and never come in a container that
+  does not repeat (garlic-lib waited up to 10 s at the start).
 - an update waits as `<file>.ready`; it replaces the file at the next `resolve()` when no instance plays the file any
   more. The engine reports the end of an instance with `release()`, this replaces `currently_playing` of garlic-lib
   that the player had to keep.

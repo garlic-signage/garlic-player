@@ -34,7 +34,7 @@
 			<img region="screen3" xml:id="img0003" src="../../images/0003.jpg" dur="200s" fit="meet" />
 			<img region="screen4" xml:id="img0004" src="../../images/not_exist.jpg" dur="200s" fit="meet" />
 			<video region="bigbuckbunny" src="../../videos/0001.mp4" soundLevel="100%" fit="fill" title="" />
-			<ref region="webgl" src="http://demo.marpi.pl/archan/black_rain/" dur="200s" type="text/html" title="black_rain" />
+			<ref region="webgl" src="https://demo.marpi.pl/archan/black_rain/" dur="200s" type="text/html" title="black_rain" />
 			<video region="screen7" src="../../videos/not_exist.mp4" soundLevel="100%" fit="fill" title="" />
 		</par>	
 		

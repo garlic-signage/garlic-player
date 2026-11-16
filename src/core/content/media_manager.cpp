@@ -131,6 +131,8 @@ namespace garlic::core::content
      * garlic-lib: getLoadablePath and checkCacheStatus.
      *   - not supported or not yet downloaded: nullopt, the engine skips it and tries again next time
      *   - not cacheable (e.g. a web page): the URL itself, unless cacheControl="onlyIfCached"
+     *   - a web page (text) not checked yet: the URL itself as well, unless cacheControl="onlyIfCached"; garlic-lib
+     *     waited up to 10 s at the start instead
      *   - an updated file (".ready") replaces the old one when no instance plays it any more
      *   - widgets: the extracted index.html
      */
@@ -152,7 +154,12 @@ namespace garlic::core::content
             }
             auto file = cachedFile(path);
             if (!file)
+            {
+                // a web page is not cached anyway: its URL right away, without waiting for the check of the download
+                if (media.kind == smil::MediaKind::Web && media.cache_control != smil::CacheControl::OnlyIfCached)
+                    return path;
                 return std::nullopt;
+            }
             ++in_use[*file];
             holding[&media] = *file;
             if (media.kind == smil::MediaKind::Widget)
