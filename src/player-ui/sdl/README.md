@@ -52,19 +52,41 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
   libmpv with code 1 (a new frame). Drawn only when something changed.
 - **Regions** from bottom to top by z-index: background color, background image (tiled like CSS `repeat`, `repeatX`,
   `repeatY`, `noRepeat`), then the newest medium of the region, clipped to it. A resumed medium comes to the top again.
+- **Image quality**: an image keeps its original as surface and gets a texture in the size it is drawn, made anew
+  when the region changes its size (qwidget: `Qt::SmoothTransformation`). Shrunk, it is halved step by step and
+  scaled to the exact size last; the GPU alone scales linearly from 4 pixels, and shrunk to a third or less the edges
+  fray. Enlarged, the GPU scales the original.
 - **Fit and mediaAlign** like the qwidget player: images by `place()`; video by mpv (`fill` stretches, `slice` is
   `panscan=1`, everything else keeps the aspect), centered.
 - **Video and audio**: one mpv per medium. Video renders through the render API (OpenGL) into a framebuffer on a
-  texture of the SDL renderer; SDL is flushed before and sets its state again afterwards. `hwdec=auto-safe`;
+  texture of the SDL renderer. mpv has an OpenGL context of its own that shares its textures with the one of the
+  renderer (one for all media): in the same context the state SDL leaves broke mpv (NVIDIA: crash in the driver with
+  `nvdec`, artefacts with `nvdec-copy`). A fence (OpenGL 3.2 / ES 3, else `glFinish`) lets SDL read the texture
+  only when mpv has written it. The Wayland or X11 display goes to mpv for hardware frames without a copy. `hwdec=auto-safe`;
   `GARLIC_MPV_HWDEC` overrides it (e.g. `no`, `auto-copy-safe`) on a device whose driver fails with it.
-- **Web pages** (CEF, Linux): off-screen rendering; `OnPaint` gives the page as BGRA, which goes into a texture,
-  so a page lies in its region by z-index and is cut by the regions above it. CEF runs in the main thread with an
-  external message pump (`pumpWebViews()` in every loop turn, at least every 33 ms). The helper processes (renderer,
-  GPU, network) are this program again: `runWebHelperProcess()` is the first thing in `main()`. Like the Qt players:
-  local files may read remote data and other files (`allow-file-access-from-files`, `disable-web-security`), media
-  play without a click, permissions are granted, no popups, after loading `overflow: hidden`. Headless (`ozone-platform=
-  headless`), so it needs neither X11 nor Wayland; the GPU through ANGLE on Vulkan (`GARLIC_WEB_ANGLE` overrides it,
-  e.g. `gl`, `swiftshader`), WebGL in software if the GPU process fails. Profile and cache in
+- **Web pages** (CEF, Linux): off-screen rendering into a texture of the renderer, so a page lies in its region by
+  z-index and is cut by the regions above it. Two ways, chosen at the first web page (logged once):
+  - **GPU** (shared textures, `OnAcceleratedPaint`): CEF hands every frame as dmabuf; it is imported as EGL image
+    (`EGL_EXT_image_dma_buf_import`, with modifiers if there) and copied on the GPU (`glBlitFramebuffer`) into the
+    texture of the page, in the context of the SDL renderer. No read back, no upload. Needs EGL: Wayland is EGL, X11
+    is made EGL by `SDL_VIDEO_FORCE_EGL` (`prepareWebViews()`, before `SDL_Init`; libmpv runs on it too). CEF then
+    runs on the platform of SDL (`ozone-platform=wayland` or `x11`): the GPU process allocates the frames from the GPU
+    buffers (GBM) of the display; headless has none.
+  - **CPU** (`OnPaint`): the page as BGRA, uploaded every frame. When the GPU way cannot be used (KMSDRM, a renderer
+    without EGL or the extensions, `GARLIC_WEB_SHARED_TEXTURE=0`), when an import fails, or when no frame comes within
+    10 s (X11 without DRI3 has no GBM): the page starts again this way. Headless when it is chosen at the start, so CEF
+    needs no display (a Raspberry Pi without desktop).
+
+  The copy is submitted (`glFlush`), not waited for: CEF reuses a buffer only frames later, and `glFinish` cost about
+  8 % CPU on NVIDIA. ANGLE runs on Vulkan (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `swiftshader`): with its OpenGL
+  backend the GPU process went through GLX and crashed on X11. With `ozone-platform=wayland` Chromium refuses Vulkan
+  ("not compatible with Vulkan") and uses OpenGL over EGL, which works. WebGL in software if the GPU process fails.
+
+  CEF runs in the main thread with an external message pump (`pumpWebViews()` in every loop turn, at least every
+  33 ms). The helper processes (renderer, GPU, network) are this program again: `runWebHelperProcess()` is the first
+  thing in `main()`; the GPU process is a child of the zygote without sandbox. Like the Qt players: local files may
+  read remote data and other files (`allow-file-access-from-files`, `disable-web-security`), media play without a
+  click, permissions are granted, no popups, after loading `overflow: hidden`. Profile and cache in
   `~/.local/share/garlic-player/cef` (the Qt players: `QtWebEngine` next to it), log in `logs/cef.log`. No sandbox
   (`chrome-sandbox` would have to be setuid root).
 - **Input for web pages**: a click on a page gives it the mouse and the keyboard (no `elementActivated`, no access

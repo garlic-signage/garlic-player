@@ -19,6 +19,9 @@
 
 #include "color.hpp"
 #include "web_view.hpp"
+#ifdef PLAYER_SDL_WITH_MPV
+    #include "mpv_media.hpp"
+#endif
 
 #include "configuration/configuration.hpp"
 
@@ -80,6 +83,9 @@ namespace player
         if (root_background != nullptr)
             SDL_DestroyTexture(root_background);
         canvas.reset();
+#ifdef PLAYER_SDL_WITH_MPV
+        shutdownMpv();
+#endif
         if (renderer != nullptr)
             SDL_DestroyRenderer(renderer);
         if (window != nullptr)
@@ -94,7 +100,7 @@ namespace player
         window = SDL_CreateWindow("garlic-player", width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (window == nullptr)
             return std::unexpected(std::string("cannot open the window: ") + SDL_GetError());
-        // OpenGL (OpenGL ES on the Raspberry Pi): libmpv renders into the same context
+        // OpenGL (OpenGL ES on the Raspberry Pi): libmpv renders in a context that shares textures with this one
         SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl,opengles2");
         renderer = SDL_CreateRenderer(window, nullptr);
         if (renderer == nullptr)

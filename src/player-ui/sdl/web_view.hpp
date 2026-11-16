@@ -56,6 +56,9 @@ namespace player
     /// First thing in main(): a helper process of the engine runs here and returns its exit code; -1 for the player
     int runWebHelperProcess(int argc, char *argv[]);
 
+    /// Before SDL_Init(): what the engine needs of the video driver (CEF: EGL also on X11)
+    void prepareWebViews();
+
     /// Every turn of the main loop: the work the engine scheduled
     void pumpWebViews();
 

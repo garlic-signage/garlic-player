@@ -24,6 +24,7 @@
 #include <mpv/render_gl.h>
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -32,7 +33,7 @@ namespace player
 {
     namespace
     {
-        /// The few OpenGL (ES 2) functions for the framebuffer, from the context of the SDL renderer
+        /// The few OpenGL (ES 2) functions for the framebuffer and the fence. On Linux they do not depend on the context.
         struct Gl
         {
                 void (*genFramebuffers)(GLsizei, GLuint *)                             = nullptr;
@@ -41,7 +42,11 @@ namespace player
                 void (*framebufferTexture2D)(GLenum, GLenum, GLenum, GLuint, GLint)    = nullptr;
                 GLenum (*checkFramebufferStatus)(GLenum)                               = nullptr;
                 void (*getIntegerv)(GLenum, GLint *)                                   = nullptr;
-                void (*viewport)(GLint, GLint, GLsizei, GLsizei)                       = nullptr;
+                void (*flush)()                                                        = nullptr;
+                void (*finish)()                                                       = nullptr;
+                void *(*fenceSync)(GLenum, GLbitfield)                                 = nullptr; // GLsync
+                void (*waitSync)(void *, GLbitfield, std::uint64_t)                    = nullptr;
+                void (*deleteSync)(void *)                                             = nullptr;
 
                 bool load()
                 {
@@ -53,9 +58,13 @@ namespace player
                     get(framebufferTexture2D, "glFramebufferTexture2D");
                     get(checkFramebufferStatus, "glCheckFramebufferStatus");
                     get(getIntegerv, "glGetIntegerv");
-                    get(viewport, "glViewport");
+                    get(flush, "glFlush");
+                    get(finish, "glFinish");
+                    get(fenceSync, "glFenceSync");
+                    get(waitSync, "glWaitSync");
+                    get(deleteSync, "glDeleteSync");
                     return genFramebuffers && deleteFramebuffers && bindFramebuffer && framebufferTexture2D &&
-                           checkFramebufferStatus && getIntegerv && viewport;
+                           checkFramebufferStatus && getIntegerv && flush && finish;
                 }
         };
 
@@ -67,6 +76,66 @@ namespace player
             return functions;
         }
 
+        constexpr GLenum        sync_gpu_commands_complete = 0x9117; // GL_SYNC_GPU_COMMANDS_COMPLETE
+        constexpr std::uint64_t timeout_ignored            = 0xFFFFFFFFFFFFFFFFull; // GL_TIMEOUT_IGNORED
+        constexpr GLenum        major_version              = 0x821B; // GL_MAJOR_VERSION (OpenGL 3, OpenGL ES 3)
+
+        /**
+         * libmpv renders in an OpenGL context of its own that shares its textures with the one of the SDL renderer.
+         * In the same context the state SDL leaves (client arrays, programs, bindings) broke the rendering of mpv: on
+         * NVIDIA crashes in the driver with hwdec=nvdec and artefacts with nvdec-copy. One context for all media.
+         */
+        struct MpvGl
+        {
+                SDL_Window   *window   = nullptr;
+                SDL_GLContext sdl      = nullptr; // the one of the renderer
+                SDL_GLContext own      = nullptr;
+                bool          has_sync = false;   // fences (OpenGL 3.2, OpenGL ES 3), else glFinish
+        };
+
+        MpvGl &mpvGl()
+        {
+            static MpvGl context;
+            return context;
+        }
+
+        /// Creates the context of mpv on first use, with the attributes the renderer left (OpenGL or OpenGL ES).
+        bool ensureMpvContext(SDL_Renderer &renderer)
+        {
+            MpvGl &c = mpvGl();
+            if (c.own != nullptr)
+                return true;
+            SDL_FlushRenderer(&renderer); // the context of the renderer is the current one
+            c.window = SDL_GetRenderWindow(&renderer);
+            c.sdl    = SDL_GL_GetCurrentContext();
+            if (c.window == nullptr || c.sdl == nullptr || !gl().genFramebuffers)
+                return false;
+            GLint major = 0;
+            gl().getIntegerv(major_version, &major);
+            c.has_sync = gl().fenceSync && gl().waitSync && gl().deleteSync &&
+                         (major >= 3 || SDL_GL_ExtensionSupported("GL_ARB_sync"));
+            SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+            c.own = SDL_GL_CreateContext(c.window); // becomes the current one
+            SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0);
+            SDL_GL_MakeCurrent(c.window, c.sdl);
+            return c.own != nullptr;
+        }
+
+        /// The context of mpv is the current one while it lives; the one of the renderer afterwards.
+        class InMpvContext
+        {
+            public:
+                explicit InMpvContext(SDL_Renderer &renderer)
+                {
+                    SDL_FlushRenderer(&renderer); // SDL's commands first, it sets its state anew afterwards
+                    gl().flush();                 // and to the GPU, so the other context sees new textures
+                    SDL_GL_MakeCurrent(mpvGl().window, mpvGl().own);
+                }
+                ~InMpvContext() { SDL_GL_MakeCurrent(mpvGl().window, mpvGl().sdl); }
+                InMpvContext(const InMpvContext &)            = delete;
+                InMpvContext &operator=(const InMpvContext &) = delete;
+        };
+
         bool isOpenGl(SDL_Renderer &renderer)
         {
             std::string name = SDL_GetRendererName(&renderer);
@@ -77,6 +146,14 @@ namespace player
         {
             return reinterpret_cast<void *>(SDL_GL_GetProcAddress(name));
         }
+    }
+
+    void shutdownMpv()
+    {
+        MpvGl &c = mpvGl();
+        if (c.own != nullptr)
+            SDL_GL_DestroyContext(c.own);
+        c = {};
     }
 
     MpvMedia::MpvMedia(const garlic::core::smil::Media &s, const garlic::core::smil::Region &r, std::string src,
@@ -94,7 +171,7 @@ namespace player
         releaseFrame();
         if (render != nullptr)
         {
-            SDL_FlushRenderer(context.renderer); // its OpenGL context is the current one
+            InMpvContext in_mpv(*context.renderer);
             mpv_render_context_free(render);
         }
         if (mpv != nullptr)
@@ -159,13 +236,30 @@ namespace player
                 report(Outcome::Failed, "video needs the OpenGL renderer: " + source);
                 return;
             }
-            SDL_FlushRenderer(context.renderer);
+            if (!ensureMpvContext(*context.renderer))
+            {
+                report(Outcome::Failed, "no OpenGL context for libmpv: " + source);
+                return;
+            }
+            // the display connection lets mpv hand hardware decoded frames over without a copy (e.g. VA-API)
+            SDL_PropertiesID       window_properties = SDL_GetWindowProperties(mpvGl().window);
+            void *wayland = SDL_GetPointerProperty(window_properties, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+            void *x11     = SDL_GetPointerProperty(window_properties, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
             mpv_opengl_init_params init{&procAddress, nullptr};
             const char            *api = MPV_RENDER_API_TYPE_OPENGL;
-            mpv_render_param       params[] = {{MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(api)},
-                                               {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &init},
-                                               {MPV_RENDER_PARAM_INVALID, nullptr}};
-            if (mpv_render_context_create(&render, mpv, params) < 0)
+            std::vector<mpv_render_param> params{{MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(api)},
+                                                 {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &init}};
+            if (wayland != nullptr)
+                params.push_back({MPV_RENDER_PARAM_WL_DISPLAY, wayland});
+            else if (x11 != nullptr)
+                params.push_back({MPV_RENDER_PARAM_X11_DISPLAY, x11});
+            params.push_back({MPV_RENDER_PARAM_INVALID, nullptr});
+            int created = 0;
+            {
+                InMpvContext in_mpv(*context.renderer);
+                created = mpv_render_context_create(&render, mpv, params.data());
+            }
+            if (created < 0)
             {
                 render = nullptr;
                 report(Outcome::Failed, "libmpv cannot render video: " + source);
@@ -260,15 +354,17 @@ namespace player
             return false;
         }
 
-        SDL_FlushRenderer(context.renderer);
-        GLint previous = 0;
-        gl().getIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
-        GLuint created = 0;
-        gl().genFramebuffers(1, &created);
-        gl().bindFramebuffer(GL_FRAMEBUFFER, created);
-        gl().framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, id, 0);
-        bool complete = gl().checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-        gl().bindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous));
+        // framebuffers are not shared between contexts: this one belongs to the context of mpv, the texture to both
+        GLuint created  = 0;
+        bool   complete = false;
+        {
+            InMpvContext in_mpv(*context.renderer);
+            gl().genFramebuffers(1, &created);
+            gl().bindFramebuffer(GL_FRAMEBUFFER, created);
+            gl().framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, id, 0);
+            complete = gl().checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+            gl().bindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
         framebuffer  = created;
         frame_width  = width;
         frame_height = height;
@@ -285,8 +381,8 @@ namespace player
     {
         if (framebuffer != 0)
         {
-            SDL_FlushRenderer(context.renderer);
-            GLuint name = framebuffer;
+            InMpvContext in_mpv(*context.renderer);
+            GLuint       name = framebuffer;
             gl().deleteFramebuffers(1, &name);
             framebuffer = 0;
         }
@@ -305,20 +401,29 @@ namespace player
             return;
         if (new_frame)
         {
-            // OpenGL between the commands of SDL: flushed before, and SDL sets its state anew afterwards
-            SDL_FlushRenderer(&target);
-            GLint previous = 0;
-            GLint viewport[4]{};
-            gl().getIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
-            gl().getIntegerv(GL_VIEWPORT, viewport);
-            mpv_opengl_fbo   fbo{static_cast<int>(framebuffer), frame_width, frame_height, 0};
-            int              flip     = 0;
-            mpv_render_param params[] = {{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
-                                         {MPV_RENDER_PARAM_FLIP_Y, &flip},
-                                         {MPV_RENDER_PARAM_INVALID, nullptr}};
-            mpv_render_context_render(render, params);
-            gl().bindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previous));
-            gl().viewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+            void *fence = nullptr;
+            {
+                InMpvContext     in_mpv(target);
+                mpv_opengl_fbo   fbo{static_cast<int>(framebuffer), frame_width, frame_height, 0};
+                int              flip     = 0;
+                mpv_render_param params[] = {{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
+                                             {MPV_RENDER_PARAM_FLIP_Y, &flip},
+                                             {MPV_RENDER_PARAM_INVALID, nullptr}};
+                mpv_render_context_render(render, params);
+                // SDL may read the texture only when mpv has written it
+                if (mpvGl().has_sync)
+                {
+                    fence = gl().fenceSync(sync_gpu_commands_complete, 0);
+                    gl().flush();
+                }
+                else
+                    gl().finish();
+            }
+            if (fence != nullptr)
+            {
+                gl().waitSync(fence, 0, timeout_ignored); // in the context of SDL, the GPU waits, not the CPU
+                gl().deleteSync(fence);
+            }
             new_frame = false;
         }
         SDL_RenderTexture(&target, texture, nullptr, &area);

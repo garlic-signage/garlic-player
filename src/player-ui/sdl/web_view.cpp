@@ -30,6 +30,8 @@ namespace player
         return -1;
     }
 
+    void prepareWebViews() {}
+
     void pumpWebViews() {}
 
     bool webViewsRunning()

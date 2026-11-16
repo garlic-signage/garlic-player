@@ -33,6 +33,8 @@
 #include "include/cef_command_line.h"
 
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_egl.h>
+#include <SDL3/SDL_opengl.h>
 
 #include <atomic>
 #include <chrono>
@@ -54,6 +56,7 @@ namespace player
         std::mutex                 wake_mutex;
         std::function<void()>      wake_loop; // the redraw of the MediaContext: an SDL event from any thread
         std::string                cache_root;
+        std::string                ozone = "headless"; // the platform of CEF, see initialize()
 
         Uint32 wakeLater(void * /*userdata*/, SDL_TimerID /*timer*/, Uint32 /*interval*/)
         {
@@ -73,12 +76,9 @@ namespace player
                 void OnBeforeCommandLineProcessing(const CefString &process_type,
                                                    CefRefPtr<CefCommandLine> command_line) override
                 {
-                    // off-screen: no X11 or Wayland connection of its own, in no process, so it runs under any SDL
-                    // video driver (Wayland, X11, KMSDRM on a Raspberry Pi without desktop); the GPU process would
-                    // otherwise get the platform of the desktop
-                    command_line->AppendSwitchWithValue("ozone-platform", "headless");
-                    if (!process_type.empty())
+                    if (!process_type.empty()) // the helper processes get the switches of the browser process
                         return;
+                    command_line->AppendSwitchWithValue("ozone-platform", ozone);
                     // the GPU through Vulkan: headless, the OpenGL backend of ANGLE would reach for the X server
                     // (GLX) and the GPU process failed; GARLIC_WEB_ANGLE overrides it (gl, gl-egl, swiftshader …)
                     const char *angle = std::getenv("GARLIC_WEB_ANGLE");
@@ -121,10 +121,20 @@ namespace player
             return base != nullptr ? base : "";
         }
 
-        bool initialize()
+        bool sharedTexturesUsable(SDL_Renderer &renderer);
+
+        /**
+         * CEF once, at the first web page. Its platform (ozone) follows the GPU path: the shared textures need the one
+         * of SDL (Wayland or X11), whose GPU buffers (GBM) the GPU process allocates them from; headless has none, the
+         * frames would never come. Without them headless, so CEF needs no display (KMSDRM on a Raspberry Pi).
+         */
+        bool initialize(SDL_Renderer &renderer)
         {
             if (initialized || failed)
                 return initialized;
+            std::string driver = SDL_GetCurrentVideoDriver() != nullptr ? SDL_GetCurrentVideoDriver() : "";
+            if (sharedTexturesUsable(renderer))
+                ozone = driver == "wayland" || driver == "x11" ? driver : "headless";
             cache_root = standardPaths().data_dir + "/cef";
             std::error_code error;
             std::filesystem::create_directories(cache_root, error);
@@ -152,6 +162,220 @@ namespace player
             }
             initialized = true;
             return true;
+        }
+
+        // ------------------------------------------------------------ shared textures (OnAcceleratedPaint)
+
+        /**
+         * The GPU path: CEF hands every frame as dmabuf, which is imported as EGL image and copied on the GPU
+         * (glBlitFramebuffer) into the texture of the page, in the context of the SDL renderer. No read back to the
+         * CPU, no upload. Needs EGL (Wayland, KMSDRM; on X11 the hint SDL_VIDEO_FORCE_EGL of prepareWebViews()),
+         * EGL_EXT_image_dma_buf_import, GL_OES_EGL_image and glBlitFramebuffer (OpenGL 3, OpenGL ES 3). Found once at
+         * the first web page; without it the pages come through OnPaint, copied by the CPU.
+         */
+        struct SharedTextures
+        {
+                bool           decided        = false;
+                bool           usable         = false;
+                bool           with_modifiers = false; // EGL_EXT_image_dma_buf_import_modifiers
+                SDL_EGLDisplay display        = nullptr;
+
+                PFNEGLCREATEIMAGEKHRPROC  createImage  = nullptr;
+                PFNEGLDESTROYIMAGEKHRPROC destroyImage = nullptr;
+                void (*imageTargetTexture2D)(GLenum, void *)                                       = nullptr;
+                void (*genTextures)(GLsizei, GLuint *)                                             = nullptr;
+                void (*deleteTextures)(GLsizei, const GLuint *)                                    = nullptr;
+                void (*bindTexture)(GLenum, GLuint)                                                = nullptr;
+                void (*genFramebuffers)(GLsizei, GLuint *)                                         = nullptr;
+                void (*deleteFramebuffers)(GLsizei, const GLuint *)                                = nullptr;
+                void (*bindFramebuffer)(GLenum, GLuint)                                            = nullptr;
+                void (*framebufferTexture2D)(GLenum, GLenum, GLenum, GLuint, GLint)                = nullptr;
+                GLenum (*checkFramebufferStatus)(GLenum)                                           = nullptr;
+                void (*blitFramebuffer)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield,
+                                        GLenum)                                                    = nullptr;
+                void (*getIntegerv)(GLenum, GLint *)                                               = nullptr;
+                GLboolean (*isEnabled)(GLenum)                                                     = nullptr;
+                void (*enable)(GLenum)                                                             = nullptr;
+                void (*disable)(GLenum)                                                            = nullptr;
+                void (*flush)()                                                                    = nullptr;
+        };
+
+        SharedTextures &shared()
+        {
+            static SharedTextures functions;
+            return functions;
+        }
+
+        bool hasWord(const char *list, std::string_view word)
+        {
+            std::string_view all = list != nullptr ? list : "";
+            for (std::size_t at = all.find(word); at != std::string_view::npos; at = all.find(word, at + 1))
+            {
+                bool start = at == 0 || all[at - 1] == ' ';
+                bool end   = at + word.size() == all.size() || all[at + word.size()] == ' ';
+                if (start && end)
+                    return true;
+            }
+            return false;
+        }
+
+        /// Whether the GPU path can be used, decided at the first web page (logged once)
+        bool sharedTexturesUsable(SDL_Renderer &renderer)
+        {
+            SharedTextures &t = shared();
+            if (t.decided)
+                return t.usable;
+            t.decided = true;
+            std::string driver = SDL_GetCurrentVideoDriver() != nullptr ? SDL_GetCurrentVideoDriver() : "";
+            auto no = [](const std::string &why)
+            {
+                std::cerr << "web pages: copied by the CPU (OnPaint), " << why << "\n";
+                return false;
+            };
+            if (const char *off = std::getenv("GARLIC_WEB_SHARED_TEXTURE"); off != nullptr && std::string(off) == "0")
+                return no("GARLIC_WEB_SHARED_TEXTURE=0");
+            std::string name = SDL_GetRendererName(&renderer);
+            if (name != "opengl" && name != "opengles2")
+                return no("the renderer is " + name);
+            if (driver != "wayland" && driver != "x11")
+                return no("CEF has no GPU buffers under the video driver " + driver);
+            SDL_FlushRenderer(&renderer); // its context is the current one
+            t.display = SDL_EGL_GetCurrentDisplay();
+            if (t.display == nullptr)
+                return no("SDL renders without EGL");
+            auto queryString = reinterpret_cast<const char *(*)(SDL_EGLDisplay, SDL_EGLint)>(
+                SDL_EGL_GetProcAddress("eglQueryString"));
+            const char *extensions = queryString != nullptr ? queryString(t.display, EGL_EXTENSIONS) : nullptr;
+            if (!hasWord(extensions, "EGL_EXT_image_dma_buf_import") || !hasWord(extensions, "EGL_KHR_image_base"))
+                return no("no EGL_EXT_image_dma_buf_import");
+            t.with_modifiers = hasWord(extensions, "EGL_EXT_image_dma_buf_import_modifiers");
+            if (!SDL_GL_ExtensionSupported("GL_OES_EGL_image"))
+                return no("no GL_OES_EGL_image");
+
+            auto egl = [](auto &function, const char *symbol)
+            {
+                function = reinterpret_cast<std::remove_reference_t<decltype(function)>>(SDL_EGL_GetProcAddress(symbol));
+            };
+            auto get = [](auto &function, const char *symbol)
+            {
+                function = reinterpret_cast<std::remove_reference_t<decltype(function)>>(SDL_GL_GetProcAddress(symbol));
+            };
+            egl(t.createImage, "eglCreateImageKHR");
+            egl(t.destroyImage, "eglDestroyImageKHR");
+            get(t.imageTargetTexture2D, "glEGLImageTargetTexture2DOES");
+            get(t.genTextures, "glGenTextures");
+            get(t.deleteTextures, "glDeleteTextures");
+            get(t.bindTexture, "glBindTexture");
+            get(t.genFramebuffers, "glGenFramebuffers");
+            get(t.deleteFramebuffers, "glDeleteFramebuffers");
+            get(t.bindFramebuffer, "glBindFramebuffer");
+            get(t.framebufferTexture2D, "glFramebufferTexture2D");
+            get(t.checkFramebufferStatus, "glCheckFramebufferStatus");
+            get(t.blitFramebuffer, "glBlitFramebuffer");
+            get(t.getIntegerv, "glGetIntegerv");
+            get(t.isEnabled, "glIsEnabled");
+            get(t.enable, "glEnable");
+            get(t.disable, "glDisable");
+            get(t.flush, "glFlush");
+            if (!t.createImage || !t.destroyImage || !t.imageTargetTexture2D || !t.genTextures || !t.deleteTextures ||
+                !t.bindTexture || !t.genFramebuffers || !t.deleteFramebuffers || !t.bindFramebuffer ||
+                !t.framebufferTexture2D || !t.checkFramebufferStatus || !t.blitFramebuffer || !t.getIntegerv ||
+                !t.isEnabled || !t.enable || !t.disable || !t.flush)
+                return no("OpenGL without glBlitFramebuffer or EGL images");
+            std::cerr << "web pages: shared textures, copied on the GPU (OnAcceleratedPaint)\n";
+            t.usable = true;
+            return true;
+        }
+
+        /**
+         * Copies a frame of OnAcceleratedPaint into the texture (OpenGL name and target) on the GPU: the dmabuf
+         * planes as EGL image, attached to a framebuffer, blitted and submitted before the callback returns (then the
+         * buffer goes back to CEF), the image destroyed. The renderer is flushed first; SDL sets its state anew
+         * afterwards, the framebuffers bound before are bound again. false: the import failed.
+         */
+        bool copySharedFrame(SDL_Renderer &renderer, const CefAcceleratedPaintInfo &info, int width, int height,
+                             GLuint texture, GLenum target)
+        {
+            SharedTextures &t = shared();
+            if (info.plane_count < 1 || info.plane_count > kAcceleratedPaintMaxPlanes)
+                return false;
+            // CEF RGBA (bytes R, G, B, A) is the DRM format ABGR8888, BGRA is ARGB8888
+            constexpr auto fourcc = [](char a, char b, char c, char d)
+            {
+                return static_cast<SDL_EGLint>(static_cast<std::uint32_t>(a) | (static_cast<std::uint32_t>(b) << 8U) |
+                                               (static_cast<std::uint32_t>(c) << 16U) |
+                                               (static_cast<std::uint32_t>(d) << 24U));
+            };
+            SDL_EGLint format =
+                info.format == CEF_COLOR_TYPE_RGBA_8888 ? fourcc('A', 'B', '2', '4') : fourcc('A', 'R', '2', '4');
+
+            constexpr std::uint64_t modifier_invalid = 0x00FFFFFFFFFFFFFFull; // DRM_FORMAT_MOD_INVALID
+            const SDL_EGLint plane_fd[]     = {EGL_DMA_BUF_PLANE0_FD_EXT, EGL_DMA_BUF_PLANE1_FD_EXT,
+                                               EGL_DMA_BUF_PLANE2_FD_EXT, EGL_DMA_BUF_PLANE3_FD_EXT};
+            const SDL_EGLint plane_offset[] = {EGL_DMA_BUF_PLANE0_OFFSET_EXT, EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+                                               EGL_DMA_BUF_PLANE2_OFFSET_EXT, EGL_DMA_BUF_PLANE3_OFFSET_EXT};
+            const SDL_EGLint plane_pitch[]  = {EGL_DMA_BUF_PLANE0_PITCH_EXT, EGL_DMA_BUF_PLANE1_PITCH_EXT,
+                                               EGL_DMA_BUF_PLANE2_PITCH_EXT, EGL_DMA_BUF_PLANE3_PITCH_EXT};
+            const SDL_EGLint plane_mod_lo[] = {EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT,
+                                               EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT, EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT};
+            const SDL_EGLint plane_mod_hi[] = {EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT,
+                                               EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT, EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT};
+            std::vector<SDL_EGLint> attributes{EGL_WIDTH, width, EGL_HEIGHT, height, EGL_LINUX_DRM_FOURCC_EXT, format};
+            for (int plane = 0; plane < info.plane_count; ++plane)
+            {
+                const cef_accelerated_paint_native_pixmap_plane_t &p = info.planes[plane];
+                attributes.insert(attributes.end(), {plane_fd[plane], p.fd, plane_offset[plane],
+                                                     static_cast<SDL_EGLint>(p.offset), plane_pitch[plane],
+                                                     static_cast<SDL_EGLint>(p.stride)});
+                if (t.with_modifiers && info.modifier != modifier_invalid)
+                    attributes.insert(attributes.end(),
+                                      {plane_mod_lo[plane], static_cast<SDL_EGLint>(info.modifier & 0xFFFFFFFFU),
+                                       plane_mod_hi[plane], static_cast<SDL_EGLint>(info.modifier >> 32U)});
+            }
+            attributes.push_back(EGL_NONE);
+
+            SDL_FlushRenderer(&renderer); // SDL's commands first; its state is set anew afterwards
+            EGLImageKHR image = t.createImage(t.display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr,
+                                              attributes.data());
+            if (image == EGL_NO_IMAGE_KHR)
+                return false;
+
+            GLint read_before = 0;
+            GLint draw_before = 0;
+            t.getIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read_before);
+            t.getIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_before);
+            GLuint source = 0;
+            t.genTextures(1, &source);
+            t.bindTexture(GL_TEXTURE_2D, source);
+            t.imageTargetTexture2D(GL_TEXTURE_2D, image);
+            t.bindTexture(GL_TEXTURE_2D, 0);
+
+            GLuint framebuffers[2]{};
+            t.genFramebuffers(2, framebuffers);
+            t.bindFramebuffer(GL_READ_FRAMEBUFFER, framebuffers[0]);
+            t.framebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, source, 0);
+            t.bindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffers[1]);
+            t.framebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, texture, 0);
+            bool complete = t.checkFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE &&
+                            t.checkFramebufferStatus(GL_DRAW_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+            if (complete)
+            {
+                GLboolean scissor = t.isEnabled(GL_SCISSOR_TEST); // the clip of SDL would cut the copy
+                t.disable(GL_SCISSOR_TEST);
+                t.blitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                if (scissor)
+                    t.enable(GL_SCISSOR_TEST);
+                // submitted, not waited for: CEF takes the buffer back after the callback, but reuses it only
+                // frames later (a pool), and the dmabuf orders the access of both devices. glFinish here cost about
+                // 8 % CPU of the player on NVIDIA (the driver waits busily).
+                t.flush();
+            }
+            t.bindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read_before));
+            t.bindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(draw_before));
+            t.deleteFramebuffers(2, framebuffers);
+            t.deleteTextures(1, &source);
+            t.destroyImage(t.display, image);
+            return complete;
         }
 
         /// SDL key → Windows virtual key code, which CEF wants on every platform
@@ -231,6 +455,8 @@ namespace player
                 void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) override;
                 void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirty,
                              const void *buffer, int width, int height) override;
+                void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirty,
+                                        const CefAcceleratedPaintInfo &info) override;
 
                 /// garlic-lib, the qwidget player: no scroll bars once the page is there
                 void OnLoadEnd(CefRefPtr<CefBrowser> /*browser*/, CefRefPtr<CefFrame> frame, int /*status*/) override
@@ -278,9 +504,7 @@ namespace player
 
                 ~CefPage() override
                 {
-                    client->detach();
-                    if (browser)
-                        browser->GetHost()->CloseBrowser(true);
+                    closeBrowser();
                     if (texture != nullptr)
                         SDL_DestroyTexture(texture);
                 }
@@ -300,6 +524,8 @@ namespace player
                     }
                     CefWindowInfo info;
                     info.SetAsWindowless(0);
+                    shared_texture              = sharedTexturesUsable(*context.renderer);
+                    info.shared_texture_enabled = shared_texture;
                     CefBrowserSettings settings;
                     settings.windowless_frame_rate = 60;
                     settings.javascript_access_clipboard = STATE_ENABLED; // JavascriptCanPaste
@@ -317,6 +543,22 @@ namespace player
 
                 void draw(SDL_Renderer &renderer, const SDL_FRect &area) override
                 {
+                    // no frame on the GPU path, e.g. X11 without DRI3 (no GBM): the page through OnPaint
+                    if (shared_texture && browser && !got_shared_frame &&
+                        std::chrono::steady_clock::now() - created_at > std::chrono::seconds(10))
+                    {
+                        if (shared().usable)
+                            std::cerr << "web pages: no frames as shared textures, copied by the CPU from now on\n";
+                        shared().usable        = false;
+                        restart_without_shared = true;
+                    }
+                    if (restart_without_shared) // the GPU path failed: the page again, through OnPaint
+                    {
+                        restart_without_shared = false;
+                        closeBrowser();
+                        client = new Client(this);
+                        load(pending_url);
+                    }
                     int w = std::max(1, static_cast<int>(area.w + 0.5F));
                     int h = std::max(1, static_cast<int>(area.h + 0.5F));
                     if (w != width || h != height)
@@ -328,19 +570,9 @@ namespace player
                     }
                     if (fresh && !pixels.empty())
                     {
-                        if (texture == nullptr || texture_width != frame_width || texture_height != frame_height)
-                        {
-                            if (texture != nullptr)
-                                SDL_DestroyTexture(texture);
-                            // CEF paints BGRA, which is ARGB8888 on a little endian machine
-                            texture = SDL_CreateTexture(&renderer, SDL_PIXELFORMAT_ARGB8888,
-                                                        SDL_TEXTUREACCESS_STREAMING, frame_width, frame_height);
-                            texture_width  = frame_width;
-                            texture_height = frame_height;
-                            if (texture != nullptr)
-                                SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-                        }
-                        if (texture != nullptr)
+                        // CEF paints BGRA, which is ARGB8888 on a little endian machine
+                        if (prepareTexture(SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, frame_width,
+                                           frame_height))
                             SDL_UpdateTexture(texture, nullptr, pixels.data(), frame_width * 4);
                         fresh = false;
                     }
@@ -436,8 +668,44 @@ namespace player
                         context.redraw();
                 }
 
+                /// A frame on the GPU: copied into the texture of the page now, the buffer lives only in the callback
+                void acceleratedPaint(const CefAcceleratedPaintInfo &info)
+                {
+                    int w = info.extra.coded_size.width > 0 ? info.extra.coded_size.width : width;
+                    int h = info.extra.coded_size.height > 0 ? info.extra.coded_size.height : height;
+                    if (!prepareTexture(SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, w, h))
+                        return;
+                    SDL_PropertiesID properties = SDL_GetTextureProperties(texture);
+                    auto id =
+                        static_cast<GLuint>(SDL_GetNumberProperty(properties, SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER, 0));
+                    auto target = static_cast<GLenum>(
+                        SDL_GetNumberProperty(properties, SDL_PROP_TEXTURE_OPENGL_TEXTURE_TARGET_NUMBER, GL_TEXTURE_2D));
+                    if (id == 0) // OpenGL ES
+                    {
+                        id     = static_cast<GLuint>(
+                            SDL_GetNumberProperty(properties, SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_NUMBER, 0));
+                        target = static_cast<GLenum>(
+                            SDL_GetNumberProperty(properties, SDL_PROP_TEXTURE_OPENGLES2_TEXTURE_TARGET_NUMBER, GL_TEXTURE_2D));
+                    }
+                    if (id == 0 || !copySharedFrame(*context.renderer, info, w, h, id, target))
+                    {
+                        // logged once for all pages; this page starts again without shared textures
+                        if (shared().usable)
+                            std::cerr << "web pages: a shared texture cannot be imported, copied by the CPU from now on\n";
+                        shared().usable        = false;
+                        restart_without_shared = true;
+                        if (context.redraw)
+                            context.redraw();
+                        return;
+                    }
+                    got_shared_frame = true;
+                    if (context.redraw)
+                        context.redraw();
+                }
+
                 void created(CefRefPtr<CefBrowser> created_browser)
                 {
+                    created_at = std::chrono::steady_clock::now();
                     browser  = created_browser;
                     creating = false;
                     browser->GetHost()->WasResized();
@@ -447,9 +715,39 @@ namespace player
                 }
 
             private:
+                /// The texture in the size and kind of the frame (streaming for OnPaint, target for the GPU copy)
+                bool prepareTexture(SDL_PixelFormat format, SDL_TextureAccess access, int w, int h)
+                {
+                    if (texture == nullptr || texture_width != w || texture_height != h || texture_format != format)
+                    {
+                        if (texture != nullptr)
+                            SDL_DestroyTexture(texture);
+                        texture        = SDL_CreateTexture(context.renderer, format, access, w, h);
+                        texture_width  = w;
+                        texture_height = h;
+                        texture_format = format;
+                        if (texture != nullptr)
+                            SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+                    }
+                    return texture != nullptr;
+                }
+
+                void closeBrowser()
+                {
+                    client->detach();
+                    if (browser)
+                        browser->GetHost()->CloseBrowser(true);
+                    browser  = nullptr;
+                    creating = false;
+                }
+
                 MediaContext          context;
                 CefRefPtr<Client>     client;
                 CefRefPtr<CefBrowser> browser;
+                bool                  shared_texture         = false;
+                bool                  got_shared_frame       = false;
+                bool                  restart_without_shared = false;
+                std::chrono::steady_clock::time_point created_at;
                 bool                  creating    = false;
                 bool                  url_changed = false;
                 std::string           pending_url;
@@ -463,6 +761,7 @@ namespace player
                 SDL_Texture               *texture        = nullptr;
                 int                        texture_width  = 0;
                 int                        texture_height = 0;
+                SDL_PixelFormat            texture_format = SDL_PIXELFORMAT_UNKNOWN;
         };
 
         void Client::GetViewRect(CefRefPtr<CefBrowser> /*browser*/, CefRect &rect)
@@ -478,6 +777,13 @@ namespace player
         {
             if (page != nullptr && type == PET_VIEW) // popups (an open <select>) are not drawn
                 page->painted(buffer, width, height);
+        }
+
+        void Client::OnAcceleratedPaint(CefRefPtr<CefBrowser> /*browser*/, PaintElementType type,
+                                        const RectList & /*dirty*/, const CefAcceleratedPaintInfo &info)
+        {
+            if (page != nullptr && type == PET_VIEW)
+                page->acceleratedPaint(info);
         }
 
         void Client::OnAfterCreated(CefRefPtr<CefBrowser> browser)
@@ -496,9 +802,15 @@ namespace player
             if (!wake_loop)
                 wake_loop = context.redraw;
         }
-        if (!initialize())
+        if (context.renderer == nullptr || !initialize(*context.renderer))
             return nullptr;
         return std::make_unique<CefPage>(context);
+    }
+
+    /// On X11 SDL takes GLX; the shared textures of CEF need EGL, which Wayland and KMSDRM use anyway
+    void prepareWebViews()
+    {
+        SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
     }
 
     int runWebHelperProcess(int argc, char *argv[])

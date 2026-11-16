@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cmath>
 
 namespace player
 {
@@ -56,31 +57,88 @@ namespace player
                 {
                     if (texture != nullptr)
                         SDL_DestroyTexture(texture);
+                    if (image != nullptr)
+                        SDL_DestroySurface(image);
                 }
 
                 void start() override
                 {
-                    texture = IMG_LoadTexture(renderer, source.c_str());
-                    if (texture == nullptr)
+                    SDL_Surface *loaded = IMG_Load(source.c_str());
+                    if (loaded == nullptr)
+                    {
                         report(Outcome::Failed, "cannot load image " + source + ": " + SDL_GetError());
-                    else
-                        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+                        return;
+                    }
+                    image = SDL_ConvertSurface(loaded, SDL_PIXELFORMAT_ARGB8888); // linear scaling needs 32 bit
+                    SDL_DestroySurface(loaded);
+                    if (image == nullptr)
+                        report(Outcome::Failed, "cannot convert image " + source + ": " + SDL_GetError());
                 }
 
                 void draw(SDL_Renderer &target, const SDL_FRect &area) override
                 {
-                    if (texture == nullptr)
+                    if (image == nullptr)
                         return;
-                    float width  = 0;
-                    float height = 0;
-                    SDL_GetTextureSize(texture, &width, &height);
-                    SDL_FRect where = place(area, width, height, fit(), mediaAlign());
-                    SDL_RenderTexture(&target, texture, nullptr, &where);
+                    SDL_FRect where  = place(area, static_cast<float>(image->w), static_cast<float>(image->h), fit(),
+                                             mediaAlign());
+                    int       width  = std::max(1, static_cast<int>(std::lround(where.w)));
+                    int       height = std::max(1, static_cast<int>(std::lround(where.h)));
+                    if (texture == nullptr || width != texture_width || height != texture_height)
+                        makeTexture(width, height);
+                    if (texture != nullptr)
+                        SDL_RenderTexture(&target, texture, nullptr, &where);
                 }
 
             private:
                 SDL_Renderer *renderer;
-                SDL_Texture  *texture = nullptr;
+                SDL_Surface  *image          = nullptr; // the original, kept for a new size of the region
+                SDL_Texture  *texture        = nullptr; // in the size it is drawn
+                int           texture_width  = 0;
+                int           texture_height = 0;
+
+                /**
+                 * The texture in the size it is drawn, like the qwidget player (Qt::SmoothTransformation at every size).
+                 * The GPU scales linearly from the 4 nearest pixels only: shrunk to a third or less, edges fray. So the
+                 * image is halved step by step, which averages all pixels like a mipmap, and scaled to the exact size
+                 * last. Enlarged it stays the original; the GPU scales it up.
+                 */
+                void makeTexture(int width, int height)
+                {
+                    if (texture != nullptr)
+                        SDL_DestroyTexture(texture);
+                    texture        = nullptr;
+                    texture_width  = width;
+                    texture_height = height;
+
+                    SDL_Surface *current = image;
+                    if (width < image->w || height < image->h)
+                    {
+                        while (current->w > 2 * width || current->h > 2 * height)
+                        {
+                            SDL_Surface *half = SDL_ScaleSurface(current, std::max(width, current->w / 2),
+                                                                 std::max(height, current->h / 2), SDL_SCALEMODE_LINEAR);
+                            if (current != image)
+                                SDL_DestroySurface(current);
+                            current = half;
+                            if (current == nullptr)
+                                break;
+                        }
+                        if (current != nullptr)
+                        {
+                            SDL_Surface *exact = SDL_ScaleSurface(current, width, height, SDL_SCALEMODE_LINEAR);
+                            if (current != image)
+                                SDL_DestroySurface(current);
+                            current = exact;
+                        }
+                    }
+                    if (current == nullptr) // scaling failed: the original, the GPU scales it
+                        current = image;
+                    texture = SDL_CreateTextureFromSurface(renderer, current);
+                    if (current != image)
+                        SDL_DestroySurface(current);
+                    if (texture != nullptr)
+                        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+                }
         };
 
         /// <brush color="…">: a colored area.

@@ -199,6 +199,7 @@ int main(int argc, char *argv[])
         height = 540;
     }
 
+    player::prepareWebViews();
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0"); // touches come as touches, not a second time as mouse clicks
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) || !TTF_Init())

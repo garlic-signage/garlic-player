@@ -63,6 +63,9 @@ Item {
             source: media.source
             asynchronous: true
             clip: true
+            // shrunk to a third or less, linear filtering alone frays the edges (e.g. par/bugs/1_hammering): the GPU
+            // takes mipmaps then, like the stepwise scaling of the SDL player and Qt::SmoothTransformation of qwidget
+            mipmap: true
             horizontalAlignment: media.horizontal()
             verticalAlignment: media.vertical()
             fillMode: {

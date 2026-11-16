@@ -77,7 +77,7 @@ Player.mediaFinished / mediaFailed /     ←    MediaView: end of a video or aud
 
 | Kind          | QML                         | Behaviour                                                              |
 |---------------|-----------------------------|------------------------------------------------------------------------|
-| image         | `Image`                     | fit `fill`, `meet`, `meetBest`, `slice`, else original size; mediaAlign |
+| image         | `Image`                     | fit `fill`, `meet`, `meetBest`, `slice`, else original size; mediaAlign; `mipmap` so shrunk images keep clean edges |
 | video         | `MediaPlayer`, `VideoOutput`| fit `fill` / `slice`, else aspect ratio kept; soundLevel; end → mediaFinished |
 | audio         | `MediaPlayer`               | soundLevel                                                             |
 | text, widget  | `WebView` (Qt WebView)      | local files and remote data allowed, scroll bars hidden; paused = hidden |

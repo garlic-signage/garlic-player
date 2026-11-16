@@ -25,9 +25,12 @@ struct mpv_render_context;
 
 namespace player
 {
+    /// Frees the OpenGL context of libmpv; before the renderer goes, after the last medium.
+    void shutdownMpv();
+
     /**
      * <video> and <audio> with libmpv, one player per medium like the AvMedia of the qwidget player. Video renders
-     * with the render API (OpenGL) into a texture of the SDL renderer, which the window draws like an image, so it
+     * with the render API (OpenGL, in a context of its own that shares the texture) into a texture of the SDL renderer, which the window draws like an image, so it
      * lies in its region under everything with a higher z-index. Decoding in hardware where mpv finds a way
      * (hwdec=auto-safe).
      *
