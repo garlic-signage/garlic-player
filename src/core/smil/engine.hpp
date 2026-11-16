@@ -99,6 +99,11 @@ namespace garlic::core::smil
         /// It counts as ended like any other child (e.g. for endsync="first"), and a repeating container of skipped
         /// elements takes time instead of looping without end in one poll().
         std::chrono::milliseconds skip_delay{100};
+
+        /// Times that follow from an event (dur, skip_delay, begin offsets, syncbase triggers) count from the time the
+        /// event was planned for, not from when poll() handled it, so the small delay of every poll() does not add up.
+        /// If poll() comes later than this (standby, a hang), they count from now instead: nothing is caught up.
+        std::chrono::milliseconds catch_up_limit{500};
     };
 
     /**
@@ -265,6 +270,8 @@ namespace garlic::core::smil
             std::vector<Command>   pending;
             std::mt19937           random;
             bool                   interrupting = false; // excl stop: the end of the stopped element is no normal end
+            /// While poll() handles an event: the time it was planned for (catch_up_limit), else nullopt.
+            std::optional<std::chrono::steady_clock::time_point> event_time;
 
             std::map<std::string, std::vector<Listener>, std::less<>> by_source; // "img1" → listeners of img1.…
             std::map<char, std::vector<Listener>>                      by_accesskey;
@@ -295,6 +302,8 @@ namespace garlic::core::smil
 
             // lifecycle of every element
             void activate(std::size_t node);
+            /// The time following times count from: the planned time of the event in hand, else now.
+            std::chrono::steady_clock::time_point timeBase() const;
             void tryStart(std::size_t node, std::chrono::milliseconds elapsed);
             void skip(std::size_t node);
             void endEvent(std::size_t node);

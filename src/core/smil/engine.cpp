@@ -83,6 +83,7 @@ namespace garlic::core::smil
         while (!schedule.empty() && schedule.front().time <= now)
         {
             Scheduled event = pop();
+            event_time      = now - event.time <= config.catch_up_limit ? event.time : now;
             Runtime &n         = nodes[event.node];
             bool     per_activation = event.type == EventType::Begin || event.type == EventType::End;
             if (event.generation != (per_activation ? n.activation : n.generation))
@@ -117,6 +118,7 @@ namespace garlic::core::smil
                     break;
             }
         }
+        event_time.reset();
         return std::exchange(pending, {});
     }
 
@@ -184,6 +186,11 @@ namespace garlic::core::smil
     }
 
     // ------------------------------------------------------------------ helpers
+
+    steady_clock::time_point Engine::timeBase() const
+    {
+        return event_time.value_or(clock.monotonic());
+    }
 
     void Engine::at(steady_clock::time_point time, std::size_t node, EventType type, std::size_t wallclock,
                     milliseconds elapsed)
@@ -316,7 +323,7 @@ namespace garlic::core::smil
         if (listener.node != 0 && nodes[n.parent].state != State::Active)
             return;
 
-        auto now = clock.monotonic();
+        auto now = timeBase();
         if (listener.is_end)
         {
             at(now + std::max(listener.offset, milliseconds(0)), listener.node, EventType::End);
@@ -413,7 +420,7 @@ namespace garlic::core::smil
         n.open_end       = false;
         n.started_once   = false;
         n.announced      = false;
-        auto now         = clock.monotonic();
+        auto now         = timeBase();
 
         bool ended_already = false;
         for (std::size_t i = 0; i < timing.end.size(); ++i)
@@ -544,7 +551,7 @@ namespace garlic::core::smil
         n.skipping = true;
         n.instance = 0;
         ++n.generation;
-        at(clock.monotonic() + config.skip_delay, node, EventType::Skipped);
+        at(timeBase() + config.skip_delay, node, EventType::Skipped);
     }
 
     /**
@@ -673,7 +680,7 @@ namespace garlic::core::smil
         ++c.generation; // events of the previous run do not count any more
         const Duration &dur = c.container->timing.dur;
         if (dur.type == Duration::Type::Clock)
-            at(clock.monotonic() + dur.value - elapsed, container, EventType::SimpleEnd);
+            at(timeBase() + dur.value - elapsed, container, EventType::SimpleEnd);
 
         switch (c.container->kind)
         {
@@ -1093,7 +1100,7 @@ namespace garlic::core::smil
         ++m.generation;
         pending.emplace_back(StartMedia{m.instance, &media, std::move(source), regionsOf(media)});
         if (has_clock)
-            at(clock.monotonic() + dur.value - elapsed, node, EventType::SimpleEnd);
+            at(timeBase() + dur.value - elapsed, node, EventType::SimpleEnd);
         announceBegin(node);
     }
 
@@ -1116,7 +1123,7 @@ namespace garlic::core::smil
             m.failed = false;
             pending.emplace_back(RepeatMedia{m.instance});
             if (timing.dur.type == Duration::Type::Clock && timing.dur.value.count() > 0)
-                at(clock.monotonic() + timing.dur.value, node, EventType::SimpleEnd);
+                at(timeBase() + timing.dur.value, node, EventType::SimpleEnd);
             return;
         }
         endMedia(node);

@@ -68,6 +68,7 @@ namespace garlic::core::tests
             std::set<std::string>                            failing;      // src the player cannot play
             std::vector<smil::StartMedia>                    starts;       // every StartMedia, for details
             smil::EngineConfig                               config;
+            std::chrono::milliseconds poll_late{0}; // every poll() comes this much after its time, like a real host
             std::unique_ptr<smil::Engine>                    engine;
 
             explicit EngineRunner(std::string_view smil) : logger(fs, clock, loggerConfig())
@@ -107,7 +108,7 @@ namespace garlic::core::tests
                     auto next = nextEvent();
                     if (!next || *next > end)
                         break;
-                    clock.advance(*next - clock.monotonic());
+                    clock.advance(*next + poll_late - clock.monotonic());
                     for (auto it = finishes.begin(); it != finishes.end() && it->first <= clock.monotonic();)
                     {
                         if (failing.contains(sources[it->second]))
