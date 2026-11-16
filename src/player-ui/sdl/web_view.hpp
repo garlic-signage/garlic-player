@@ -20,17 +20,17 @@
 
 #include "media.hpp"
 
+#include <functional>
 #include <memory>
 #include <string>
 
 namespace player
 {
     /**
-     * What shows a web page or widget, one per medium. Per platform: CEF off-screen on Linux (draws into a texture,
-     * so it lies in its region like an image); later the native views (WebView2 on Windows, WKWebView on macOS and
-     * iOS, Android WebView), which lie over the window.
-     *
-     * Not built yet: createWebView() returns nullptr, and web pages fail, so the core goes on.
+     * What shows a web page or widget, one per medium. Per platform: CEF off-screen on Linux (cef_web_view.cpp, draws
+     * into a texture, so it lies in its region like an image); later the native views (WebView2 on Windows,
+     * WKWebView on macOS and iOS, Android WebView), which lie over the window. Without one (web_view.cpp)
+     * createWebView() returns nullptr and web pages fail, so the core goes on.
      */
     class WebView
     {
@@ -44,12 +44,29 @@ namespace player
             /// Draws the page into area (pixels of the renderer), sized to it
             virtual void draw(SDL_Renderer &renderer, const SDL_FRect &area) = 0;
 
-            /// Once per loop turn, e.g. the message loop of CEF
-            virtual void update() {}
+            /// Mouse, wheel, key and text events; x and y of mouse events relative to the area
+            virtual void input(const SDL_Event &event, float x, float y) = 0;
     };
 
-    /// The web view of this platform; nullptr if this build has none.
+    /// The web view of this platform; nullptr if this build has none or it cannot start.
     std::unique_ptr<WebView> createWebView(const MediaContext &context);
+
+    // What the web engine needs from the program, the same calls for every platform (nothing without one):
+
+    /// First thing in main(): a helper process of the engine runs here and returns its exit code; -1 for the player
+    int runWebHelperProcess(int argc, char *argv[]);
+
+    /// Every turn of the main loop: the work the engine scheduled
+    void pumpWebViews();
+
+    /// While true, the main loop turns at least every 33 ms for pumpWebViews()
+    bool webViewsRunning();
+
+    /// ClearCaches with web: the cache of the engine goes; done() afterwards, in the main thread
+    void clearWebCache(const std::function<void()> &done);
+
+    /// Before the end of main(), after the last web view: closes the engine
+    void shutdownWebViews();
 }
 
 #endif // PLAYER_UI_SDL_WEB_VIEW_HPP

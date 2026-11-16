@@ -18,6 +18,7 @@
 #include "paths.hpp"
 #include "player_window.hpp"
 #include "supervisor_client.hpp"
+#include "web_view.hpp"
 
 #include "common/clock.hpp"
 #include "common/std_file_system.hpp"
@@ -150,6 +151,10 @@ namespace
 
 int main(int argc, char *argv[])
 {
+    // the helper processes of the web engine (renderer, GPU …) start this program again: they end here
+    if (int helper = player::runWebHelperProcess(argc, argv); helper >= 0)
+        return helper;
+
     auto options = parse(argc, argv);
     if (!options)
     {
@@ -288,6 +293,7 @@ int main(int argc, char *argv[])
         exit_code = window.run();
         runtime.stop(); // before the window goes: no wake may reach it any more
     }
+    player::shutdownWebViews(); // after the last web page went with the window
     TTF_Quit();
     SDL_Quit();
     return exit_code;

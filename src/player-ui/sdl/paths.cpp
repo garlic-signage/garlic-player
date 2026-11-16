@@ -47,17 +47,20 @@ namespace player
         std::string local   = variable("LOCALAPPDATA");
         paths.ini_file      = roaming + "\\SmilControl\\garlic-player.ini";
         paths.cache_dir     = local + "\\" + app + "\\cache"; // the Qt players: not the program directory
-        paths.log_dir       = local + "\\" + app + "\\logs";
+        paths.data_dir      = local + "\\" + app;
+        paths.log_dir       = paths.data_dir + "\\logs";
 #elif defined(__APPLE__)
         std::string home = variable("HOME");
         paths.ini_file   = home + "/.config/SmilControl/garlic-player.ini";
         paths.cache_dir  = home + "/Library/Caches/" + app;
-        paths.log_dir    = home + "/Library/Application Support/" + app + "/logs";
+        paths.data_dir   = home + "/Library/Application Support/" + app;
+        paths.log_dir    = paths.data_dir + "/logs";
 #else
         std::string home = variable("HOME");
         paths.ini_file   = xdg("XDG_CONFIG_HOME", home, "/.config") + "/SmilControl/garlic-player.ini";
         paths.cache_dir  = xdg("XDG_CACHE_HOME", home, "/.cache") + "/" + app;
-        paths.log_dir    = xdg("XDG_DATA_HOME", home, "/.local/share") + "/" + app + "/logs";
+        paths.data_dir   = xdg("XDG_DATA_HOME", home, "/.local/share") + "/" + app;
+        paths.log_dir    = paths.data_dir + "/logs";
 #endif
         return paths;
     }

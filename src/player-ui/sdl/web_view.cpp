@@ -17,11 +17,30 @@
 */
 #include "web_view.hpp"
 
+/// A build without a web engine (no CEF, and the native views of the other platforms are not done yet).
 namespace player
 {
-    /// No web view built yet: CEF on Linux comes next, the native views of the other platforms later.
     std::unique_ptr<WebView> createWebView(const MediaContext & /*context*/)
     {
         return nullptr;
     }
+
+    int runWebHelperProcess(int /*argc*/, char * /*argv*/[])
+    {
+        return -1;
+    }
+
+    void pumpWebViews() {}
+
+    bool webViewsRunning()
+    {
+        return false;
+    }
+
+    void clearWebCache(const std::function<void()> &done)
+    {
+        done();
+    }
+
+    void shutdownWebViews() {}
 }

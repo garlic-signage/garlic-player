@@ -131,6 +131,7 @@ namespace player
             std::map<garlic::core::smil::InstanceId, Instance>     instances;
             std::vector<Deferred>                                  deferred;
             std::optional<std::string>                             screenshot_path;
+            Media                                                 *web_focus = nullptr; // the web page that has the keyboard
 
             // ten fast clicks/touches or one held for 10 s open the menu (also for the review of the App Store)
             std::optional<Clock::time_point> hold_until;
@@ -171,6 +172,8 @@ namespace player
             void pointer(ui::PointerEvent event, bool is_mouse);
             void menuGesture(bool press, ui::Point position);
             void regionClicked(ui::Point position);
+            void forwardMouse(const SDL_Event &event, float x, float y);
+            void setWebFocus(Media *media);
 
             void openMenu();
             void openSettingsDialog(bool required = false);

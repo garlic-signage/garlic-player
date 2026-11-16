@@ -440,6 +440,12 @@ Schedule: [ 10 s: v SimpleEnd ] …
 - One schedule (a heap in a `std::vector`: time → node → event) replaces all QTimers of garlic-lib. `poll()` works off what is
   due and collects the commands. Events of a node that has ended since are ignored (generation counter).
 - Calls of the player (`mediaFinished` …) only change the state; their commands come with the next `poll()`.
+- **No drift**: times that follow from an event (end after `dur`, `skip_delay`, begin offsets, syncbase triggers)
+  count from the time the event was planned for, not from when `poll()` handled it. Every `poll()` comes a few
+  milliseconds late; counted from "now" these delays added up (garlic-lib's QTimers did that), so an interval ended
+  just after a begin of the same time and `restart="whenNotActive"` ignored that begin (`par/8_multi_begin_restart`).
+  If `poll()` comes more than `catch_up_limit` (500 ms) late, e.g. after a standby or a hang, the times count from now:
+  nothing is caught up in a burst. The end reported by the player (`dur="media"`) is real time anyway.
 
 ### Rules for media (garlic-lib: `prepareDurationTimers`, `finishIntrinsicDuration`, `finishedSimpleDuration`)
 
@@ -634,6 +640,7 @@ the structure, and the behaviour decisions that were taken explicitly.
 | `end` before later begin times, negative `begin` with positive `end`, `begin="0s"` with negative `end` | SMIL standard |
 | `never` in an `excl`                                  | like a begin ignored by `restart`; garlic-lib let the `dur` run invisibly |
 | start and stop in the same `poll()`                   | not handed to the player, no play log      |
+| times after an event                                  | from the planned time, from now if more than 500 ms late; garlic-lib's QTimers drifted |
 | several listeners of one trigger, `repeatCount` and begin triggers, negative trigger offsets | SMIL standard |
 | triggers and wallclock at `seq` children              | SMIL standard: only one non-negative offset as `begin` |
 | background images                                     | no waiting (standard)                      |

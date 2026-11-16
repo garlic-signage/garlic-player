@@ -20,6 +20,7 @@
 
 #include "smil/document.hpp"
 
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_render.h>
 
 #include <functional>
@@ -75,6 +76,13 @@ namespace player
 
             /// Draws into area (pixels of the renderer); the clip of the region is set
             virtual void draw(SDL_Renderer &renderer, const SDL_FRect &area) = 0;
+
+            /// Takes mouse and keyboard itself (web pages): the window hands them over instead of activating the
+            /// element or sending access keys, like the Qt players where the web view takes clicks and focus
+            [[nodiscard]] virtual bool interactive() const { return false; }
+
+            /// An SDL mouse, wheel, key or text event; x and y of mouse events are pixels relative to the region
+            virtual void input(const SDL_Event & /*event*/, float /*x*/, float /*y*/) {}
 
             /// For the debug dialog: title, else src of the SMIL (garlic-lib)
             [[nodiscard]] std::string label() const { return smil.title.empty() ? smil.src : smil.title; }

@@ -39,6 +39,7 @@ namespace player
         std::string ini_file;
         std::string cache_dir;
         std::string log_dir;
+        std::string data_dir; // the parent of the logs; the web cache goes there (the Qt players: QtWebEngine)
     };
 
     Paths standardPaths();

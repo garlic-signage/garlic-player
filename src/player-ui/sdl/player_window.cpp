@@ -18,6 +18,7 @@
 #include "player_window.hpp"
 
 #include "color.hpp"
+#include "web_view.hpp"
 
 #include "configuration/configuration.hpp"
 
@@ -116,6 +117,8 @@ namespace player
             auto timeout = std::chrono::milliseconds(1000);
             if (extra_poll)
                 timeout = std::chrono::milliseconds(100);
+            if (webViewsRunning())
+                timeout = std::min(timeout, std::chrono::milliseconds(33));
             auto until = [&](Clock::time_point when)
             {
                 auto left = std::chrono::duration_cast<std::chrono::milliseconds>(when - now);
@@ -136,6 +139,7 @@ namespace player
 
             if (extra_poll)
                 extra_poll();
+            pumpWebViews();
             for (auto &[id, instance] : instances)
                 for (auto &[index, media] : instance.shown)
                     media->update();
@@ -184,6 +188,12 @@ namespace player
                     dialog->input(std::string(event.text.text));
                     dirty = true;
                 }
+                else if (web_focus != nullptr && !dialog && !menu.isOpen())
+                    web_focus->input(event, 0, 0);
+                break;
+            case SDL_EVENT_KEY_UP:
+                if (web_focus != nullptr && !dialog && !menu.isOpen())
+                    web_focus->input(event, 0, 0);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -192,11 +202,16 @@ namespace player
                              event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? ui::PointerPhase::Down : ui::PointerPhase::Up,
                              {event.button.x, event.button.y}},
                             true);
+                if (event.button.which != SDL_TOUCH_MOUSEID)
+                    forwardMouse(event, event.button.x, event.button.y);
                 break;
             case SDL_EVENT_MOUSE_MOTION:
                 if (event.motion.which != SDL_TOUCH_MOUSEID && event.motion.state != 0)
                     pointer({{0, 0}, ui::PointerPhase::Move, {event.motion.x, event.motion.y}}, true);
+                if (event.motion.which != SDL_TOUCH_MOUSEID)
+                    forwardMouse(event, event.motion.x, event.motion.y);
                 break;
+            case SDL_EVENT_MOUSE_WHEEL: forwardMouse(event, event.wheel.mouse_x, event.wheel.mouse_y); break;
             case SDL_EVENT_FINGER_DOWN:
             case SDL_EVENT_FINGER_UP:
             case SDL_EVENT_FINGER_MOTION:
@@ -260,6 +275,13 @@ namespace player
                 case SDLK_Q: quit(); return;
                 default: break;
             }
+        }
+        if (web_focus != nullptr) // the page has the focus: the keys are its own, no access keys
+        {
+            SDL_Event forwarded{};
+            forwarded.key = event;
+            web_focus->input(forwarded, 0, 0);
+            return;
         }
         // like event->text() of Qt without modifiers: the character of the key in the keyboard layout
         bool modifiers = (event.mod & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI)) != 0;
@@ -353,6 +375,8 @@ namespace player
             if (region->stack.empty())
                 return;
             Media *top = region->stack.back();
+            if (top->interactive()) // web pages take their clicks themselves (like the Qt players)
+                return;
             for (auto &[id, instance] : instances)
                 for (auto &[index, media] : instance.shown)
                     if (media.get() == top)
@@ -449,10 +473,11 @@ namespace player
             blankScreen(command.id);
             return;
         }
-        MediaContext context{renderer, [this]
+        // no pointer to the window: the web engine may still call it after the window went
+        MediaContext context{renderer, [wake = wake_event]
                              {
                                  SDL_Event redraw{};
-                                 redraw.type      = wake_event;
+                                 redraw.type      = wake;
                                  redraw.user.code = wake_redraw;
                                  SDL_PushEvent(&redraw); // from any thread
                              }};
@@ -487,6 +512,8 @@ namespace player
         {
             media->stop();
             std::erase(regions[index].stack, media.get());
+            if (media.get() == web_focus)
+                setWebFocus(nullptr);
         }
         instances.erase(it);
         std::erase_if(deferred, [id](const Deferred &each) { return each.id == id; });
@@ -523,10 +550,52 @@ namespace player
                            });
     }
 
-    /// Without web pages in this build there is no web cache: cachesCleared() at once, the core restarts the device.
-    void PlayerWindow::clearCaches(const tasks::ClearCaches & /*clear*/)
+    /// The web cache if asked, then cachesCleared(): the core restarts the device through the supervisor.
+    void PlayerWindow::clearCaches(const tasks::ClearCaches &clear)
     {
-        runtime.post([](PlayerRuntimeApi &r) { r.cachesCleared(); });
+        auto done = [this] { runtime.post([](PlayerRuntimeApi &r) { r.cachesCleared(); }); };
+        if (!clear.web)
+            return done();
+        clearWebCache(done);
+    }
+
+    /// Mouse events for the web page under the pointer (window coordinates x, y); a press there gives it the
+    /// keyboard, a press elsewhere takes it away
+    void PlayerWindow::forwardMouse(const SDL_Event &event, float x, float y)
+    {
+        if (menu.isOpen() || dialog)
+            return;
+        float pixels = SDL_GetWindowPixelDensity(window);
+        x *= pixels;
+        y *= pixels;
+        Media *target = nullptr;
+        SDL_FRect area{};
+        for (auto region = regions.rbegin(); region != regions.rend(); ++region)
+        {
+            area = regionArea(*region->definition);
+            if (x < area.x || y < area.y || x >= area.x + area.w || y >= area.y + area.h)
+                continue;
+            if (!region->stack.empty() && region->stack.back()->interactive())
+                target = region->stack.back();
+            break;
+        }
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+            setWebFocus(target);
+        if (target != nullptr)
+            target->input(event, x - area.x, y - area.y);
+    }
+
+    void PlayerWindow::setWebFocus(Media *media)
+    {
+        if (media == web_focus)
+            return;
+        web_focus = media;
+        if (dialog) // the dialog keeps the text input as long as it is open
+            return;
+        if (web_focus != nullptr)
+            SDL_StartTextInput(window);
+        else
+            SDL_StopTextInput(window);
     }
 
     void PlayerWindow::clear()
@@ -596,7 +665,10 @@ namespace player
             return;
         Dialog::Result result = dialog->result();
         dialog.reset();
-        SDL_StopTextInput(window);
+        if (web_focus != nullptr) // the web page gets the keyboard back
+            SDL_StartTextInput(window);
+        else
+            SDL_StopTextInput(window);
         updateCursor();
         dirty = true;
         if (result == Dialog::Result::QuitPlayer)
@@ -626,7 +698,8 @@ namespace player
         if (dialog && !settings_required)
         {
             dialog.reset();
-            SDL_StopTextInput(window);
+            if (web_focus == nullptr)
+                SDL_StopTextInput(window);
         }
         updateCursor();
         dirty = true;

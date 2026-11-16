@@ -139,8 +139,10 @@ namespace player
 
                 void start() override { view->load(fileUrl(source)); }
                 void stop() override { view->stop(); }
-                void update() override { view->update(); }
                 void draw(SDL_Renderer &target, const SDL_FRect &area) override { view->draw(target, area); }
+
+                [[nodiscard]] bool interactive() const override { return true; }
+                void input(const SDL_Event &event, float x, float y) override { view->input(event, x, y); }
 
             private:
                 std::unique_ptr<WebView> view;

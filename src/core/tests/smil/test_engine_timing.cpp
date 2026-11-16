@@ -227,3 +227,30 @@ TEST_CASE("par/8_multi_begin_restart.smil")
     CHECK(timeline.find("11s start imgCbegin") != std::string::npos);
     CHECK(count(timeline, "start imgCbegin") == 4); // and at 16 s with the parent
 }
+
+TEST_CASE("late polls: times count from the planned time, the delay does not add up")
+{
+    auto runner      = EngineRunner::body(R"(<seq><img xml:id="a" src="a.jpg" dur="1s"/><img xml:id="b" src="b.jpg" dur="1s"/>
+                                            <img xml:id="c" src="c.jpg" dur="1s"/></seq>)");
+    runner.poll_late = 7ms;
+    // planned 1 s, 2 s, 3 s; each poll comes 7 ms late, but not 14 ms or 21 ms
+    CHECK(runner.run(4s) == "0s start a | 1.007s stop a | 1.007s start b | 2.007s stop b | 2.007s start c | "
+                            "3.007s stop c");
+}
+
+TEST_CASE("late polls: more than catch_up_limit late counts from now, nothing is caught up")
+{
+    auto runner      = EngineRunner::body(R"(<seq><img xml:id="a" src="a.jpg" dur="1s"/><img xml:id="b" src="b.jpg" dur="1s"/></seq>)");
+    runner.poll_late = 600ms;
+    CHECK(runner.run(4s) == "0s start a | 1.600s stop a | 1.600s start b | 3.200s stop b");
+}
+
+TEST_CASE("par/8_multi_begin_restart.smil with late polls: whenNotActive still starts at 11 s")
+{
+    auto runner      = EngineRunner::file("par/8_multi_begin_restart.smil");
+    runner.poll_late = 7ms;
+    auto timeline    = runner.run(16s);
+    // the second interval (6 s) ends at 11 s as planned, so the begin at 11 s is not ignored
+    CHECK(timeline.find("11.007s start imgCbegin") != std::string::npos);
+    CHECK(count(timeline, "start imgCbegin") == 4); // 0 s, 6 s, 11 s and 16 s with the parent
+}
