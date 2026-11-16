@@ -25,6 +25,7 @@
 #include "test_http_server.hpp"
 
 #include <chrono>
+#include <functional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -43,6 +44,8 @@ namespace
             {
                 events.push_back("head " + std::to_string(h.status));
                 head = h;
+                if (on_head)
+                    on_head(); // inside a libcurl callback
             }
 
             bool onData(std::span<const std::byte> chunk) override
@@ -68,6 +71,7 @@ namespace
             bool                          abort_on_data = false;
             bool                          done          = false;
             std::optional<TransportError> error;
+            std::function<void()>         on_head;
     };
 
     /// Polls until the handler is done, at most 5 seconds.
@@ -223,6 +227,72 @@ TEST_CASE("CurlTransport: connection refused is a transport error")
 
     CHECK(handler.events == std::vector<std::string>{"error"});
     CHECK(handler.error->code == TransportErrorCode::ConnectionFailed);
+    CHECK(handler.error->message.contains("127.0.0.1")); // the detailed message of libcurl, not only the code
+}
+
+TEST_CASE("CurlTransport: a configured CA bundle is used")
+{
+    TestHttpServer server;
+    CurlTransport    transport({.ca_bundle = "/nonexistent/garlic-ca.pem"});
+    RecordingHandler handler;
+    std::string      url = server.url("/a.jpg");
+    REQUIRE(transport.start({HttpMethod::Get, "https://" + url.substr(7), {}}, handler));
+    run(transport, handler);
+
+    REQUIRE(handler.error.has_value());
+    CHECK(handler.error->code == TransportErrorCode::TlsFailed);
+    CHECK(handler.error->message.contains("/nonexistent/garlic-ca.pem"));
+}
+
+TEST_CASE("CurlTransport: two requests at once, each to its own handler; cancel() after the end does nothing")
+{
+    TestHttpServer server;
+    server.route("GET", "/a.jpg", "HTTP/1.1 200 OK", "aaa");
+    server.route("GET", "/b.jpg", "HTTP/1.1 200 OK", "bb");
+
+    CurlTransport    transport;
+    RecordingHandler a, b;
+    auto             id_a = transport.start({HttpMethod::Get, server.url("/a.jpg"), {}}, a);
+    auto             id_b = transport.start({HttpMethod::Get, server.url("/b.jpg"), {}}, b);
+    REQUIRE(id_a);
+    REQUIRE(id_b);
+    CHECK(*id_a != *id_b);
+    run(transport, a);
+    run(transport, b);
+    CHECK(a.body == "aaa");
+    CHECK(b.body == "bb");
+
+    transport.cancel(*id_a);
+    transport.poll();
+    CHECK(a.events == std::vector<std::string>{"head 200", "complete"});
+}
+
+TEST_CASE("CurlTransport: inside a callback cancel() stops the transfer and start() is run by the next poll()")
+{
+    TestHttpServer server;
+    server.route("GET", "/a.jpg", "HTTP/1.1 200 OK", std::string(200'000, 'x'));
+    server.route("GET", "/b.jpg", "HTTP/1.1 200 OK", "bb");
+
+    CurlTransport    transport;
+    RecordingHandler a, b;
+    RequestId        id_a = 0;
+    a.on_head             = [&]
+    {
+        transport.cancel(id_a);
+        REQUIRE(transport.start({HttpMethod::Get, server.url("/b.jpg"), {}}, b));
+    };
+    auto started = transport.start({HttpMethod::Get, server.url("/a.jpg"), {}}, a);
+    REQUIRE(started);
+    id_a = *started;
+    run(transport, b);
+    CHECK(b.body == "bb");
+
+    for (int i = 0; i < 50; ++i)
+    {
+        transport.poll();
+        std::this_thread::sleep_for(1ms);
+    }
+    CHECK(a.events == std::vector<std::string>{"head 200"}); // no data, no complete after the cancel
 }
 
 TEST_CASE("CurlTransport: unsupported scheme is an invalid request")
