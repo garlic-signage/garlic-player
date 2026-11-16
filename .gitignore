@@ -15,3 +15,4 @@ libios
 .idea
 /.qtcreator/CMakeLists.txt.user
 /src/player-ui/qwidget/.qtcreator/CMakeLists.txt.user
+/garlic-player.cdx.json
