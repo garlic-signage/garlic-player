@@ -96,10 +96,10 @@ namespace player
             /// trying in the background (then the start values come too late for this start).
             bool start(std::chrono::milliseconds timeout);
 
-            bool                   ready() const noexcept { return answered; } // hello answered on this connection
-            const SupervisorHello &hello() const noexcept { return supervisor; }
-            bool                   offers(const QString &capability) const;
-            bool                   locked() const noexcept { return supervisor.locked; }
+            [[nodiscard]] bool                   ready() const noexcept { return answered; } // hello answered on this connection
+            [[nodiscard]] const SupervisorHello &hello() const noexcept { return supervisor; }
+            [[nodiscard]] bool                   offers(const QString &capability) const;
+            [[nodiscard]] bool                   locked() const noexcept { return supervisor.locked; }
 
             void setCoreProbe(CoreProbe probe) { core_probe = std::move(probe); }
 

@@ -1,5 +1,5 @@
 # Only warns, the CI does not fail on it. Hints for SOLID (functions that do too much, classes with open members or
-# incomplete copy/move rules) and common bugs. Left out: noise without findings in this code (integer promotion of
+# incomplete copy/move rules and common bugs. Left out: noise without findings in this code (integer promotion of
 # uint8_t in bit operations, explicit (void) casts, swappable parameters, exceptions are off).
 Checks: >
   -*,

@@ -85,7 +85,7 @@ namespace player
 
     SupervisorClient::~SupervisorClient()
     {
-        socket.disconnect(this); // no reconnect while the client goes
+        (void)socket.disconnect(this); // no reconnect while the client goes
         socket.abort();
     }
 
@@ -287,7 +287,7 @@ namespace player
 
     void SupervisorClient::helloResult(const QJsonObject &result)
     {
-        bool was_locked = supervisor.locked;
+        const bool was_locked = supervisor.locked;
 
         SupervisorHello next;
         next.protocol = result.value("protocol").toInt(protocol_version);
@@ -299,10 +299,10 @@ namespace player
                 next.capabilities.insert(capability.toString());
         next.heartbeat_interval = std::max(0, result.value("heartbeat_interval").toInt(10));
         next.locked             = result.value("locked").toBool(false);
-        QJsonObject device      = result.value("device").toObject();
-        next.uuid               = device.value("uuid").toString();
-        next.content_url        = device.value("content_url").toString();
-        next.player_name        = device.value("player_name").toString();
+        QJsonObject device_json = result.value("device").toObject();
+        next.uuid               = device_json.value("uuid").toString();
+        next.content_url        = device_json.value("content_url").toString();
+        next.player_name        = device_json.value("player_name").toString();
         supervisor              = next;
         answered                = true;
         qInfo().noquote() << "Supervisor:" << supervisor.name << supervisor.version
