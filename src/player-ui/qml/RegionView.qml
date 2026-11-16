@@ -13,27 +13,13 @@ Item {
     height: Math.round(parent.height * model.height)
     clip: true
 
-    /// backgroundRepeat of the SMIL → fill mode of an Image (garlic-lib: CSS of the region)
-    function tiling(repeat) {
-        switch (repeat) {
-        case "repeatx": return Image.TileHorizontally
-        case "repeaty": return Image.TileVertically
-        case "norepeat": return Image.Pad
-        default: return Image.Tile
-        }
-    }
-
     Rectangle {
         anchors.fill: parent
         color: region.model.color
     }
-    Image {
-        anchors.fill: parent
+    BackgroundImage {
         source: region.model.image
-        visible: source.toString() !== ""
-        fillMode: region.tiling(region.model.repeat)
-        horizontalAlignment: Image.AlignLeft
-        verticalAlignment: Image.AlignTop
+        repeat: region.model.repeat
     }
 
     Repeater {

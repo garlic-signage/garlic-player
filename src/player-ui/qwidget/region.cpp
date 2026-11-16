@@ -23,7 +23,8 @@ namespace player
 {
     namespace
     {
-        /// backgroundRepeat of the SMIL → CSS (garlic-lib)
+        /// backgroundRepeat of the SMIL → Qt style sheet. Qt names tiling in both directions "repeat-xy": an unknown
+        /// "repeat" in background-repeat draws one tile (garlic-lib used the shorthand "background", which ignores it).
         QString cssRepeat(const QString &repeat)
         {
             QString value = repeat.toLower();
@@ -33,7 +34,7 @@ namespace player
                 return "repeat-y";
             if (value == "norepeat")
                 return "no-repeat";
-            return "repeat";
+            return "repeat-xy";
         }
     }
 

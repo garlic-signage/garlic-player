@@ -26,6 +26,7 @@ qt_add_qml_module(qml
     QML_FILES
         Main.qml
         RegionView.qml
+        BackgroundImage.qml
         MediaView.qml
         PlayerMenu.qml
         SettingsDialog.qml

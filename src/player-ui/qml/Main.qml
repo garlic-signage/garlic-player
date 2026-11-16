@@ -11,20 +11,9 @@ ApplicationWindow {
     color: Player.rootColor
 
     // background of the root layout: color and image (repeat, repeatX, repeatY, noRepeat)
-    Image {
-        anchors.fill: parent
+    BackgroundImage {
         source: Player.rootImage
-        visible: source.toString() !== ""
-        fillMode: {
-            switch (Player.rootRepeat) {
-            case "repeatx": return Image.TileHorizontally
-            case "repeaty": return Image.TileVertically
-            case "norepeat": return Image.Pad
-            default: return Image.Tile
-            }
-        }
-        horizontalAlignment: Image.AlignLeft
-        verticalAlignment: Image.AlignTop
+        repeat: Player.rootRepeat
     }
 
     Item {
