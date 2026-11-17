@@ -61,11 +61,12 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
 
 ### Runtime
 
-Debian Trixie on a Raspberry Pi (also the full install) lacks the VA-API libraries for Wayland, X11 and DRM, which
-the player needs to run:
+The AppImage takes libmpv (with FFmpeg), SDL3, NSS and VA-API from the system: on a Raspberry Pi the FFmpeg of
+Raspberry Pi OS is the one that decodes H.265 in hardware. Debian Trixie and later (Bookworm has no SDL3); a Raspberry
+Pi lacks some of them even with the full install:
 
 ```
-sudo apt install libva-wayland2 libva-x11-2 libva-drm2
+sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-wayland2 libva-x11-2 libva-drm2
 ```
 
 ## How it works

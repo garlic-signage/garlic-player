@@ -212,6 +212,9 @@ namespace player
             return;
         }
         mpv_set_option_string(mpv, "vo", "libmpv");
+        // the cheap scalers of mpv (bilinear, no dither, no deband): a 4K60 video stuttered on a Raspberry Pi 4 with
+        // the default ones, the GPU converts and scales every frame
+        mpv_set_option_string(mpv, "profile", "fast");
         // hardware decoding of a Raspberry Pi without copy, the frames as GPU buffers (EGL dmabuf), which auto-safe
         // does not take: v4l2m2m for H.264 up to 1080p (decoded by the CPU a 1080p H.264 cost more than one core of a
         // Pi 4, with v4l2m2m-copy about 70 %, without copy about 40 %), drm for H.265 up to 4K (the FFmpeg of
