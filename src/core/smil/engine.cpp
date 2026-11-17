@@ -402,7 +402,8 @@ namespace garlic::core::smil
      *
      *   begin 0s        start now
      *   begin 5s        start in 5 s
-     *   begin -2s       has begun 2 s ago: start now for the rest of its dur, if there is a rest
+     *   begin -2s       has begun 2 s ago: start now for the rest of its dur, if there is a rest; with an end time
+     *                   start now if no end came after the begin (begin 00:00, end 23:59 daily, started at noon)
      *   begin indefinite  wait for a trigger
      *   end 10s         ends in 10 s, whether it plays or still waits
      *   end 0s, -2s     has ended already: does not start
@@ -422,7 +423,9 @@ namespace garlic::core::smil
         n.announced      = false;
         auto now         = timeBase();
 
-        bool ended_already = false;
+        bool                        ended_already = false;
+        bool                        timed_end     = false; // an end time (offset or wallclock), not only a trigger
+        std::optional<milliseconds> ended_ago;             // the latest end time in the past (wallclock)
         for (std::size_t i = 0; i < timing.end.size(); ++i)
         {
             const TimeCondition &condition = timing.end[i];
@@ -432,12 +435,18 @@ namespace garlic::core::smil
                 {
                     at(now + offset->value, node, EventType::End);
                     ++n.pending_ends;
+                    timed_end = true;
                 }
                 else
                     ended_already = true;
             }
-            else if (std::holds_alternative<Wallclock>(condition))
+            else if (const auto *wallclock = std::get_if<Wallclock>(&condition))
+            {
+                timed_end = true;
+                if (auto ago = wallclockBegunAgo(*wallclock); ago && (!ended_ago || *ago < *ended_ago))
+                    ended_ago = ago;
                 scheduleWallclock(node, i, true); // only the next end: a past one ended an earlier interval
+            }
             else if (!std::holds_alternative<Indefinite>(condition))
                 n.open_end = true; // a trigger: the end stays open
         }
@@ -490,10 +499,18 @@ namespace garlic::core::smil
         }
         if (begun_ago)
         {
-            // still within its active duration? garlic-lib: BeginTimer::allowByDurTimer
-            const Duration &dur = timing.dur;
-            bool rest = dur.type == Duration::Type::Indefinite || dur.type == Duration::Type::Media ||
-                        (dur.type == Duration::Type::Clock && dur.value > *begun_ago);
+            // still within its interval? garlic-lib: BeginTimer::mustStartImmediately
+            //   with an end time: active if no end came after the begin (SMIL: the interval runs from the begin to
+            //   the next end); a dur with a time must not be over either
+            //   without: allowByDurTimer, only the rest of a dur
+            const Duration &dur  = timing.dur;
+            bool            rest = false;
+            if (timed_end)
+                rest = (!ended_ago || *ended_ago > *begun_ago) &&
+                       (dur.type != Duration::Type::Clock || dur.value > *begun_ago);
+            else
+                rest = dur.type == Duration::Type::Indefinite || dur.type == Duration::Type::Media ||
+                       (dur.type == Duration::Type::Clock && dur.value > *begun_ago);
             if (rest)
             {
                 at(now, node, EventType::Begin, no_wallclock, *begun_ago);

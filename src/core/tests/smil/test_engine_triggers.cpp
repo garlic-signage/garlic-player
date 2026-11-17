@@ -153,6 +153,29 @@ TEST_CASE("wallclock: start at the time, a past one plays the rest of its dur")
     CHECK(zone.run(10s) == "3s start a | 4s stop a");
 }
 
+TEST_CASE("begin in the past with an end time: active if no end came after the begin (garlic-lib: mustStartImmediately)")
+{
+    TimeZone tz("UTC"); // the FakeClock starts at 2026-01-01T00:00:00
+    // daily window 23:00 to 01:00: begun 1 h ago, the last end was 23 h ago, the next one comes in 1 h
+    auto window = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(R/2025-12-31T23:00:00/P1D)"
+                                         end="wallclock(R/2025-12-30T01:00:00/P1D)"/></par>)x");
+    CHECK(window.run(10s) == "0s start a");
+
+    // daily window 22:00 to 23:00: the end at 23:00 came after the begin, wait for the next day
+    auto over = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(R/2025-12-31T22:00:00/P1D)"
+                                       end="wallclock(R/2025-12-31T23:00:00/P1D)"/></par>)x");
+    CHECK(over.run(10s).empty());
+
+    // in the window, but its dur is over already
+    auto dur_over = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(R/2025-12-31T23:00:00/P1D)"
+                                           end="wallclock(R/2025-12-30T01:00:00/P1D)" dur="10s"/></par>)x");
+    CHECK(dur_over.run(10s).empty());
+
+    // offsets: begun 2 s ago, ends in 5 s, no dur
+    auto offset = EngineRunner::body(R"(<par><img xml:id="a" src="a.jpg" begin="-2s" end="5s"/></par>)");
+    CHECK(offset.run(10s) == "0s start a | 5s stop a");
+}
+
 TEST_CASE("wallclock repeating: every period, repeatCount ignored, end at a wallclock too")
 {
     TimeZone tz("UTC");

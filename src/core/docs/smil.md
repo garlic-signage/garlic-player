@@ -527,6 +527,14 @@ activated ──► Waiting ──(begin time)──► Active ──(dur / end 
   `end="2s;accesskey(e)"` leaves the end open, so a later begin still starts.
 - **Same time**: an interval that ends at the moment of the next begin ends first (`par/8`: `whenNotActive` with
   begin 6 s and 11 s and a run of 5 s plays three times).
+- **Begin in the past** (negative offset, a wallclock that has passed), garlic-lib: `BeginTimer::mustStartImmediately`:
+  - with an end time (offset or wallclock): the element starts now if no end came after that begin, the interval runs
+    from the begin to the next end (SMIL standard). A `dur` with a time must not be over either. Example: a daily
+    window `begin="wallclock(R/…T00:00:00/P1D)" end="wallclock(R/…T23:59:59/P1D)"` started at noon plays at once,
+    not only the next day (`par/trigger/3_changes`, `excl/complex/2_signapp`).
+  - without: only for the rest of its `dur` (`allowByDurTimer`); without `dur` it waits for the next begin.
+  - The children of a container start from their beginning, like garlic-lib; the standard would enter its timeline
+    at the time elapsed since the begin.
 - An element that can never start (only begin times in the past without rest, no `end`, no trigger) is skipped.
   garlic-lib left it waiting forever, so a `seq` behind it stopped.
 
