@@ -17,6 +17,7 @@
 */
 #include "content/media_manager.hpp"
 
+#include "content/index_manager.hpp"
 #include "content/widget.hpp"
 
 namespace garlic::core::content
@@ -53,9 +54,10 @@ namespace garlic::core::content
     }
 
     MediaManager::MediaManager(downloader::DownloadQueue &q, const downloader::Inventory &inv, common::FileSystem &f,
-                               logger::Logger &log, std::string cache, Supports can_play, MakeSpace space)
-        : queue(q), inventory(inv), fs(f), logger(log), cache_dir(std::move(cache)), supports(std::move(can_play)),
-          make_space(std::move(space))
+                               const common::Clock &c, logger::Logger &log, std::string cache, Supports can_play,
+                               MakeSpace space)
+        : queue(q), inventory(inv), fs(f), clock(c), logger(log), cache_dir(std::move(cache)),
+          supports(std::move(can_play)), make_space(std::move(space))
     {
     }
 
@@ -65,6 +67,8 @@ namespace garlic::core::content
     {
         base = index_base;
         reported.clear(); // MEDIA_UNSUPPORTED again once per index version
+        current.clear();
+        retry_after.clear(); // a new index tries everything again, also what did not fit
 
         registerSrc(document.head.root_layout.background_image);
         for (const smil::Region &region : document.head.regions)
@@ -100,7 +104,10 @@ namespace garlic::core::content
             return;
         std::string path = absolute(src);
         if (isRemote(path))
+        {
+            current.insert(path);
             queue.add(path);
+        }
         else if (path.ends_with(".wgt") && !path.starts_with("adapi:"))
         {
             if (auto extracted = extractWidget(fs, path, make_space); !extracted)
@@ -118,11 +125,29 @@ namespace garlic::core::content
                       {"mediaType", std::string(kindName(media.kind))}});
     }
 
+    /**
+     * The files themselves are in the inventory; an update waits as ".ready" until the file is free. A failed download
+     * is not asked for again before IndexManager::retry, one that did not fit (DISK_FULL) not before the next index:
+     * the files of the index are kept by CacheSpace, so trying again would only fail again.
+     */
     void MediaManager::downloaded(const downloader::DownloadResult &result)
     {
-        if (result.status == downloader::DownloadStatus::NotCacheable)
+        using downloader::DownloadStatus;
+        if (result.status == DownloadStatus::NotCacheable)
             not_cacheable.insert(result.url);
-        // everything else is in the inventory; an update waits as ".ready" until the file is free
+        if (result.status != DownloadStatus::Failed)
+        {
+            retry_after.erase(result.url);
+            return;
+        }
+        if (!result.no_space)
+        {
+            retry_after.insert_or_assign(result.url, clock.monotonic() + IndexManager::retry);
+            return;
+        }
+        retry_after.insert_or_assign(result.url, std::chrono::steady_clock::time_point::max());
+        logger.event(logger::Severity::Error, "ContentManager", "DISK_FULL",
+                     {{"resourceURI", result.url}, {"errorMessage", result.error}});
     }
 
     // ------------------------------------------------------------------ for the engine
@@ -187,7 +212,16 @@ namespace garlic::core::content
     {
         std::string path = absolute(media.src);
         if (isRemote(path))
-            queue.add(path);
+            download(path);
+    }
+
+    std::set<std::string> MediaManager::currentFiles() const
+    {
+        std::set<std::string> files;
+        for (const std::string &url : current)
+            if (auto entry = inventory.find(url); entry && !entry->file_name.empty())
+                files.insert(entry->file_name);
+        return files;
     }
 
     std::optional<std::string> MediaManager::locate(std::string_view src)
@@ -212,15 +246,27 @@ namespace garlic::core::content
         return base + std::string(src);
     }
 
+    /// Into the download queue, unless a failed download of the URL waits (retry_after).
+    void MediaManager::download(std::string_view url)
+    {
+        if (auto waiting = retry_after.find(url); waiting != retry_after.end() && clock.monotonic() < waiting->second)
+            return;
+        queue.add(std::string(url));
+    }
+
     /**
      * The cache file of a downloaded URL, from the inventory of the downloader. A waiting update (".ready") replaces it
-     * first if no instance plays it; a widget is extracted.
+     * first if no instance plays it; a widget is extracted. A file that is not in the cache (any more) is downloaded
+     * (again); the queue takes a URL only once.
      */
     std::optional<std::string> MediaManager::cachedFile(std::string_view url)
     {
         auto entry = inventory.find(url);
         if (!entry || entry->file_name.empty())
+        {
+            download(url);
             return std::nullopt;
+        }
         std::string file  = cache_dir + "/" + entry->file_name;
         std::string ready = file + ".ready";
 
@@ -228,7 +274,10 @@ namespace garlic::core::content
         if (!in_use.contains(file) && fs.exists(ready))
             updated = fs.rename(ready, file).has_value();
         if (!fs.exists(file))
+        {
+            download(url);
             return std::nullopt;
+        }
 
         if (file.ends_with(".wgt") && (updated || !fs.exists(widgetIndex(file))))
         {

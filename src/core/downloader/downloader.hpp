@@ -49,6 +49,7 @@ namespace garlic::core::downloader
 
         std::string error;           // reason for Failed, for logging
         int         http_status = 0; // last HTTP status, 0 if none was received
+        bool        no_space    = false; // Failed because make_space could not free the bytes of the file
     };
 
     struct DownloaderConfig
@@ -146,6 +147,7 @@ namespace garlic::core::downloader
             HttpResponseHead                      head;        // of the current request
             int                                   redirects   = 0;
             int                                   http_status = 0;
+            bool                                  no_space    = false;
             std::string                           start_error; // transport refused the first request
             std::string                           write_error;
             std::unique_ptr<common::WritableFile> file;

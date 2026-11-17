@@ -99,8 +99,10 @@ namespace garlic::core
         content::MediaManager::MakeSpace make_space;
         if (free_space)
         {
-            cache_space = std::make_unique<content::CacheSpace>(fs, *inventory, *logger, settings.cache_dir, free_space);
-            make_space  = [this](std::uint64_t bytes) { return cache_space->makeSpace(bytes); };
+            auto current = [this] { return media ? media->currentFiles() : std::set<std::string>{}; };
+            cache_space  = std::make_unique<content::CacheSpace>(fs, *inventory, *logger, settings.cache_dir, free_space,
+                                                                 current);
+            make_space   = [this](std::uint64_t bytes) { return cache_space->makeSpace(bytes); };
         }
 
         downloader::DownloaderConfig download;
@@ -111,7 +113,7 @@ namespace garlic::core
                                                             settings.parallel_downloads,
                                                             [this](const downloader::DownloadResult &r) { dispatch(r); });
 
-        media = std::make_unique<content::MediaManager>(*queue, *inventory, fs, *logger, settings.cache_dir,
+        media = std::make_unique<content::MediaManager>(*queue, *inventory, fs, clock, *logger, settings.cache_dir,
                                                         settings.supports, make_space);
         index = std::make_unique<content::IndexManager>(*queue, fs, clock, *logger, config, settings.cache_dir,
                                                         [this](smil::Document d, std::string base)

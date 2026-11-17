@@ -132,18 +132,35 @@ TEST_CASE("kept: the index, running downloads and uploads; not enough space is F
     CHECK(f.events().find("Only 20 bytes from needed 40 bytes") != std::string::npos);
 }
 
-TEST_CASE("kept as well: the temporary index and the QtWebEngine widget")
+TEST_CASE("kept as well: the temporary index")
 {
     SpaceFixture f;
     f.cached("temporary.smil", 20);
-    f.cached("QtWebEngine.wgt", 20);
     f.cached("old.jpg", 20);
     f.disk = 20; // 0 free
 
     CHECK_FALSE(f.space.makeSpace(40)); // 50 needed, only old.jpg can go
     CHECK(f.fs.exists("cache/temporary.smil"));
-    CHECK(f.fs.exists("cache/QtWebEngine.wgt"));
     CHECK_FALSE(f.fs.exists("cache/old.jpg"));
+}
+
+TEST_CASE("the files of the current index are kept, also when the space is not enough")
+{
+    SpaceFixture f;
+    CacheSpace   space{f.failing, f.inventory, f.logger, "cache", [&] { return f.disk - f.used(); },
+                     [] { return std::set<std::string>{"old.jpg", "w.wgt"}; }};
+    f.cached("old.jpg", 20); // the longest unread, but in the index
+    f.cached("w.wgt", 10);
+    writeFile(f.fs, "cache/w/index.html", std::string(10, 'h'));
+    f.cached("new.jpg", 20);
+    f.disk = 60; // 0 free
+
+    CHECK_FALSE(space.makeSpace(40)); // 50 needed, only new.jpg (20) is not in the index
+    CHECK(f.fs.exists("cache/old.jpg"));
+    CHECK(f.fs.exists("cache/w.wgt"));
+    CHECK(f.fs.exists("cache/w/index.html"));
+    CHECK_FALSE(f.fs.exists("cache/new.jpg"));
+    CHECK(f.events().contains("FAILED_FREEING_SPACE"));
 }
 
 TEST_CASE("a file and its update count as one: the newest access of both decides, both go together")

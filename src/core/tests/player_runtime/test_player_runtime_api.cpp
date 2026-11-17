@@ -268,10 +268,10 @@ TEST_CASE("a task from the hub: the core clears the player cache, restarts when 
 
     CHECK(f.seen().find("clear player") != std::string::npos);
     CHECK(f.seen().find("reboot") == std::string::npos); // waits for the frontend
-    f.runtime->cachesCleared();
-    CHECK(f.seen().ends_with("clear player | reboot c1"));
+    f.runtime->cachesCleared(); // until then a.jpg, missing now, may be downloaded and started again
+    CHECK(f.seen().ends_with(" | reboot c1"));
     f.runtime->cachesCleared(); // once only
-    CHECK(f.seen().ends_with("clear player | reboot c1"));
+    CHECK(f.seen().find("reboot") == f.seen().rfind("reboot"));
     CHECK_FALSE(f.fs.exists("cache/index.smil"));
 }
 

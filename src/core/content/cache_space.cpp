@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <set>
 #include <vector>
 
 namespace garlic::core::content
@@ -56,13 +57,14 @@ namespace garlic::core::content
 
         bool isKept(std::string_view name)
         {
-            return name == "index.smil" || name == "temporary.smil" || name == "QtWebEngine.wgt";
+            return name == "index.smil" || name == "temporary.smil";
         }
     }
 
     CacheSpace::CacheSpace(common::FileSystem &f, downloader::Inventory &inv, logger::Logger &log, std::string cache,
-                           FreeSpace free)
-        : fs(f), inventory(inv), logger(log), cache_dir(std::move(cache)), free_space(std::move(free))
+                           FreeSpace free, CurrentFiles current)
+        : fs(f), inventory(inv), logger(log), cache_dir(std::move(cache)), free_space(std::move(free)),
+          current_files(std::move(current))
     {
     }
 
@@ -92,9 +94,10 @@ namespace garlic::core::content
                 entry.last_access = std::max(entry.last_access, *accessed);
         }
 
+        std::set<std::string> current = current_files ? current_files() : std::set<std::string>{};
         std::vector<std::pair<std::string, Entry>> order;
         for (auto &[name, entry] : entries)
-            if (!isKept(name) && !entry.downloading)
+            if (!isKept(name) && !current.contains(name) && !entry.downloading)
                 order.emplace_back(name, std::move(entry));
         std::ranges::stable_sort(order, {}, [](const auto &e) { return e.second.last_access; });
 

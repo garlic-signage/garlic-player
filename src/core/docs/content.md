@@ -74,6 +74,8 @@ hands them to the frontend with `NewLayout` or `BackgroundImage`. The playback d
 
 - not supported, or not downloaded yet → `nullopt`: the engine skips it and tries again next time
 - the cache file comes from the inventory of the downloader (URL → file name)
+- missing in the cache (no inventory row or no file: removed by hand, by the REST API, by the cleanup) → `nullopt`,
+  and the URL goes to the download queue again, see [Missing files](#missing-files)
 - not cacheable (a web page) → the URL itself, unless `cacheControl="onlyIfCached"`
 - a web page (`text`) whose download check is not done yet → the URL itself as well, unless
   `cacheControl="onlyIfCached"`. Otherwise it would be skipped at the first start and never come in a container that
@@ -84,6 +86,29 @@ hands them to the frontend with `NewLayout` or `BackgroundImage`. The playback d
 - widgets → the extracted `index.html`; the engine appends the query
 
 `supports` comes from the frontend and says what the player can show, e.g. no video on an e-ink display.
+
+### Missing files
+
+Files of the index are downloaded when the index is loaded. If one of them is gone later, `resolve()` (and
+`locate()` for backgrounds) puts its URL into the download queue again; the queue takes a URL only once. So a cache
+that was emptied by hand fills again while the playlist runs, without a new index.
+
+```
+downloaded(result)
+├── not Failed                       the URL may be asked for again at once
+├── Failed                           not again before IndexManager::retry (60 s), also not by <prefetch>
+└── Failed with no_space             event DISK_FULL (resourceURI, errorMessage), not again before the next index
+load(next index)                     all waits are forgotten: every file is tried once more
+```
+
+- **The wait after an error**: a URL that the server does not have (404) or a server that cannot be reached would
+  otherwise be asked for every time the element is due; with many short images that is a request every few seconds.
+  The retry time of the index is used, no own setting.
+- **No new try after `DISK_FULL`**: the files of the index are kept by the cleanup (see below), so the space does not
+  get bigger until the index changes; trying again would only fail again and cost traffic.
+- When the server is reachable again, a missing file comes at the latest after one retry time.
+- garlic-lib downloaded the media only when the index was loaded again; a file removed from the cache came back only
+  with a new index or a restart.
 
 
 ## Widgets
@@ -111,7 +136,8 @@ makeSpace(bytes)
 ├── needed = bytes + 10 - free_space()             0: fits, nothing to do (garlic-lib: calculateNeededDiscSpaceToFree)
 ├── list the cache directory, group the entries by their cache file
 │     a.jpg, a.jpg.part, a.jpg.ready → a.jpg        widget w.wgt with its directory w (and w.part) → w.wgt
-├── keep: index.smil, temporary.smil, QtWebEngine, groups with a ".part" file (download), ".tmp" files (upload)
+├── keep: index.smil, temporary.smil, the files of the current index (MediaManager::currentFiles),
+│         groups with a ".part" file (download), ".tmp" files (upload)
 ├── sort by the last read (lastAccess, the newest file of the group), the longest unread first
 ├── remove group by group until the removed bytes reach needed:
 │     files and directories, the inventory row of the cache file, event OBJECT_REMOVED
@@ -121,8 +147,13 @@ makeSpace(bytes)
 - `free_space` comes from the host: `system::diskSpace(cache_dir).free`, the available bytes minus 4 % for the
   operating system, like garlic-lib. If the disk is unknown, nothing is cleaned up; without the system module
   (ESP32, WASM) the frontend gives its own or the cache is never cleaned up.
-- Media of the current index can go, also the one that is playing, like in garlic-lib: otherwise a cache filled by
-  the index would block every download. A removed medium is downloaded again when it is needed.
+- **The files of the current index are kept.** If the index needs more than the disk has, it does not push its own
+  files out again and again: what does not fit is not downloaded, the download fails with `no_space` and the media
+  manager reports `DISK_FULL`. The rest of the playlist plays, the missing elements are skipped. The files of the
+  previous index are not kept; a file that is still playing is left to the operating system (Linux: it stays readable
+  until it is closed; Windows: it cannot be removed, that is logged and counts as not freed).
+- `currentFiles()` are the cache file names of the remote `src` of the index, from the inventory; files not downloaded
+  yet have no name and are not in the cache anyway.
 - The last read is the atime of the file system. Linux mounts with `relatime` update it at most once a day, `noatime`
   never; then the order is the one of the downloads. garlic-lib had the same (`QFileInfo::lastRead`).
 - New: groups. garlic-lib removed a widget directory with its `.wgt` too, but left `.ready` and `.part` files, and
@@ -147,9 +178,15 @@ makeSpace(bytes)
   and need zlib. Extracted into `<directory>.part` and swapped afterwards, so a broken archive or a full disk keeps the
   old widget (garlic-lib deleted the directory first). Entries with `..` or an absolute path are rejected ("zip
   slip"), garlic-lib did not check.
-- **Cache cleanup: the index is kept, media may go, also the playing one** (like garlic-lib). If the media of the
-  current index were kept, a cache filled by the index would block every further download; a removed medium is
-  downloaded again when it is needed.
+- **Cache cleanup: the index and its files are kept.** garlic-lib removed media of the current index too, also the
+  playing one. If the index is bigger than the disk, its files then push each other out, and every round of the
+  playlist downloads them again (like IAdea players do): traffic limits, wear of the flash and gaps when a file is not
+  there in time. Now what does not fit is not downloaded, the hub gets `DISK_FULL` and the operator makes the playlist
+  smaller. A cache filled by the index also blocks other downloads (tasks, firmware) until the index changes.
+- **Missing files come back without a new index.** `resolve()` asks for them again, after an error at most once per
+  retry time of the index, after `DISK_FULL` only with the next index (garlic-lib: only with a new index).
+- **No `QtWebEngine` in the cache any more.** garlic-lib kept the web cache directory of the Qt players there; the
+  frontends of the core keep their web cache in the data directory.
 - **`.tmp` files are kept**: the HTTP server writes running uploads as `upload-N.tmp` into the cache directory, the
   cleanup for `/v2/files/new` would otherwise remove its own upload.
 - **Unknown disk space: no cleanup.** Otherwise an error of `diskSpace` would count as "0 free" and empty the cache.
@@ -158,13 +195,15 @@ makeSpace(bytes)
 ## When something goes wrong
 
 - **Events** (source `ContentManager`): `SMIL_LOADED`, `SMIL_OPEN_ERROR` (with `errorMessage` and `errorLine`),
-  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECT_REMOVED`, `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`.
+  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECT_REMOVED`, `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`,
+  `DISK_FULL` (with `resourceURI` and `errorMessage`: the file that did not fit and its size).
 - **debug.log**: `index download failed: …`, `cannot replace index: …`, a widget that cannot be extracted
   (`<path>: <reason>`), a cache file that cannot be removed.
 - **The new playlist does not come**: is there an `index.smil.ready` (an update waiting, deleted if broken), a
   `SMIL_OPEN_ERROR`, or is the refresh still running (at least 60 s, `0` = never)?
 - **A medium is skipped again and again**: not downloaded yet (`resolve()` gives nothing), not supported by the
-  frontend (`MEDIA_UNSUPPORTED`), or `cacheControl="onlyIfCached"` on a web page.
+  frontend (`MEDIA_UNSUPPORTED`), `cacheControl="onlyIfCached"` on a web page, the download failed (asked for again
+  after 60 s), or it did not fit (`DISK_FULL`: only with the next index).
 - **Leftovers**: a `.part` of a download that is never started again and a `.tmp` after a crash stay in the cache. A
   widget directory `<directory>.old` after a crash goes with the next extraction or the cache cleanup.
 - **Order of the cleanup** follows the atime, see [common](common.md#when-something-goes-wrong).

@@ -569,6 +569,7 @@ TEST_CASE("empty file fails")
 
     CHECK(r.status == DownloadStatus::Failed);
     CHECK(r.error == "empty file");
+    CHECK_FALSE(r.no_space);
     CHECK_FALSE(f.fs.exists(cache_file + ".part"));
 }
 
@@ -595,6 +596,8 @@ TEST_CASE("not enough disk space: no GET, the cached file stays")
     REQUIRE(result.has_value());
     CHECK(result->status == DownloadStatus::Failed);
     CHECK(result->local_path == cache_file);
+    CHECK(result->no_space);
+    CHECK(result->error == "not enough disk space for 4 bytes");
     CHECK(requested == 4);
     CHECK(f.transport.requests.size() == 1);
 }

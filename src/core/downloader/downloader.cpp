@@ -195,6 +195,7 @@ namespace garlic::core::downloader
         remote      = {};
         redirects   = 0;
         http_status = 0;
+        no_space    = false;
         start_error.clear();
 
         sendHead();
@@ -435,7 +436,9 @@ namespace garlic::core::downloader
 
         if (config.make_space && !config.make_space(remote.content_length))
         {
-            finish(DownloadStatus::Failed, "not enough disk space");
+            no_space = true;
+            finish(DownloadStatus::Failed, "not enough disk space for " + std::to_string(remote.content_length) +
+                                               " bytes");
             return;
         }
 
@@ -492,6 +495,7 @@ namespace garlic::core::downloader
         result.url         = url;
         result.error       = std::move(error);
         result.http_status = http_status;
+        result.no_space    = no_space;
 
         switch (status)
         {

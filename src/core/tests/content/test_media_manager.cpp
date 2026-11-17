@@ -15,6 +15,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "content/index_manager.hpp"
 #include "content/media_manager.hpp"
 #include "content_fixture.hpp"
 #include "smil/parser.hpp"
@@ -29,7 +30,7 @@ namespace
     struct Fixture : ContentFixture
     {
         smil::Document document;
-        MediaManager   media{queue, inventory, failing, logger, "cache", nullptr};
+        MediaManager   media{queue, inventory, failing, clock, logger, "cache", nullptr};
 
         Fixture()
         {
@@ -111,7 +112,7 @@ TEST_CASE("src: file:// is a local path, a Windows drive is used as it is, empty
 TEST_CASE("not supported local media is not resolved either")
 {
     ContentFixture f;
-    MediaManager   media(f.queue, f.inventory, f.fs, f.logger, "cache",
+    MediaManager   media(f.queue, f.inventory, f.fs, f.clock, f.logger, "cache",
                          [](const smil::Media &m) { return m.kind != smil::MediaKind::Video; });
     auto           parsed = smil::parse(R"(<smil><body><video src="/usb/v.mp4"/></body></smil>)");
     REQUIRE(parsed.has_value());
@@ -122,7 +123,7 @@ TEST_CASE("not supported local media is not resolved either")
 TEST_CASE("supported media with a filter: downloaded and resolved, also inside containers")
 {
     ContentFixture f;
-    MediaManager   media(f.queue, f.inventory, f.fs, f.logger, "cache",
+    MediaManager   media(f.queue, f.inventory, f.fs, f.clock, f.logger, "cache",
                          [](const smil::Media &m) { return m.kind != smil::MediaKind::Video; });
     f.on_result = [&](const downloader::DownloadResult &r) { media.downloaded(r); };
     f.serve("http://hub/a.jpg", "jpeg", "image/jpeg");
@@ -192,7 +193,7 @@ TEST_CASE("not supported: not downloaded, MEDIA_UNSUPPORTED once per index versi
 {
     ContentFixture f;
     smil::Document document;
-    MediaManager   media(f.queue, f.inventory, f.fs, f.logger, "cache",
+    MediaManager   media(f.queue, f.inventory, f.fs, f.clock, f.logger, "cache",
                          [](const smil::Media &m) { return m.kind != smil::MediaKind::Video; });
     f.serve("http://hub/v.mp4", "video", "video/mp4");
 
@@ -335,4 +336,109 @@ TEST_CASE("an update that cannot replace the file: the old version plays on, the
 
     f.failing.fail_rename = false;
     CHECK(f.fs.content(*f.media.resolve(f.at(0))) == "v2");
+}
+
+TEST_CASE("a file removed from the cache is downloaded again when the engine asks for it")
+{
+    Fixture f;
+    f.serve("http://hub/media/a.jpg", "jpeg", "image/jpeg");
+    f.load(R"(<img src="http://hub/media/a.jpg" dur="1s"/>)");
+    f.runUntilIdle();
+    auto path = f.media.resolve(f.at(0));
+    REQUIRE(path.has_value());
+    f.media.release(f.at(0));
+
+    REQUIRE(f.fs.remove(*path)); // by hand
+    CHECK_FALSE(f.media.resolve(f.at(0)).has_value());
+    f.runUntilIdle();
+    REQUIRE(f.media.resolve(f.at(0)) == path);
+    f.media.release(f.at(0));
+
+    // with its inventory row (REST API, cache cleanup)
+    REQUIRE(f.fs.remove(*path));
+    f.inventory.deleteByCacheName(path->substr(std::string("cache/").size()));
+    CHECK_FALSE(f.media.resolve(f.at(0)).has_value());
+    f.runUntilIdle();
+    CHECK(f.media.resolve(f.at(0)) == path);
+}
+
+TEST_CASE("a failed download is asked for again only after the retry time of the index")
+{
+    Fixture f; // nothing served: 404
+    f.load(R"(<img src="http://hub/media/a.jpg" dur="1s"/><prefetch src="http://hub/media/a.jpg"/>)");
+    f.runUntilIdle();
+    std::size_t first = f.requests("http://hub/media/a.jpg");
+    REQUIRE(first > 0);
+
+    CHECK_FALSE(f.media.resolve(f.at(0)).has_value());
+    f.media.prefetch(f.at(1));
+    f.runUntilIdle();
+    CHECK(f.requests("http://hub/media/a.jpg") == first);
+
+    f.clock.advance(IndexManager::retry);
+    f.serve("http://hub/media/a.jpg", "jpeg", "image/jpeg");
+    CHECK_FALSE(f.media.resolve(f.at(0)).has_value());
+    f.runUntilIdle();
+    CHECK(f.requests("http://hub/media/a.jpg") > first);
+    CHECK(f.media.resolve(f.at(0)).has_value());
+}
+
+TEST_CASE("not enough space: DISK_FULL, no new try before the next index")
+{
+    ContentFixture f;
+    MediaManager  *media  = nullptr;
+    auto           config = ContentFixture::downloaderConfig();
+    config.make_space     = [](std::uint64_t) { return false; };
+    downloader::DownloadQueue queue{f.transport, f.fs, f.inventory, f.clock, config, 2,
+                                    [&](const downloader::DownloadResult &r) { media->downloaded(r); }};
+    MediaManager manager(queue, f.inventory, f.fs, f.clock, f.logger, "cache", nullptr);
+    media = &manager;
+    auto run = [&]
+    {
+        for (int i = 0; i < 1000 && !queue.isIdle(); ++i)
+        {
+            f.transport.poll();
+            queue.poll();
+        }
+    };
+    f.serve("http://hub/big.mp4", "video", "video/mp4");
+    auto parsed = smil::parse(R"(<smil><body><video src="http://hub/big.mp4"/></body></smil>)");
+    REQUIRE(parsed.has_value());
+    const auto &video = std::get<smil::Media>(parsed->body.children.at(0));
+
+    manager.load(*parsed, "http://hub/");
+    run();
+    CHECK(f.events().contains("<eventName>DISK_FULL</eventName>"));
+    CHECK(f.events().contains("http://hub/big.mp4"));
+    CHECK(f.events().contains("not enough disk space for 5 bytes"));
+    std::size_t first = f.requests("http://hub/big.mp4");
+
+    f.clock.advance(IndexManager::retry * 10);
+    CHECK_FALSE(manager.resolve(video).has_value());
+    run();
+    CHECK(f.requests("http://hub/big.mp4") == first);
+
+    manager.load(*parsed, "http://hub/"); // the next index: once more
+    run();
+    CHECK(f.requests("http://hub/big.mp4") > first);
+}
+
+TEST_CASE("currentFiles: the cache files of the remote media of the index")
+{
+    Fixture f;
+    f.serve("http://hub/media/a.jpg", "jpeg", "image/jpeg");
+    f.serve("http://hub/media/b.jpg", "jpeg", "image/jpeg");
+    f.load(R"(<img src="http://hub/media/a.jpg" dur="1s"/><img src="/usb/c.jpg" dur="1s"/>)");
+    CHECK(f.media.currentFiles().empty()); // nothing downloaded yet
+    f.runUntilIdle();
+    auto a = f.media.resolve(f.at(0));
+    REQUIRE(a.has_value());
+    CHECK(f.media.currentFiles() == std::set<std::string>{a->substr(std::string("cache/").size())});
+
+    f.media.release(f.at(0));
+    f.load(R"(<img src="http://hub/media/b.jpg" dur="1s"/>)");
+    f.runUntilIdle();
+    auto files = f.media.currentFiles();
+    REQUIRE(files.size() == 1);
+    CHECK_FALSE(files.contains(a->substr(std::string("cache/").size())));
 }

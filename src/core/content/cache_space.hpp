@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <set>
 #include <string>
 
 namespace garlic::core::content
@@ -34,9 +35,9 @@ namespace garlic::core::content
      *
      * The entries of the cache directory are removed, the longest unread first, until the new bytes fit. An entry is
      * a file with its ".part" and ".ready" and, for a widget, the ".wgt" with its directory; its inventory row goes
-     * too. Kept are the index (index.smil, temporary.smil), the web cache of the Qt frontends (QtWebEngine), files
-     * that are being downloaded (".part") and uploads of the REST API (".tmp"). Media of the current index can go like in garlic-lib: they are downloaded
-     * again when they are needed.
+     * too. Kept are the index (index.smil, temporary.smil), the files of the current index (current_files), files
+     * that are being downloaded (".part") and uploads of the REST API (".tmp"). So a playlist that is too big for the
+     * disk does not push its own files out again and again: what does not fit is not downloaded (DISK_FULL).
      */
     class CacheSpace
     {
@@ -44,8 +45,11 @@ namespace garlic::core::content
             /// Free bytes of the cache's disk (system::diskSpace: 4 % stay free for the operating system).
             using FreeSpace = std::function<std::uint64_t()>;
 
+            /// The cache file names of the current index (MediaManager::currentFiles); not set: none.
+            using CurrentFiles = std::function<std::set<std::string>()>;
+
             CacheSpace(common::FileSystem &fs, downloader::Inventory &inventory, logger::Logger &logger,
-                       std::string cache_dir, FreeSpace free_space);
+                       std::string cache_dir, FreeSpace free_space, CurrentFiles current_files = {});
 
             /// Bytes to remove so that `bytes` fit, 0 if they fit (garlic-lib: calculateNeededDiscSpaceToFree).
             std::uint64_t needed(std::uint64_t bytes) const;
@@ -59,6 +63,7 @@ namespace garlic::core::content
             logger::Logger        &logger;
             std::string            cache_dir;
             FreeSpace              free_space;
+            CurrentFiles           current_files;
 
             std::uint64_t size(const std::string &path, bool directory) const;
     };

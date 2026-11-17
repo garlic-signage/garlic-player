@@ -94,7 +94,8 @@ One job at a time. `on_finished` is called exactly once, always from inside a `p
 
 **The player keeps playing on errors.** No error deletes or overwrites the cached file: HTTP errors, connection
 loss, timeout, wrong size, no disk space. `Failed` returns the cached copy in `local_path`; `error` and `http_status`
-are for logging.
+are for logging. `no_space` says that `make_space` could not free the bytes of the file (`error`: `not enough disk
+space for <n> bytes`); the media manager reports it as `DISK_FULL` and does not try again before the next index.
 
 Without ETag and Last-Modified the downloader cannot tell whether a file changed, so it downloads it again (the new
 file waits as `.ready`). This is the safe choice: a changed file with the same size is never missed.
@@ -230,8 +231,9 @@ refused, invalid URL, `User-Agent` arriving as `X-Signage-Agent`.
 
 ## When something goes wrong
 
-- **Failed media downloads are not logged.** Status, `error` and `http_status` are only in the `DownloadResult`; the
-  media manager only notes uncacheable URLs. A failed index download writes `index download failed: …` to
+- **Failed media downloads are not logged**, except for lack of space (`DISK_FULL`). Status, `error` and
+  `http_status` are only in the `DownloadResult`; the media manager notes uncacheable URLs and when it asks for a
+  failed one again. A failed index download writes `index download failed: …` to
   `debug.log`. In a test the reason is in the result.
 - **A medium that never shows**: `resolve()` finds no inventory row or no file. Check `garlic.db` and the cache
   directory; leftover `<name>.part` means the download broke off, `<name>.ready` that an update waits until the file
