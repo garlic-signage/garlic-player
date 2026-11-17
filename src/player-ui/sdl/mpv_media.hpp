@@ -60,6 +60,8 @@ namespace player
             mpv_render_context *render = nullptr;
             bool                playing = false; // between start() and the end; an end after stop() is no end
             bool                new_frame = false;
+            int                 video_width  = 0; // as shown, from mpv (dwidth, dheight); 0 until it knows
+            int                 video_height = 0;
 
             // the frame: a texture of the renderer and a framebuffer of ours on it
             SDL_Texture *texture     = nullptr;

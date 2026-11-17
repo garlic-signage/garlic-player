@@ -1,0 +1,25 @@
+from 2026-01-01 00:00:00 for 120s
+0s start video_center
+2s stop video_center
+2s start video_topleft
+4s stop video_topleft
+4s start video_topmid
+6s stop video_topmid
+6s start video_topright
+8s stop video_topright
+8s start video_midleft
+10s stop video_midleft
+10s start video_midright
+12s stop video_midright
+12s start video_bottomleft
+14s stop video_bottomleft
+14s start video_bottommid
+16s stop video_bottommid
+16s start video_bottomright
+18s stop video_bottomright
+18s start video_meet_midleft
+20s stop video_meet_midleft
+20s start video_slice_bottommid
+22s stop video_slice_bottommid
+22s start video_fill
+24s stop video_fill

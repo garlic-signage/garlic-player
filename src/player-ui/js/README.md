@@ -104,7 +104,8 @@ activated / accessKey
   killed is loaded again at the next start.
 - **Like the other players**: only the topmost medium with a picture is visible, audio covers nothing; a StartMedia is
   shown in all regions with its name, only the first one reports end and errors; fit and mediaAlign as `object-fit`
-  and `object-position` (meetBest: `scale-down`).
+  and `object-position` (meetBest: `scale-down`), for images and videos alike (SMIL standard; the qwidget player
+  always centered videos and kept their aspect inside).
 
 ## Requirements of the servers
 

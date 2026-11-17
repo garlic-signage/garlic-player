@@ -140,7 +140,10 @@ class Media {
         } else if (this.#playable) {
             element = document.createElement(this.kind);
             element.volume = region.volume;
-            element.style.objectFit = region.fit === 'fill' ? 'fill' : region.fit === 'slice' ? 'cover' : 'contain';
+            // fit and mediaAlign like images (SMIL standard: without fit the original size; the qwidget player always
+            // kept the aspect inside and centered videos)
+            element.style.objectFit = IMAGE_FIT[region.fit] ?? 'none';
+            element.style.objectPosition = `${Media.#horizontal(region.align)} ${Media.#vertical(region.align)}`;
             element.onended = () => this.#finished();
             element.onerror = () => this.#failed(element.error?.message || 'invalid media');
             element.src = this.#url;

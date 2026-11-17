@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing mediaAlign and fit of videos" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="yellow" mediaAlign="center"/>
+		</layout>
+	</head>
+	<body>
+		<!--
+
+			Videos align like images (SMIL standard). The qwidget player and the legacy players always centered them,
+			the SDL and the JS player follow mediaAlign.
+
+			sequence should be: yellow background, the video small in its original size (560 × 320), 2 s each:
+				center (default of the region), topLeft, topMid, topRight, midLeft, midRight, bottomLeft, bottomMid,
+				bottomRight
+			then: meet with midLeft (full height, at the left), slice with bottomMid (full width, cut at the top),
+				fill (stretched over the whole screen)
+
+		-->
+		<video xml:id="video_center" src="../../videos/0003.mov" dur="2s" region="screen" />
+		<video xml:id="video_topleft" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="topLeft" />
+		<video xml:id="video_topmid" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="topMid" />
+		<video xml:id="video_topright" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="topRight" />
+		<video xml:id="video_midleft" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="midLeft" />
+		<video xml:id="video_midright" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="midRight" />
+		<video xml:id="video_bottomleft" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="bottomLeft" />
+		<video xml:id="video_bottommid" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="bottomMid" />
+		<video xml:id="video_bottomright" src="../../videos/0003.mov" dur="2s" region="screen" mediaAlign="bottomRight" />
+		<video xml:id="video_meet_midleft" src="../../videos/0003.mov" dur="2s" region="screen" fit="meet" mediaAlign="midLeft" />
+		<video xml:id="video_slice_bottommid" src="../../videos/0003.mov" dur="2s" region="screen" fit="slice" mediaAlign="bottomMid" />
+		<video xml:id="video_fill" src="../../videos/0003.mov" dur="2s" region="screen" fit="fill" />
+	</body>
+</smil>

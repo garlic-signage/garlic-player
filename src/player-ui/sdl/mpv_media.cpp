@@ -23,6 +23,7 @@
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -201,7 +202,6 @@ namespace player
             report(Outcome::Failed, "libmpv cannot start for " + source);
             return;
         }
-        std::string how = fit();
         mpv_set_option_string(mpv, "vo", "libmpv");
         // hardware decoding where mpv finds a safe way; GARLIC_MPV_HWDEC overrides it (e.g. "no", "auto-copy-safe")
         // for a device whose driver fails with it
@@ -218,9 +218,9 @@ namespace player
         mpv_set_option_string(mpv, "audio-display", "no");
         if (!is_video)
             mpv_set_option_string(mpv, "vid", "no");
-        // fit like the qwidget player: fill stretches, slice covers, everything else keeps the aspect inside
-        mpv_set_option_string(mpv, "keepaspect", how == "fill" ? "no" : "yes");
-        mpv_set_option_string(mpv, "panscan", how == "slice" ? "1.0" : "0.0");
+        // fit and mediaAlign like images (place()): the texture gets the size and position of the video in the region,
+        // mpv fills it completely; the window cuts what lies outside the region (slice)
+        mpv_set_option_string(mpv, "keepaspect", "no");
         mpv_set_option_string(mpv, "volume", std::to_string(std::lround(volume() * 100)).c_str());
         if (mpv_initialize(mpv) < 0)
         {
@@ -311,6 +311,18 @@ namespace player
             mpv_event *event = mpv_wait_event(mpv, 0);
             if (event->event_id == MPV_EVENT_NONE)
                 break;
+            if (event->event_id == MPV_EVENT_VIDEO_RECONFIG)
+            {
+                // the size of the video as shown (rotation and pixel aspect applied), for fit and mediaAlign
+                std::int64_t width  = 0;
+                std::int64_t height = 0;
+                mpv_get_property(mpv, "dwidth", MPV_FORMAT_INT64, &width);
+                mpv_get_property(mpv, "dheight", MPV_FORMAT_INT64, &height);
+                video_width  = static_cast<int>(width);
+                video_height = static_cast<int>(height);
+                new_frame    = true;
+                continue;
+            }
             if (event->event_id != MPV_EVENT_END_FILE || !playing)
                 continue;
             auto *end = static_cast<mpv_event_end_file *>(event->data);
@@ -327,7 +339,7 @@ namespace player
         }
     }
 
-    /// A texture of the renderer in the size of the region, and a framebuffer on it for mpv
+    /// A texture of the renderer in the size the video is drawn, and a framebuffer on it for mpv
     bool MpvMedia::prepareFrame(int width, int height)
     {
         if (texture != nullptr && width == frame_width && height == frame_height)
@@ -395,9 +407,12 @@ namespace player
 
     void MpvMedia::draw(SDL_Renderer &target, const SDL_FRect &area)
     {
-        if (render == nullptr)
+        if (render == nullptr || video_width <= 0 || video_height <= 0) // no picture yet
             return;
-        if (!prepareFrame(static_cast<int>(std::lround(area.w)), static_cast<int>(std::lround(area.h))))
+        SDL_FRect where = place(area, static_cast<float>(video_width), static_cast<float>(video_height), fit(),
+                                mediaAlign());
+        if (!prepareFrame(std::max(1, static_cast<int>(std::lround(where.w))),
+                          std::max(1, static_cast<int>(std::lround(where.h)))))
             return;
         if (new_frame)
         {
@@ -426,6 +441,6 @@ namespace player
             }
             new_frame = false;
         }
-        SDL_RenderTexture(&target, texture, nullptr, &area);
+        SDL_RenderTexture(&target, texture, nullptr, &where);
     }
 }

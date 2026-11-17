@@ -245,13 +245,50 @@ namespace player
         if (dialog)
         {
             bool shift = (event.mod & SDL_KMOD_SHIFT) != 0;
+            bool ctrl  = (event.mod & SDL_KMOD_CTRL) != 0;
+            using ui::EditKey;
+            // like the line edits of the desktops: arrows, Home, End, with Shift selecting and with Ctrl by words;
+            // Ctrl+A all, Ctrl+C / Ctrl+X / Ctrl+V the clipboard (pasting is typing)
+            auto pick = [&](EditKey plain, EditKey selecting) { dialog->input(shift ? selecting : plain); };
             switch (event.key)
             {
-                case SDLK_BACKSPACE: dialog->input(ui::EditKey::Backspace); break;
+                case SDLK_BACKSPACE: dialog->input(EditKey::Backspace); break;
+                case SDLK_DELETE: dialog->input(EditKey::Delete); break;
                 case SDLK_RETURN:
-                case SDLK_KP_ENTER: dialog->input(ui::EditKey::Enter); break;
-                case SDLK_ESCAPE: dialog->input(ui::EditKey::Escape); break;
-                case SDLK_TAB: dialog->input(shift ? ui::EditKey::BackTab : ui::EditKey::Tab); break;
+                case SDLK_KP_ENTER: dialog->input(EditKey::Enter); break;
+                case SDLK_ESCAPE: dialog->input(EditKey::Escape); break;
+                case SDLK_TAB: dialog->input(shift ? EditKey::BackTab : EditKey::Tab); break;
+                case SDLK_LEFT:
+                    ctrl ? pick(EditKey::WordLeft, EditKey::SelectWordLeft) : pick(EditKey::Left, EditKey::SelectLeft);
+                    break;
+                case SDLK_RIGHT:
+                    ctrl ? pick(EditKey::WordRight, EditKey::SelectWordRight)
+                         : pick(EditKey::Right, EditKey::SelectRight);
+                    break;
+                case SDLK_HOME: pick(EditKey::Home, EditKey::SelectHome); break;
+                case SDLK_END: pick(EditKey::End, EditKey::SelectEnd); break;
+                case SDLK_A:
+                    if (ctrl)
+                        dialog->input(EditKey::SelectAll);
+                    break;
+                case SDLK_C:
+                case SDLK_X:
+                    if (ctrl)
+                        if (std::string selected = dialog->selectedText(); !selected.empty())
+                        {
+                            SDL_SetClipboardText(selected.c_str());
+                            if (event.key == SDLK_X)
+                                dialog->input(EditKey::Delete);
+                        }
+                    break;
+                case SDLK_V:
+                    if (ctrl && SDL_HasClipboardText())
+                        if (char *pasted = SDL_GetClipboardText(); pasted != nullptr)
+                        {
+                            dialog->input(std::string(pasted));
+                            SDL_free(pasted);
+                        }
+                    break;
                 default: break;
             }
             dirty = true;

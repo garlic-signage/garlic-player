@@ -182,6 +182,14 @@ namespace player
             state = Result::Rejected;
     }
 
+    std::string SettingsDialog::selectedText() const
+    {
+        for (const ui::TextField *field : {&player_name, &index_uri, &httpd_port})
+            if (field->focused())
+                return field->selectedText();
+        return {};
+    }
+
     void SettingsDialog::input(const ui::KeyboardInput &input)
     {
         if (const auto *key = std::get_if<ui::EditKey>(&input))

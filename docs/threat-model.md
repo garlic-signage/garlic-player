@@ -79,6 +79,11 @@ files in the cache, take screenshots and restart the device (`/v2/task/reboot`).
 
 **Accepted risk, for now.** This is a known weakness, not a design goal. A proper login is planned.
 
+Together with section 6 it is the most direct path: whoever reaches the port can set an index whose web content
+reads local files (see there).
+
+**Planned for 2.0.** A configurable login with random tokens, and the server bound to `127.0.0.1` by default.
+
 **Operator requirement.** Switch the HTTP server off when no CMS or tool uses the REST API (settings dialog or
 `httpd/enabled=false` in the ini), or bind it to `127.0.0.1` (`httpd/host`), or block port 8080 at the firewall of
 the device or the network. Never expose the port to the internet.
@@ -89,7 +94,9 @@ the device or the network. Never expose the port to the internet.
 
 **Behaviour.** Web pages and widgets run in Qt WebEngine (Chromium). To let local widgets load remote data, the
 frontends start it with `--allow-file-access-from-files --disable-web-security` and allow local content to reach
-remote URLs and files and insecure content (`qwidget/main.cpp`, `qwidget/web.cpp`, `qml/main.cpp`).
+remote URLs and files and insecure content (`qwidget/main.cpp`, `qwidget/web.cpp`, `qml/main.cpp`; the SDL
+player does the same with CEF, `sdl/cef_web_view.cpp`). An index may also name any local path as web content
+(`src="file:///…"` or an absolute path), not only files in the cache (`src/core/tests/data/smil/issues/9.smil`).
 
 **Rationale.** Signage widgets are local HTML packages that fetch feeds and data from other origins; without these
 flags most of them do not work.
@@ -99,6 +106,9 @@ local files the player's user may read and send them elsewhere. Only content fro
 
 **Operator requirement.** Play only web pages and widgets you trust. Run the player under a user of its own without
 access to other data.
+
+**Planned for 2.0.** Local web content only from the cache (extracted widgets), and file access only for those
+instead of `--disable-web-security` for every page.
 
 ---
 

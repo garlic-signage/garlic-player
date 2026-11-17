@@ -66,6 +66,8 @@ namespace player
             virtual void tick() {}
             /// Whether it takes typed text (the window starts text input then)
             [[nodiscard]] virtual bool wantsText() const { return false; }
+            /// The selected text of the focused field, for the clipboard (Ctrl+C, Ctrl+X)
+            [[nodiscard]] virtual std::string selectedText() const { return {}; }
 
             [[nodiscard]] Result result() const noexcept { return state; }
 
@@ -89,6 +91,7 @@ namespace player
             void pointer(const ui::PointerEvent &event) override;
             void input(const ui::KeyboardInput &input) override;
             [[nodiscard]] bool wantsText() const override { return true; }
+            [[nodiscard]] std::string selectedText() const override;
 
         private:
             garlic::core::ThreadedRuntime &runtime;

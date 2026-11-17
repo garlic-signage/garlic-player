@@ -18,6 +18,7 @@
 #ifndef PLAYER_UI_SDL_MEDIA_HPP
 #define PLAYER_UI_SDL_MEDIA_HPP
 
+#include "place.hpp"
 #include "smil/document.hpp"
 
 #include <SDL3/SDL_events.h>
@@ -101,15 +102,6 @@ namespace player
     /// The class for media.kind; nullptr for kinds that are not shown (prefetch).
     std::unique_ptr<Media> createMedia(const garlic::core::smil::Media &smil, const garlic::core::smil::Region &region,
                                        const std::string &source, Report report, const MediaContext &context);
-
-    /**
-     * Where content of width × height goes in area for fit and mediaAlign, like the Image of the qwidget player:
-     * fill stretches, meet keeps the aspect inside, meetBest like meet but never larger than the original, slice
-     * covers the area (cut by the clip), anything else keeps the original size. The result is placed by mediaAlign
-     * (topLeft if unknown, garlic-lib); a larger result is cut on the sides the alignment points away from.
-     */
-    SDL_FRect place(const SDL_FRect &area, float width, float height, const std::string &fit,
-                    const std::string &media_align);
 }
 
 #endif // PLAYER_UI_SDL_MEDIA_HPP

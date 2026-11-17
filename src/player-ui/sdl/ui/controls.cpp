@@ -20,27 +20,114 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <chrono>
 
 namespace player::ui
 {
     namespace
     {
-        constexpr float padding = 10.0F;
+        constexpr float padding         = 10.0F;
+        constexpr float cursor_width    = 2.0F;
+        constexpr int   double_click_ms = 400;
 
-        /// Removes the last UTF-8 code point of text (all its bytes)
-        void popCodePoint(std::string &text)
+        bool isContinuation(char byte)
         {
-            while (!text.empty())
-            {
-                auto byte = static_cast<unsigned char>(text.back());
-                text.pop_back();
-                if ((byte & 0xC0U) != 0x80U) // not a continuation byte: the start of the code point
-                    return;
-            }
+            return (static_cast<unsigned char>(byte) & 0xC0U) == 0x80U;
+        }
+
+        /// The start of the code point before / after offset (UTF-8)
+        std::size_t previousPoint(const std::string &text, std::size_t offset)
+        {
+            if (offset == 0)
+                return 0;
+            --offset;
+            while (offset > 0 && isContinuation(text[offset]))
+                --offset;
+            return offset;
+        }
+
+        std::size_t nextPoint(const std::string &text, std::size_t offset)
+        {
+            if (offset >= text.size())
+                return text.size();
+            ++offset;
+            while (offset < text.size() && isContinuation(text[offset]))
+                ++offset;
+            return offset;
+        }
+
+        /// Words for Ctrl+arrows: letters and digits (and every non-ASCII byte); "/", ".", ":", "-", " " … separate
+        bool isWordByte(char byte)
+        {
+            auto c = static_cast<unsigned char>(byte);
+            return c >= 0x80U || std::isalnum(c) != 0 || c == '_';
+        }
+
+        std::size_t previousWord(const std::string &text, std::size_t offset)
+        {
+            while (offset > 0 && !isWordByte(text[offset - 1]))
+                --offset;
+            while (offset > 0 && isWordByte(text[offset - 1])) // all bytes of a non-ASCII code point are word bytes
+                --offset;
+            return offset;
+        }
+
+        std::size_t nextWord(const std::string &text, std::size_t offset)
+        {
+            while (offset < text.size() && isWordByte(text[offset]))
+                ++offset;
+            while (offset < text.size() && !isWordByte(text[offset]))
+                ++offset;
+            return offset;
+        }
+
+        std::int64_t nowMs()
+        {
+            using namespace std::chrono;
+            return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
         }
     }
 
     // ------------------------------------------------------------------ TextField
+
+    std::string TextField::selectedText() const
+    {
+        auto [from, to] = std::minmax(cursor, anchor);
+        return content.substr(from, to - from);
+    }
+
+    bool TextField::eraseSelection()
+    {
+        if (cursor == anchor)
+            return false;
+        auto [from, to] = std::minmax(cursor, anchor);
+        content.erase(from, to - from);
+        cursor = anchor = from;
+        return true;
+    }
+
+    void TextField::insert(std::string_view text)
+    {
+        std::string accepted;
+        for (char c : text)
+            if (!digits_only || std::isdigit(static_cast<unsigned char>(c)) != 0)
+                if (c != '\n' && c != '\r') // one line: pasted line breaks are dropped
+                    accepted += c;
+        if (accepted.empty())
+            return;
+        eraseSelection();
+        content.insert(cursor, accepted);
+        cursor += accepted.size();
+        anchor = cursor;
+    }
+
+    void TextField::move(std::size_t to, bool select)
+    {
+        cursor = std::min(to, content.size());
+        if (!select)
+            anchor = cursor;
+    }
 
     bool TextField::input(const KeyboardInput &input)
     {
@@ -49,24 +136,89 @@ namespace player::ui
         std::string before = content;
         if (const auto *typed = std::get_if<std::string>(&input))
         {
-            if (!digits_only)
-                content += *typed;
-            else
-                for (char c : *typed)
-                    if (std::isdigit(static_cast<unsigned char>(c)) != 0)
-                        content += c;
+            insert(*typed);
+            return content != before;
         }
-        else if (std::get<EditKey>(input) == EditKey::Backspace)
-            popCodePoint(content);
+        bool selection = cursor != anchor;
+        auto [from, to] = std::minmax(cursor, anchor);
+        switch (std::get<EditKey>(input))
+        {
+            case EditKey::Backspace:
+                if (!eraseSelection() && cursor > 0)
+                {
+                    std::size_t start = previousPoint(content, cursor);
+                    content.erase(start, cursor - start);
+                    cursor = anchor = start;
+                }
+                break;
+            case EditKey::Delete:
+                if (!eraseSelection() && cursor < content.size())
+                    content.erase(cursor, nextPoint(content, cursor) - cursor);
+                break;
+            // without Shift an arrow ends a selection at its side, like the line edits of the desktops
+            case EditKey::Left: move(selection ? from : previousPoint(content, cursor), false); break;
+            case EditKey::Right: move(selection ? to : nextPoint(content, cursor), false); break;
+            case EditKey::WordLeft: move(previousWord(content, cursor), false); break;
+            case EditKey::WordRight: move(nextWord(content, cursor), false); break;
+            case EditKey::Home: move(0, false); break;
+            case EditKey::End: move(content.size(), false); break;
+            case EditKey::SelectLeft: move(previousPoint(content, cursor), true); break;
+            case EditKey::SelectRight: move(nextPoint(content, cursor), true); break;
+            case EditKey::SelectWordLeft: move(previousWord(content, cursor), true); break;
+            case EditKey::SelectWordRight: move(nextWord(content, cursor), true); break;
+            case EditKey::SelectHome: move(0, true); break;
+            case EditKey::SelectEnd: move(content.size(), true); break;
+            case EditKey::SelectAll:
+                anchor = 0;
+                cursor = content.size();
+                break;
+            default: break; // Enter, Escape, Tab: the business of the dialog
+        }
         return content != before;
     }
 
-    void TextField::pointerDown(Point /*position*/)
+    std::size_t TextField::offsetAt(float x) const
+    {
+        if (stops.empty())
+            return content.size();
+        // the nearest code point boundary
+        std::size_t best      = stops.front().first;
+        float       best_dist = std::abs(stops.front().second - x);
+        for (const auto &[offset, stop_x] : stops)
+            if (float dist = std::abs(stop_x - x); dist < best_dist)
+            {
+                best      = offset;
+                best_dist = dist;
+            }
+        return best;
+    }
+
+    void TextField::pointerDown(Point position)
     {
         if (!enabled)
             return;
-        has_focus       = true;
-        focus_requested = true;
+        bool was_focused = has_focus;
+        has_focus        = true;
+        focus_requested  = true;
+        std::int64_t now = nowMs();
+        if (was_focused && now - last_down_ms <= double_click_ms)
+        {
+            // a double click selects all (URLs, names: mostly replaced as a whole)
+            anchor       = 0;
+            cursor       = content.size();
+            last_down_ms = -1000;
+            dragging     = false;
+            return;
+        }
+        last_down_ms = now;
+        move(offsetAt(position.x), false);
+        dragging = true;
+    }
+
+    void TextField::pointerMove(Point position)
+    {
+        if (dragging)
+            move(offsetAt(position.x), true);
     }
 
     void TextField::draw(Canvas &canvas) const
@@ -80,19 +232,58 @@ namespace player::ui
         else
             canvas.fillRoundedRect(inner, 4.0F, look::disabled_background, look::disabled_background);
 
-        constexpr float cursor_width = 2.0F;
-        float           text_y       = area.y + ((area.height - canvas.textHeight()) / 2);
-        float           max_width    = std::max(0.0F, inner.width - (2 * padding) - cursor_width);
+        float text_y    = area.y + ((area.height - canvas.textHeight()) / 2);
+        float max_width = std::max(0.0F, inner.width - (2 * padding) - cursor_width);
+        float left      = inner.x + padding;
         if (content.empty())
-            canvas.textElided({inner.x + padding, text_y}, placeholder, look::text_dim, max_width);
-        else
-            canvas.textElided({inner.x + padding, text_y}, content, enabled ? look::text : look::disabled_text,
-                              max_width);
-        if (has_focus)
         {
-            float cursor_x = inner.x + padding + std::min(canvas.textWidth(content), max_width);
-            canvas.fillRect({cursor_x, text_y, cursor_width, canvas.textHeight()}, look::text);
+            stops = {{0, left}};
+            scroll = 0.0F;
+            canvas.textElided({left, text_y}, placeholder, look::text_dim, max_width);
+            if (has_focus)
+                canvas.fillRect({left, text_y, cursor_width, canvas.textHeight()}, look::text);
+            return;
         }
+        auto layout = [&]
+        {
+            stops.clear();
+            for (std::size_t offset = 0;; offset = nextPoint(content, offset))
+            {
+                stops.emplace_back(offset,
+                                   left - scroll + canvas.textWidth(std::string_view(content).substr(0, offset)));
+                if (offset >= content.size())
+                    break;
+            }
+        };
+        if (!has_focus) // from the start, elided like before; the stops let the first click place the cursor
+        {
+            scroll = 0.0F;
+            layout();
+            canvas.textElided({left, text_y}, content, enabled ? look::text : look::disabled_text, max_width);
+            return;
+        }
+
+        // scrolled so the cursor stays visible
+        float cursor_x = canvas.textWidth(std::string_view(content).substr(0, cursor));
+        if (cursor_x - scroll > max_width)
+            scroll = cursor_x - max_width;
+        if (cursor_x < scroll)
+            scroll = cursor_x;
+        scroll = std::clamp(scroll, 0.0F, std::max(0.0F, canvas.textWidth(content) - max_width));
+
+        layout();
+
+        canvas.setClip(Rect{left, inner.y, max_width + cursor_width, inner.height});
+        if (cursor != anchor)
+        {
+            auto [from, to] = std::minmax(cursor, anchor);
+            float x1        = left - scroll + canvas.textWidth(std::string_view(content).substr(0, from));
+            float x2        = left - scroll + canvas.textWidth(std::string_view(content).substr(0, to));
+            canvas.fillRect({x1, text_y, x2 - x1, canvas.textHeight()}, look::selection);
+        }
+        canvas.text({left - scroll, text_y}, content, enabled ? look::text : look::disabled_text);
+        canvas.fillRect({left - scroll + cursor_x, text_y, cursor_width, canvas.textHeight()}, look::text);
+        canvas.setClip(std::nullopt);
     }
 
     // ------------------------------------------------------------------ CheckBox

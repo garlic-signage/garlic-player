@@ -68,8 +68,10 @@ namespace
 
 int main(int argc, char *argv[])
 {
-    // like garlic-lib: widgets read local files and remote data
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--allow-file-access-from-files --disable-web-security");
+    // like garlic-lib: widgets read local files and remote data. Web pages always light like garlic-lib (Qt 5) and
+    // CEF: Qt 6 hands the dark scheme of the desktop to Chromium, pages without colors of their own turned dark
+    qputenv("QTWEBENGINE_CHROMIUM_FLAGS",
+            "--allow-file-access-from-files --disable-web-security --blink-settings=preferredColorScheme=1");
     QApplication app(argc, argv);
     QApplication::setApplicationName("garlic-player");
     QApplication::setApplicationVersion(PLAYER_VERSION);

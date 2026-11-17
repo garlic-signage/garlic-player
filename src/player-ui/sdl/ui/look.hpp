@@ -41,6 +41,7 @@ namespace player::ui::look
     inline constexpr Color highlight_top{62, 112, 172};
     inline constexpr Color highlight_bottom{36, 72, 118};
     inline constexpr Color highlight_text{255, 255, 255};
+    inline constexpr Color selection{40, 90, 150}; // selected text in a text field
     inline constexpr Color item_top{64, 66, 72};
     inline constexpr Color item_bottom{50, 52, 57};
     inline constexpr Color focus{80, 160, 255};

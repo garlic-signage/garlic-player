@@ -59,6 +59,7 @@ add_executable(sdl
     paths.cpp
     player_window.cpp
     media.cpp
+    place.cpp
     color.cpp
     dialogs.cpp
     blank_screen.cpp
@@ -165,3 +166,8 @@ add_custom_command(TARGET sdl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/../qwidget/fonts/DejaVuSans.ttf
             $<TARGET_FILE_DIR:sdl>/fonts/DejaVuSans.ttf
 )
+
+option(GARLIC_PLAYER_SDL_TESTS "Build the tests of the SDL player (doctest)" ON)
+if(GARLIC_PLAYER_SDL_TESTS)
+    add_subdirectory(tests)
+endif()

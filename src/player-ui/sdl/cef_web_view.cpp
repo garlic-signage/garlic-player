@@ -87,6 +87,8 @@ namespace player
                     // QTWEBENGINE_CHROMIUM_FLAGS of the Qt players: widgets read local files and remote data
                     command_line->AppendSwitch("allow-file-access-from-files");
                     command_line->AppendSwitch("disable-web-security");
+                    // web pages always light, like the Qt players: Chromium follows the dark scheme of the desktop
+                    command_line->AppendSwitchWithValue("blink-settings", "preferredColorScheme=1");
                     // PlaybackRequiresUserGesture false
                     command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
                     // disable-web-security needs its own profile directory
@@ -528,6 +530,9 @@ namespace player
                     info.shared_texture_enabled = shared_texture;
                     CefBrowserSettings settings;
                     settings.windowless_frame_rate = 60;
+                    // opaque white like Chromium in a window (garlic-lib, Qt players). Off-screen it is transparent by
+                    // default, and text drawn on transparency comes out pale and washed out
+                    settings.background_color = CefColorSetARGB(255, 255, 255, 255);
                     settings.javascript_access_clipboard = STATE_ENABLED; // JavascriptCanPaste
                     settings.javascript_dom_paste        = STATE_ENABLED;
                     creating = CefBrowserHost::CreateBrowser(info, client, url, settings, nullptr, nullptr);
@@ -819,7 +824,9 @@ namespace player
             if (std::strncmp(argv[i], "--type=", 7) == 0)
             {
                 CefMainArgs args(argc, argv);
-                return CefExecuteProcess(args, app().get(), nullptr);
+                // exit here, never return: a process forked by the zygote of Chromium gets a new stack guard
+                // (--change-stack-guard-on-fork), so returning through this frame aborted with "stack smashing detected"
+                std::exit(CefExecuteProcess(args, app().get(), nullptr));
             }
         return -1; // the player itself
     }

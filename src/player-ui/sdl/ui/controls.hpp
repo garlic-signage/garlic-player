@@ -20,9 +20,11 @@
 
 #include "widget.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -31,25 +33,52 @@
 /// context_menu) and cut down to what the player needs.
 namespace player::ui
 {
-    /// Keys that edit text or move between fields, apart from typing
+    /// Keys that edit text or move between fields, apart from typing. Select… moves the cursor and extends the
+    /// selection (Shift), Word… jumps by words (Ctrl).
     enum class EditKey : std::uint8_t
     {
         Backspace,
+        Delete,
         Enter,
         Escape,
         Tab,
-        BackTab
+        BackTab,
+        Left,
+        Right,
+        WordLeft,
+        WordRight,
+        Home,
+        End,
+        SelectLeft,
+        SelectRight,
+        SelectWordLeft,
+        SelectWordRight,
+        SelectHome,
+        SelectEnd,
+        SelectAll
     };
 
     /// Typed text (UTF-8, after input methods) or an editing key
     using KeyboardInput = std::variant<std::string, EditKey>;
 
-    /// One-line text input. A tap focuses it; typed text is appended, Backspace removes the last character.
+    /**
+     * One-line text input like a desktop line edit: a cursor that moves with the arrow keys, Home and End (by words
+     * with Ctrl), a selection with Shift or by dragging, a double click selects all; typed or pasted text replaces the
+     * selection. The text scrolls when it is longer than the field. The clipboard is the business of the window
+     * (selectedText(), pasting is typing).
+     */
     class TextField final : public Widget
     {
         public:
             [[nodiscard]] const std::string &text() const noexcept { return content; }
-            void                             setText(std::string text) { content = std::move(text); }
+            void                             setText(std::string text)
+            {
+                content = std::move(text);
+                cursor  = content.size();
+                anchor  = cursor;
+            }
+            /// The selected part, empty without a selection
+            [[nodiscard]] std::string selectedText() const;
             void                             setPlaceholder(std::string hint) { placeholder = std::move(hint); }
             void                             setEnabled(bool on) noexcept { enabled = on; }
             [[nodiscard]] bool               isEnabled() const noexcept { return enabled; }
@@ -65,17 +94,30 @@ namespace player::ui
             bool input(const KeyboardInput &input);
 
             void pointerDown(Point position) override;
-            void pointerMove(Point /*position*/) override {}
-            void pointerUp(Point /*position*/) override {}
+            void pointerMove(Point position) override;
+            void pointerUp(Point /*position*/) override { dragging = false; }
             void draw(Canvas &canvas) const override;
 
         private:
             std::string placeholder;
             std::string content;
+            std::size_t cursor          = 0; // byte offset at the start of a code point
+            std::size_t anchor          = 0; // the other end of the selection; == cursor: no selection
             bool        enabled         = true;
             bool        digits_only     = false;
             bool        has_focus       = false;
             bool        focus_requested = false;
+            bool        dragging        = false;
+            std::int64_t last_down_ms   = -1000; // for the double click
+
+            // what draw() laid out, for the pointer: the x of every code point start and of the end, the scroll
+            mutable std::vector<std::pair<std::size_t, float>> stops; // byte offset → x in the window
+            mutable float                                      scroll = 0.0F;
+
+            void        insert(std::string_view text);
+            bool        eraseSelection();
+            void        move(std::size_t to, bool select);
+            std::size_t offsetAt(float x) const;
     };
 
     /// A box with a label that is on or off; a tap on the box or its label toggles it

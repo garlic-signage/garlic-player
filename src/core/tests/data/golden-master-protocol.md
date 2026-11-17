@@ -3,6 +3,8 @@
 Manual check of the golden master scenarios: every `smil/<path>.smil` is played in the player and compared with
 `golden/<path>.expected`. A scenario is validated when the playback on screen matches the expected timeline.
 
+Checked in player-ui: legacy qwidget 1.0 , qwidget 2.0, QML 2.0, and SDL
+
 Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes).
 
 ## seq
@@ -22,76 +24,69 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 |------------------------------|--------|-------|
 | `1_simple`                   | ok     |       |
 | `2_backgrounds`              | ok     |       |
-| `3_overlapping`              | bug    | qwidget: video is not overlapped by image 0003 (z-index 5 over 2); QML correct |
+| `3_overlapping`              | bug    | qwidget: video is not overlapped by image 0003 (z-index 5 over 2); QML and SDL correct |
 | `4_with_dur`                 | ok     | stays in sync; the old player drifted apart |
 | `5_wallclock`                | ok   |       |
 | `6_endsync`                  | ok   |       |
 | `7_multi_begin_endsync`      | ok   |       |
-| `8_multi_begin_restart`      | open   |       |
-| `bugs/1_hammering`           | open   |       |
-| `bugs/2_pseudo_sync`         | open   |       |
-| `trigger/1_syncbase`         | open   |       |
-| `trigger/2_events`           | open   |       |
-| `trigger/3_changes`          | open   |       |
+| `8_multi_begin_restart`      | ok     |  |
+| `bugs/1_hammering`           | ok   |       |
+| `bugs/2_pseudo_sync`         | ok   |       |
+| `trigger/1_syncbase`         | ok   |       |
+| `trigger/2_events`           | ok   |       |
+| `trigger/3_changes`          | ok   |       |
 
 ## excl
 
 | Scenario                          | Status | Notes |
 |-----------------------------------|--------|-------|
-| `bugs/1_nested_excl`              | open   |       |
-| `bugs/2_parallel_trigger_past`    | open   |       |
-| `bugs/3_hadi`                     | open   |       |
-| `bugs/4_parallel_trigger_media`   | open   |       |
-| `complex/1_customer`              | open   |       |
-| `complex/2_signapp`               | open   |       |
-| `complex/3_smilcontrol`           | open   |       |
-| `complex/test`                    | open   |       |
-| `higher/1_stop`                   | open   |       |
-| `higher/2_pause`                  | open   |       |
-| `lower/1_defer`                   | open   |       |
-| `lower/2_never`                   | open   |       |
-| `peers/1_stop`                    | open   |       |
-| `peers/2_pause`                   | open   |       |
-| `peers/3_defer`                   | open   |       |
-| `peers/4_never`                   | open   |       |
-| `trigger/1_indefinite`            | open   |       |
-| `trigger/2_indefinite_with_clock` | open   |       |
-| `trigger/3_activate_event`        | open   |       |
-| `trigger/4_accesskey`             | open   |       |
-| `trigger/5_priority_ping_pong`    | open   |       |
-| `trigger/6_priority_realworld`    | open   |       |
-| `trigger/7_notify`                | open   |       |
+| `bugs/1_nested_excl`              | ok   |       |
+| `bugs/2_parallel_trigger_past`    | ok   |       |
+| `bugs/3_hadi`                     | ok   |       |
+| `bugs/4_parallel_trigger_media`   | ok   |       |
+| `complex/1_customer`              | 20   |       |
+| `complex/2_signapp`               | ok   |       |
+| `complex/3_smilcontrol`           | ok   |       |
+| `higher/1_stop`                   | ok   |       |
+| `higher/2_pause`                  | ok   |       |
+| `lower/1_defer`                   | ok   |       |
+| `lower/2_never`                   | ok   |       |
+| `peers/1_stop`                    | ok   |       |
+| `peers/2_pause`                   | ok   |       |
+| `peers/3_defer`                   | ok   |       |
+| `peers/4_never`                   | ok   |       |
+| `trigger/1_indefinite`            | ok   |       |
+| `trigger/2_indefinite_with_clock` | ok   |       |
+| `trigger/3_activate_event`        | ok   |       |
+| `trigger/4_accesskey`             | ok   |       |
+| `trigger/5_priority_ping_pong`    | ok   |       |
+| `trigger/6_priority_realworld`    | ok   |       |
+| `trigger/7_notify`                | ok   |       |
 
 ## body
 
 | Scenario   | Status | Notes |
 |------------|--------|-------|
-| `align`    | open   |       |
-| `simple`   | open   |       |
+| `align`    | ok   |       |
+| `simple`   | ok   |       |
 
 ## head
 
 | Scenario        | Status | Notes |
 |-----------------|--------|-------|
-| `head_complex`  | open   |       |
-| `head_simple`   | open   |       |
+| `head_complex`  | ok   |       |
+| `head_simple`   | ok   |       |
 
 ## issues
 
 | Scenario | Status | Notes |
 |----------|--------|-------|
-| `7`      | open   |       |
-| `9`      | open   |       |
-| `12`     | open   |       |
-| `14`     | open   |       |
-| `31`     | open   |       |
-| `33`     | open   |       |
-
-## other
-
-| Scenario | Status | Notes |
-|----------|--------|-------|
-| `test`   | open   |       |
+| `7`      | ok   |       |
+| `9`      | ok   |       |
+| `12`     | ok   |       |
+| `14`     | bug   | qwidget video hide the overay, QML SDL are korrekt      |
+| `31`     | ok   |       |
+| `33`     | ok   |       |
 
 ## Todo
 

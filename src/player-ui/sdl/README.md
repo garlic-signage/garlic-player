@@ -10,7 +10,8 @@ web pages (native windows). If it runs smoother than the Qt players, Qt goes.
 | `main.cpp`                   | options like the qwidget player, supervisor, `ThreadedRuntime`, the main loop   |
 | `paths.hpp/.cpp`             | ini, cache and logs at the places of the Qt players and garlic-lib              |
 | `player_window.hpp/.cpp`     | `PlayerWindow`: core events, regions, input, 10-click menu, dialogs, drawing    |
-| `media.hpp/.cpp`             | `Media`, image (SDL3_image), brush, web (through `WebView`), what cannot play; `place()` for fit and mediaAlign |
+| `media.hpp/.cpp`             | `Media`, image (SDL3_image), brush, web (through `WebView`), what cannot play |
+| `place.hpp/.cpp`             | `place()`: fit and mediaAlign of images and videos |
 | `mpv_media.hpp/.cpp`         | `MpvMedia`: video and audio with libmpv, rendered into a texture of the renderer |
 | `web_view.hpp`               | `WebView`: the interface for web pages per platform, and what the engine needs from `main()` and the loop |
 | `cef_web_view.cpp`           | `WebView` with CEF off-screen rendering (Linux)                                 |
@@ -56,8 +57,11 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
   when the region changes its size (qwidget: `Qt::SmoothTransformation`). Shrunk, it is halved step by step and
   scaled to the exact size last; the GPU alone scales linearly from 4 pixels, and shrunk to a third or less the edges
   fray. Enlarged, the GPU scales the original.
-- **Fit and mediaAlign** like the qwidget player: images by `place()`; video by mpv (`fill` stretches, `slice` is
-  `panscan=1`, everything else keeps the aspect), centered.
+- **Fit and mediaAlign** by `place()` (`place.hpp/.cpp`, tested in `tests/`), for images and videos alike (SMIL
+  standard): `fill` stretches, `meet` keeps the aspect inside, `meetBest` like meet but never larger, `slice` covers
+  (cut by the region), without fit the original size; then placed by mediaAlign. For video mpv reports its size
+  (`dwidth`/`dheight` after `MPV_EVENT_VIDEO_RECONFIG`) and renders into a texture of exactly that place
+  (`keepaspect=no`). The qwidget and the legacy players always kept the aspect inside and centered videos.
 - **Video and audio**: one mpv per medium. Video renders through the render API (OpenGL) into a framebuffer on a
   texture of the SDL renderer. mpv has an OpenGL context of its own that shares its textures with the one of the
   renderer (one for all media): in the same context the state SDL leaves broke mpv (NVIDIA: crash in the driver with

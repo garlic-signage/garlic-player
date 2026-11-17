@@ -165,7 +165,13 @@ namespace player
         /// A local path as file:// URL, percent-encoded like QUrl::fromLocalFile; an already encoded query stays
         std::string fileUrl(const std::string &source)
         {
-            if (source.find("://") != std::string::npos)
+            // a URL with a scheme stays as it is: http://, file://, also data:,… and about:blank without "//"; at least
+            // two letters before ":", so a Windows path like C:\… is a path
+            std::size_t colon = source.find(':');
+            if (colon >= 2 && colon != std::string::npos &&
+                std::all_of(source.begin(), source.begin() + static_cast<std::ptrdiff_t>(colon),
+                            [](unsigned char c) { return std::isalnum(c) != 0 || c == '+' || c == '-' || c == '.'; }) &&
+                std::isalpha(static_cast<unsigned char>(source.front())) != 0)
                 return source;
             std::size_t query = source.find('?');
             std::string path  = source.substr(0, query);
@@ -283,59 +289,5 @@ namespace player
             case MediaKind::Prefetch: return nullptr;
         }
         return nullptr;
-    }
-
-    SDL_FRect place(const SDL_FRect &area, float width, float height, const std::string &fit,
-                    const std::string &media_align)
-    {
-        float w = width;
-        float h = height;
-        if (width > 0 && height > 0)
-        {
-            float meet  = std::min(area.w / width, area.h / height);
-            float cover = std::max(area.w / width, area.h / height);
-            if (fit == "fill")
-            {
-                w = area.w;
-                h = area.h;
-            }
-            else if (fit == "meet" || (fit == "meetbest" && (width > area.w || height > area.h)))
-            {
-                w = width * meet;
-                h = height * meet;
-            }
-            else if (fit == "slice")
-            {
-                w = width * cover;
-                h = height * cover;
-            }
-        }
-
-        // mediaAlign: topLeft, topMid, topRight, midLeft, center, midRight, bottomLeft, bottomMid, bottomRight
-        float fx = 0;
-        float fy = 0;
-        if (media_align == "center")
-            fx = fy = 0.5F;
-        else if (media_align == "topmid")
-            fx = 0.5F;
-        else if (media_align == "topright")
-            fx = 1;
-        else if (media_align == "midleft")
-            fy = 0.5F;
-        else if (media_align == "midright")
-        {
-            fx = 1;
-            fy = 0.5F;
-        }
-        else if (media_align == "bottomleft")
-            fy = 1;
-        else if (media_align == "bottommid")
-        {
-            fx = 0.5F;
-            fy = 1;
-        }
-        else if (media_align == "bottomright")
-            fx = fy = 1;
-        return {area.x + (area.w - w) * fx, area.y + (area.h - h) * fy, w, h};
     }
 }
