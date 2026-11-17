@@ -158,7 +158,7 @@ TEST_CASE("all excl test files can be parsed")
     for (const auto &entry :
          std::filesystem::recursive_directory_iterator(std::filesystem::path(GARLIC_CORE_TEST_DATA) / "excl"))
     {
-        if (!entry.is_regular_file())
+        if (!entry.is_regular_file() || entry.path().extension() != ".smil") // helpers like notify.sh lie beside them
             continue;
         CAPTURE(entry.path().string());
         auto document = parse(readFile(entry.path()));

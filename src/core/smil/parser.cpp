@@ -426,6 +426,32 @@ namespace garlic::core::smil
          * "2026-01-05+w3T08:00:00+01:00" → local time. Without zone the time is local time, with "Z" or "±hh:mm"
          * it is converted to local time.
          */
+        /// "08:00:00+01:00" → "08:00:00" and the offset east of UTC; "Z" is 0, no zone is nullopt (local time).
+        std::optional<std::chrono::seconds> cutZone(std::string_view &time)
+        {
+            using namespace std::chrono;
+            if (time.ends_with('Z'))
+            {
+                time.remove_suffix(1);
+                return seconds(0);
+            }
+            auto sign = time.find_first_of("+-");
+            if (sign == std::string_view::npos)
+                return std::nullopt;
+            auto parts = split(time.substr(sign + 1), ':');
+            auto zoned = hours(static_cast<int>(toNumber(parts[0]))) +
+                         minutes(parts.size() > 1 ? static_cast<int>(toNumber(parts[1])) : 0);
+            seconds zone = time[sign] == '-' ? -zoned : zoned;
+            time         = time.substr(0, sign);
+            return zone;
+        }
+
+        /// "17:22", "17:22:30", "17:22:30Z": a time without a date (SMIL WallTime), not "2026-…" or "T17:22"
+        bool isTimeOnly(std::string_view value)
+        {
+            return value.size() >= 5 && isDigit(value[0]) && isDigit(value[1]) && value[2] == ':';
+        }
+
         std::chrono::local_seconds parseWallclockDate(std::string_view value)
         {
             using namespace std::chrono;
@@ -433,28 +459,14 @@ namespace garlic::core::smil
             sys_days         date = parseDateWithWeekday(value.substr(0, t));
             std::string_view time = t == std::string_view::npos ? std::string_view() : value.substr(t + 1);
 
-            std::optional<seconds> zone; // offset east of UTC
-            if (time.ends_with('Z'))
-            {
-                zone = seconds(0);
-                time.remove_suffix(1);
-            }
-            else if (auto sign = time.find_first_of("+-"); sign != std::string_view::npos)
-            {
-                auto parts = split(time.substr(sign + 1), ':');
-                auto zoned = hours(static_cast<int>(toNumber(parts[0]))) +
-                             minutes(parts.size() > 1 ? static_cast<int>(toNumber(parts[1])) : 0);
-                zone       = time[sign] == '-' ? -zoned : zoned;
-                time       = time.substr(0, sign);
-            }
-
+            std::optional<seconds> zone = cutZone(time); // offset east of UTC
             seconds time_of_day = parseTimeOfDay(time);
             if (!zone)
                 return local_days{date.time_since_epoch()} + time_of_day;
             return common::toLocalTime(sys_seconds{date + time_of_day - *zone});
         }
 
-        /// "R/2026-01-01T08:00/P1D", "R5/…", "2026-01-01T08:00", "2026-01-01T08:00/P1D", garlic-lib: WallClock
+        /// "R/2026-01-01T08:00/P1D", "R5/…", "2026-01-01T08:00", "2026-01-01T08:00/P1D", "17:22:30", garlic-lib: WallClock
         Wallclock parseWallclock(std::string_view value)
         {
             Wallclock wallclock;
@@ -465,7 +477,15 @@ namespace garlic::core::smil
                 wallclock.repeats = parts[0].size() == 1 ? -1 : static_cast<int>(toNumber(parts[0].substr(1)));
                 date_index        = 1;
             }
-            if (date_index < parts.size())
+            if (date_index < parts.size() && isTimeOnly(parts[date_index]))
+            {
+                // garlic-lib read it as an invalid date (2000-01-01): it never fired
+                std::string_view time = parts[date_index];
+                wallclock.time_only   = true;
+                wallclock.zone        = cutZone(time);
+                wallclock.start       = std::chrono::local_seconds{parseTimeOfDay(time)};
+            }
+            else if (date_index < parts.size())
                 wallclock.start = parseWallclockDate(parts[date_index]);
             if (date_index + 1 < parts.size())
                 wallclock.period = parsePeriod(parts[date_index + 1]);

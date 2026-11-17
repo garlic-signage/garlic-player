@@ -64,7 +64,10 @@ namespace garlic::core::smil
 
     void Engine::start()
     {
+        clock_snapshot = std::pair{clock.monotonic(), clock.now()};
+        document_day   = std::chrono::floor<std::chrono::days>(common::toLocalTime(clock_snapshot->second));
         activate(0);
+        clock_snapshot.reset();
     }
 
     void Engine::stop()
@@ -79,7 +82,8 @@ namespace garlic::core::smil
 
     std::vector<Command> Engine::poll()
     {
-        auto now = clock.monotonic();
+        clock_snapshot = std::pair{clock.monotonic(), clock.now()};
+        auto now       = clock_snapshot->first;
         while (!schedule.empty() && schedule.front().time <= now)
         {
             Scheduled event = pop();
@@ -106,19 +110,20 @@ namespace garlic::core::smil
                 case EventType::End:
                     --n.pending_ends;
                     if (event.wallclock != no_wallclock)
-                        scheduleWallclock(event.node, event.wallclock, true, event.occurrence); // the next one
+                        scheduleWallclock(event.node, event.wallclock, true, event.occurrence, event.time); // the next one
                     endEvent(event.node);
                     break;
                 case EventType::Begin:
                     --n.pending_begins;
                     if (event.wallclock != no_wallclock)
-                        scheduleWallclock(event.node, event.wallclock, false, event.occurrence); // the next one
+                        scheduleWallclock(event.node, event.wallclock, false, event.occurrence, event.time); // the next one
                     tryStart(event.node, event.elapsed);
                     settle(event.node);
                     break;
             }
         }
         event_time.reset();
+        clock_snapshot.reset();
         return std::exchange(pending, {});
     }
 
@@ -370,16 +375,30 @@ namespace garlic::core::smil
      * if the event came a little early compared to the system time, the same occurrence must not come twice.
      * False if there is none any more.
      */
-    bool Engine::scheduleWallclock(std::size_t node, std::size_t index, bool is_end, std::chrono::local_seconds after)
+    bool Engine::scheduleWallclock(std::size_t node, std::size_t index, bool is_end, std::chrono::local_seconds after,
+                                   std::optional<steady_clock::time_point> planned)
     {
         const Timing &timing    = timingOf(node);
-        const auto   &wallclock = std::get<Wallclock>((is_end ? timing.end : timing.begin)[index]);
-        auto          local_now = common::toLocalTime(clock.now());
-        auto          next      = wallclockTriggers(wallclock, std::max(local_now, after)).next;
+        Wallclock     wallclock = resolved(std::get<Wallclock>((is_end ? timing.end : timing.begin)[index]));
+        auto [monotonic_now, system_now] = clockNow();
+        auto local_now = common::toLocalTime(system_now); // whole seconds
+        auto next      = wallclockTriggers(wallclock, std::max(local_now, after)).next;
         if (!next)
             return false;
-        push(Scheduled{clock.monotonic() + (*next - local_now), next_order++, node, nodes[node].activation,
-                       is_end ? EventType::End : EventType::Begin, index, milliseconds(0), *next});
+        // the fraction of the current second, cut off by local_seconds: without it a wallclock came up to 1 s late
+        auto fraction = system_now - std::chrono::floor<std::chrono::seconds>(system_now);
+        auto due      = monotonic_now + (*next - local_now) - fraction;
+        // the next occurrence after one that fired counts from the time that one was planned for: two wallclocks with
+        // the same times stay due at the same moment, so the document order decides every time. Unless the system
+        // time jumped (NTP, set by hand): then the clocks decide.
+        if (planned)
+        {
+            auto by_plan = *planned + (*next - after);
+            if (std::chrono::abs(by_plan - due) <= std::chrono::seconds(1))
+                due = by_plan;
+        }
+        push(Scheduled{due, next_order++, node, nodes[node].activation, is_end ? EventType::End : EventType::Begin,
+                       index, milliseconds(0), *next});
         ++(is_end ? nodes[node].pending_ends : nodes[node].pending_begins);
         return true;
     }
@@ -387,11 +406,35 @@ namespace garlic::core::smil
     /// How long ago the wallclock fired last, if it did.
     std::optional<milliseconds> Engine::wallclockBegunAgo(const Wallclock &wallclock) const
     {
-        auto local_now = common::toLocalTime(clock.now());
-        auto previous  = wallclockTriggers(wallclock, local_now).previous;
+        auto system_now = clockNow().second;
+        auto local_now  = common::toLocalTime(system_now); // whole seconds
+        auto previous   = wallclockTriggers(resolved(wallclock), local_now).previous;
         if (!previous)
             return std::nullopt;
-        return std::chrono::duration_cast<milliseconds>(local_now - *previous);
+        auto fraction = system_now - std::chrono::floor<std::chrono::seconds>(system_now); // cut off by local_seconds
+        return std::chrono::duration_cast<milliseconds>(local_now - *previous + fraction);
+    }
+
+    Wallclock Engine::resolved(const Wallclock &wallclock) const
+    {
+        if (!wallclock.time_only)
+            return wallclock;
+        Wallclock result   = wallclock;
+        auto      time     = wallclock.start.time_since_epoch(); // only the time of day
+        result.time_only   = false;
+        if (!wallclock.zone)
+            result.start = document_day + time;
+        else // the time in that zone on the day of the document, in local time
+            result.start = common::toLocalTime(
+                std::chrono::sys_seconds{std::chrono::sys_days{document_day.time_since_epoch()} + time - *wallclock.zone});
+        return result;
+    }
+
+    std::pair<steady_clock::time_point, std::chrono::system_clock::time_point> Engine::clockNow() const
+    {
+        if (clock_snapshot)
+            return *clock_snapshot;
+        return {clock.monotonic(), clock.now()};
     }
 
     // ------------------------------------------------------------------ lifecycle of every element

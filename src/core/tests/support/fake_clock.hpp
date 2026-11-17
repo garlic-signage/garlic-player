@@ -26,8 +26,16 @@ namespace garlic::core::tests
     class FakeClock final : public common::Clock
     {
         public:
-            std::chrono::system_clock::time_point now() const noexcept override { return wall; }
+            std::chrono::system_clock::time_point now() const noexcept override
+            {
+                auto time = wall;
+                wall += read_step; // like a real clock that moves on between two readings
+                return time;
+            }
             std::chrono::steady_clock::time_point monotonic() const noexcept override { return steady; }
+
+            /// Every now() moves the wall-clock time on by this much (0: it stands still until advance()).
+            std::chrono::system_clock::duration read_step{0};
 
             void advance(std::chrono::steady_clock::duration duration) noexcept
             {
@@ -39,7 +47,7 @@ namespace garlic::core::tests
             void setWallTime(std::chrono::system_clock::time_point time) noexcept { wall = time; }
 
         private:
-            std::chrono::system_clock::time_point wall = std::chrono::sys_days{std::chrono::January / 1 / 2026};
+            mutable std::chrono::system_clock::time_point wall = std::chrono::sys_days{std::chrono::January / 1 / 2026};
             std::chrono::steady_clock::time_point steady{};
     };
 }

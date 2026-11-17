@@ -284,6 +284,7 @@ as in garlic-lib; unreadable values are skipped.
 | repeats   | `R` endless, `R5` five times, missing    | `repeats` -1, 5, 0                                     |
 | date      | `yyyy-MM-dd`, optional `+wN`/`-wN`       | `start`: the next (`+`, also without sign) or previous (`-`) weekday N after/before the date; 1 = Monday … 7 = Sunday; the same weekday counts as a week later/earlier |
 | time      | `THH`, `THH:mm`, `THH:mm:ss`, missing = 00:00 | added to `start`                                  |
+| time only | `HH:mm`, `HH:mm:ss` without a date, e.g. `wallclock(17:22:30)`, also `R/17:00/P1D` | `time_only`: the time on the day the engine starts (SMIL WallTime); garlic-lib read it as an invalid date and it never fired |
 | time zone | none = local time, `Z`, `+hh:mm`, `-hh:mm` | converted to local time                             |
 | period    | `P1Y2M3W4DT5H6M7S`                       | `period`; weeks become days                            |
 
@@ -291,6 +292,11 @@ as in garlic-lib; unreadable values are skipped.
 - Without a period there is no repeat (`repeats` 0, GitHub issue #31).
 - An invalid date becomes 2000-01-01, an invalid time 00:00 like in garlic-lib.
 - When the wallclock fires next is calculated at runtime, not by the parser.
+- **On time**: the system time is read with its fraction of a second (`local_seconds` alone cut it off, so a wallclock
+  came up to 1 s late). Both clocks are read once per `start()` and `poll()`, and the next occurrence after one that
+  fired counts from the time that one was planned for: wallclocks with the same times stay due at exactly the same
+  moment, so the document order decides between them in every repeat (`excl/bugs/3_hadi`, screen8). If the system
+  time jumped by more than 1 s meanwhile (NTP, set by hand), the next one follows the clocks instead.
 
 ## Differences to garlic-lib
 

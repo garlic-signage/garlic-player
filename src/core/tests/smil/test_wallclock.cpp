@@ -26,7 +26,11 @@ namespace
 {
     Wallclock wallclock(local_seconds start, int repeats = 0, Period period = {})
     {
-        return Wallclock{start, repeats, period};
+        Wallclock result;
+        result.start   = start;
+        result.repeats = repeats;
+        result.period  = period;
+        return result;
     }
 
     Period daily()

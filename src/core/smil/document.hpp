@@ -124,6 +124,11 @@ namespace garlic::core::smil
         std::chrono::local_seconds start;   // local time; weekday (±wN) and time zone already applied
         int                        repeats = 0; // R: -1 (endless), Rn: n, without R: 0; 0 without a period
         Period                     period;
+
+        /// wallclock(17:22:30) without a date (SMIL): the time on the day the document begins, which only the engine
+        /// knows. start then holds only the time of day (on 1970-01-01), zone its time zone if one was given.
+        bool                                time_only = false;
+        std::optional<std::chrono::seconds> zone; // offset east of UTC, only with time_only
     };
 
     /// begin="img1.begin+2s", begin="img1.end": when another element begins or ends

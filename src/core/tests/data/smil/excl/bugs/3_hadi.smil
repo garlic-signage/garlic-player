@@ -17,6 +17,8 @@
 </head>
 <body>
     <par>
+
+        <!-- count from 1 to 10 -->
         <seq xml:id="seq1" repeatCount="indefinite">
             <img region="screen1" begin="wallclock(R/00:00:00/PT10S)" dur="1s" src="../../../images/0001.jpg" fit="fill" />
             <img region="screen1" begin="wallclock(R/00:00:01/PT10S)" dur="1s" src="../../../images/0002.jpg" fit="fill" />
@@ -69,9 +71,7 @@
         </excl>
 
         <!--
-            let's try adding date value in addition of time to wallclock.
-            somewhat an improvement here. the first item showed up at the defined time but the rest didn't display.
-            maybe i can try split each video into their own excl
+            should not show anything as date is in the past
         -->
         <excl xml:id="excl4" restart="whenNotActive">
             <img region="screen4" begin="wallclock(2022-07-08T01:05:00)" dur="10" src="../../../images/begin.jpg" fit="fill"></img>
@@ -157,9 +157,10 @@
         </excl>
 
 
-        <!-- i copied everything from excl6 and deleted the date value from wallclock, but nothing shows up
+        <!--
 
-			Niko: As in ID= excl3 this cannot work because wallclock need an explicite date to work.
+            Show nothing only around 17:22
+
         -->
         <excl xml:id="excl7" restart="whenNotActive">
             <priorityClass higher="stop">

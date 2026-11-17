@@ -272,6 +272,10 @@ namespace garlic::core::smil
             bool                   interrupting = false; // excl stop: the end of the stopped element is no normal end
             /// While poll() handles an event: the time it was planned for (catch_up_limit), else nullopt.
             std::optional<std::chrono::steady_clock::time_point> event_time;
+            /// While start() or poll() runs: both clocks read once (clockNow()).
+            std::optional<std::pair<std::chrono::steady_clock::time_point, std::chrono::system_clock::time_point>>
+                clock_snapshot;
+            std::chrono::local_days document_day{}; // the day of start(), for wallclocks without a date
 
             std::map<std::string, std::vector<Listener>, std::less<>> by_source; // "img1" → listeners of img1.…
             std::map<char, std::vector<Listener>>                      by_accesskey;
@@ -296,9 +300,14 @@ namespace garlic::core::smil
             void deliver(const Listener &listener);
             void announceBegin(std::size_t node);
             void announceEnd(std::size_t node);
-            bool scheduleWallclock(std::size_t node, std::size_t index, bool is_end,
-                                   std::chrono::local_seconds after = {});
+            bool scheduleWallclock(std::size_t node, std::size_t index, bool is_end, std::chrono::local_seconds after = {},
+                                   std::optional<std::chrono::steady_clock::time_point> planned = std::nullopt);
             std::optional<std::chrono::milliseconds> wallclockBegunAgo(const Wallclock &wallclock) const;
+            /// A wallclock without a date gets the day the document began (SMIL); all others stay as they are.
+            Wallclock resolved(const Wallclock &wallclock) const;
+            /// Monotonic and system time read together once per start() and poll(): two wallclocks with the same time
+            /// are then due at exactly the same moment, and the document order decides between them.
+            std::pair<std::chrono::steady_clock::time_point, std::chrono::system_clock::time_point> clockNow() const;
 
             // lifecycle of every element
             void activate(std::size_t node);

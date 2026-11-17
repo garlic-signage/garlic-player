@@ -153,6 +153,62 @@ TEST_CASE("wallclock: start at the time, a past one plays the rest of its dur")
     CHECK(zone.run(10s) == "3s start a | 4s stop a");
 }
 
+TEST_CASE("wallclock: the fraction of the current second counts, not up to 1 s late")
+{
+    TimeZone tz("UTC");
+    auto     start = std::chrono::sys_days{std::chrono::January / 1 / 2026} + 700ms; // 00:00:00.700
+
+    auto later = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(2026-01-01T00:00:05)" dur="1s"/></par>)x");
+    later.clock.setWallTime(start);
+    CHECK(later.run(10s) == "4.300s start a | 5.300s stop a");
+
+    // begun 2.7 s ago: 2.3 s of its dur are left
+    auto past = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(2025-12-31T23:59:58)" dur="5s"/></par>)x");
+    past.clock.setWallTime(start);
+    CHECK(past.run(10s) == "0s start a | 2.300s stop a");
+}
+
+TEST_CASE("wallclock without a date: that time on the day the document begins (SMIL WallTime)")
+{
+    TimeZone tz("UTC"); // the FakeClock starts at 2026-01-01T00:00:00
+
+    auto today = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(00:00:05)" dur="1s"/></par>)x");
+    CHECK(today.run(48h) == "5s start a | 6s stop a"); // once, not every day
+
+    auto zone = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(01:00:05+01:00)" dur="1s"/></par>)x");
+    CHECK(zone.run(10s) == "5s start a | 6s stop a");
+
+    auto daily = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(R/00:00:05/P1D)" dur="1s"/></par>)x");
+    CHECK(daily.run(25h) == "5s start a | 6s stop a | 86405s start a | 86406s stop a");
+}
+
+TEST_CASE("wallclocks with the same time stay due together: the document order decides every time")
+{
+    TimeZone tz("UTC");
+    // peers that begin together: the later one in the document stops the earlier one, also in every repeat
+    auto runner = EngineRunner::body(R"x(<excl>
+        <img xml:id="a" src="a.jpg" begin="wallclock(R/2026-01-01T00:00:10/PT100S)" dur="10s"/>
+        <img xml:id="b" src="b.jpg" begin="wallclock(R/2026-01-01T00:00:10/PT100S)" dur="10s"/>
+    </excl>)x");
+    runner.clock.read_step = std::chrono::microseconds(1); // the system time moves on between two readings
+    auto timeline = runner.run(330s);
+    CHECK(timeline.find("start a") == std::string::npos);
+    std::size_t starts = 0;
+    for (auto pos = timeline.find("start b"); pos != std::string::npos; pos = timeline.find("start b", pos + 1))
+        ++starts;
+    CHECK(starts == 4); // 10 s, 110 s, 210 s, 310 s
+}
+
+TEST_CASE("wallclock after a jump of the system time: the next one follows the clocks, not the plan")
+{
+    TimeZone tz("UTC");
+    auto     runner = EngineRunner::body(R"x(<par><img xml:id="a" src="a.jpg" begin="wallclock(R/2026-01-01T00:00:10/PT100S)" dur="1s"/></par>)x");
+    CHECK(runner.run(20s) == "10s start a | 11s stop a");
+    runner.clock.setWallTime(std::chrono::sys_days{std::chrono::January / 1 / 2026} + 70s); // 50 s ahead at 20 s
+    // the one planned before the jump comes at 110 s (00:02:40 by then); the next one at 00:03:30 = 160 s, not 210 s
+    CHECK(runner.runFor(170s) == "10s start a | 11s stop a | 110s start a | 111s stop a | 160s start a | 161s stop a");
+}
+
 TEST_CASE("begin in the past with an end time: active if no end came after the begin (garlic-lib: mustStartImmediately)")
 {
     TimeZone tz("UTC"); // the FakeClock starts at 2026-01-01T00:00:00
