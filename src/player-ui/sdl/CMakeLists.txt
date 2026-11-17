@@ -237,6 +237,7 @@ if(PLAYER_SDL_WITH_CEF)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND _cpu MATCHES "^(aarch64|arm64)$")
         set(_cef_platform linuxarm64)
         set(_cef_sha1 ea8f06c33514f9f3d75ca003437f9ac45223e07d)
+        set(PROJECT_ARCH arm64) # for cef_variables.cmake, Linux reports aarch64
     elseif(WIN32 AND _cpu MATCHES "^(x86_64|amd64)$")
         set(_cef_platform windows64)
         set(_cef_sha1 1fedfc8dd0274caec9183a709ad1ed7856867b91)
