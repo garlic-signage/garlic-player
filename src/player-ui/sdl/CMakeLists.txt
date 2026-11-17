@@ -103,7 +103,7 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_NAME garlic-player-sdl
         MACOSX_BUNDLE_ICON_FILE garlic-player.icns
         MACOSX_BUNDLE_GUI_IDENTIFIER com.garlic-signage.garlic-player-sdl
-        BUILD_RPATH "@executable_path/../Frameworks" # libmpv
+        BUILD_RPATH "@executable_path/../Frameworks" # libmpv and its libraries
         INSTALL_RPATH "@executable_path/../Frameworks"
     )
     set(_sdl_resource_dir $<TARGET_BUNDLE_CONTENT_DIR:sdl>/Resources)
@@ -111,78 +111,119 @@ else()
     set(_sdl_resource_dir $<TARGET_FILE_DIR:sdl>)
 endif()
 
-# libmpv for video and audio (render API with OpenGL; client API 2.0 = mpv 0.35, Debian Trixie has 0.40). From
-# pkg-config (Linux), or from MPV_DIR if set: Windows the libmpv package mpv-dev-x86_64-… of shinchiro, unpacked
-# (include/mpv/*.h, libmpv-2.dll, libmpv.dll.a, mpv.def); macOS the prefix of an own build (include/mpv/*.h,
-# lib/libmpv.dylib), copied into Contents/Frameworks of the bundle.
+# libmpv for video and audio (render API with OpenGL; client API 2.0 = mpv 0.35, Debian Trixie has 0.40).
+# Linux: from pkg-config. Windows: the official libmpv of mpv is downloaded (lgpl, one DLL with FFmpeg and the rest,
+# include/mpv/*.h, libmpv.dll.a), or another one from MPV_DIR (same layout, mpv.def optional). macOS: the prebuilt
+# libmpv of media_kit (github.com/media-kit/libmpv-darwin-build, mpv 0.36 with FFmpeg and libass, every library its
+# own dylib with @rpath) is downloaded, the headers from the sources of mpv 0.36; the dylibs go into
+# Contents/Frameworks of the bundle.
 option(PLAYER_SDL_WITH_MPV "Video and audio by libmpv, if found" ON)
-set(MPV_DIR "" CACHE PATH "Folder of libmpv instead of pkg-config (Windows: mpv-dev-x86_64-… of shinchiro, macOS: prefix)")
+set(MPV_DIR "" CACHE PATH "Folder of libmpv instead of pkg-config or the download (include/mpv, libmpv*.dll)")
 if(PLAYER_SDL_WITH_MPV)
-    if(NOT MPV_DIR)
+    set(_mpv_found OFF)
+    if(APPLE)
+        FetchContent_Declare(libmpv_darwin
+            URL      https://github.com/media-kit/libmpv-darwin-build/releases/download/v0.7.3/libmpv-libs_v0.7.3_macos-arm64-video-full.tar.gz
+            URL_HASH SHA256=9bb168ec908b4801f4231f411e3278a0aea644a2b03ce375c880d2813ab7f949
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        FetchContent_Declare(mpv_headers
+            URL           https://github.com/mpv-player/mpv/archive/refs/tags/v0.36.0.tar.gz
+            URL_HASH      SHA256=29abc44f8ebee013bb2f9fe14d80b30db19b534c679056e4851ceadf5a5e8bf6
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SOURCE_SUBDIR not-added # only the headers
+        )
+        FetchContent_MakeAvailable(libmpv_darwin mpv_headers)
+        file(COPY ${mpv_headers_SOURCE_DIR}/libmpv/ DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/mpv-include/mpv
+             FILES_MATCHING PATTERN "*.h")
+        set(MPV_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/mpv-include)
+        set(MPV_LIBRARY ${libmpv_darwin_SOURCE_DIR}/libmpv.dylib)
+        file(GLOB _mpv_dylibs ${libmpv_darwin_SOURCE_DIR}/*.dylib)
+        add_custom_command(TARGET sdl POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory
+                           $<TARGET_BUNDLE_CONTENT_DIR:sdl>/Frameworks)
+        foreach(_dylib ${_mpv_dylibs}) # found through @rpath (@executable_path/../Frameworks)
+            add_custom_command(TARGET sdl POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_dylib}
+                               $<TARGET_BUNDLE_CONTENT_DIR:sdl>/Frameworks/)
+        endforeach()
+        set(_mpv_found ON)
+        message(STATUS "sdl player: video and audio by libmpv 0.36 of media_kit")
+    elseif(NOT WIN32 AND NOT MPV_DIR)
         find_package(PkgConfig)
-    endif()
-    if(PkgConfig_FOUND AND NOT MPV_DIR)
-        pkg_check_modules(MPV IMPORTED_TARGET mpv>=2.0)
-    endif()
-    if(MPV_FOUND)
-        target_sources(sdl PRIVATE mpv_media.cpp)
-        target_compile_definitions(sdl PRIVATE PLAYER_SDL_WITH_MPV)
-        target_link_libraries(sdl PRIVATE PkgConfig::MPV)
-        message(STATUS "sdl player: video and audio by libmpv ${MPV_VERSION}")
+        if(PkgConfig_FOUND)
+            pkg_check_modules(MPV IMPORTED_TARGET mpv>=2.0)
+        endif()
+        if(MPV_FOUND)
+            target_link_libraries(sdl PRIVATE PkgConfig::MPV)
+            set(_mpv_found ON)
+            message(STATUS "sdl player: video and audio by libmpv ${MPV_VERSION}")
+        endif()
     else()
-        find_path(MPV_INCLUDE_DIR mpv/render_gl.h HINTS ${MPV_DIR} PATH_SUFFIXES include)
-        file(GLOB _mpv_dlls ${MPV_DIR}/libmpv*.dll ${MPV_DIR}/bin/libmpv*.dll)
-        if(MSVC AND _mpv_dlls AND EXISTS ${MPV_DIR}/mpv.def)
-            # MSVC: the import library from mpv.def (lib.exe), for the DLL of the package
+        set(_mpv_dir ${MPV_DIR})
+        if(NOT _mpv_dir) # Windows
+            FetchContent_Declare(libmpv_windows
+                URL      https://github.com/mpv-player/mpv/releases/download/v0.42.0/libmpv-v0.42.0-x86_64-w64-mingw32-lgpl.zip
+                URL_HASH SHA256=8e5f77430efc53ef175804ba6618527e3af0448a0dcabf04d3cc72659d1a6fce
+                DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            )
+            FetchContent_MakeAvailable(libmpv_windows)
+            set(_mpv_dir ${libmpv_windows_SOURCE_DIR})
+        endif()
+        find_path(MPV_INCLUDE_DIR mpv/render_gl.h HINTS ${_mpv_dir} PATH_SUFFIXES include NO_DEFAULT_PATH)
+        file(GLOB _mpv_dlls ${_mpv_dir}/libmpv*.dll ${_mpv_dir}/bin/libmpv*.dll)
+        if(MSVC AND _mpv_dlls AND MPV_INCLUDE_DIR)
+            # MSVC: an import library (lib.exe) for the DLL, from mpv.def or, without it, from the functions the
+            # headers export (MPV_EXPORT), the same as the exports of the DLL
+            set(_mpv_def ${_mpv_dir}/mpv.def)
+            if(NOT EXISTS ${_mpv_def})
+                set(_mpv_def ${CMAKE_CURRENT_BINARY_DIR}/mpv.def)
+                file(GLOB _mpv_headers ${MPV_INCLUDE_DIR}/mpv/*.h)
+                set(_mpv_exports "")
+                foreach(_header ${_mpv_headers})
+                    file(READ ${_header} _content)
+                    string(REGEX MATCHALL "MPV_EXPORT[^;{#]*[ *]mpv_[a-z0-9_]+\\(" _declarations "${_content}")
+                    foreach(_declaration ${_declarations})
+                        string(REGEX REPLACE ".*[ *](mpv_[a-z0-9_]+)\\($" "\\1" _name "${_declaration}")
+                        list(APPEND _mpv_exports ${_name})
+                    endforeach()
+                endforeach()
+                list(JOIN _mpv_exports "\n" _mpv_exports)
+                file(WRITE ${_mpv_def} "EXPORTS\n${_mpv_exports}\n")
+            endif()
             list(GET _mpv_dlls 0 _mpv_dll)
             get_filename_component(_mpv_dll_name ${_mpv_dll} NAME)
             set(MPV_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/mpv.lib)
-            execute_process(COMMAND ${CMAKE_AR} /nologo /def:${MPV_DIR}/mpv.def /name:${_mpv_dll_name} /machine:x64
+            execute_process(COMMAND ${CMAKE_AR} /nologo /def:${_mpv_def} /name:${_mpv_dll_name} /machine:x64
                                     /out:${MPV_LIBRARY}
                             RESULT_VARIABLE _mpv_lib_result)
             if(NOT _mpv_lib_result EQUAL 0)
                 unset(MPV_LIBRARY)
             endif()
         else()
-            find_library(MPV_LIBRARY NAMES mpv libmpv libmpv.dll.a HINTS ${MPV_DIR} PATH_SUFFIXES lib)
+            find_library(MPV_LIBRARY NAMES mpv libmpv libmpv.dll.a HINTS ${_mpv_dir} PATH_SUFFIXES lib)
         endif()
         if(MPV_INCLUDE_DIR AND MPV_LIBRARY)
-            target_sources(sdl PRIVATE mpv_media.cpp)
-            target_compile_definitions(sdl PRIVATE PLAYER_SDL_WITH_MPV)
-            target_include_directories(sdl SYSTEM PRIVATE ${MPV_INCLUDE_DIR})
-            target_link_libraries(sdl PRIVATE ${MPV_LIBRARY})
             foreach(_dll ${_mpv_dlls}) # next to the program
                 add_custom_command(TARGET sdl POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_dll}
                                    $<TARGET_FILE_DIR:sdl>)
             endforeach()
-            if(APPLE AND MPV_LIBRARY MATCHES "\\.dylib$")
-                # into Contents/Frameworks, found by the program through @rpath instead of the path of the build;
-                # signed again ad hoc, install_name_tool breaks the signature (arm64 starts nothing unsigned)
-                get_filename_component(_mpv_real ${MPV_LIBRARY} REALPATH)
-                execute_process(COMMAND otool -D ${_mpv_real} OUTPUT_VARIABLE _mpv_id OUTPUT_STRIP_TRAILING_WHITESPACE)
-                string(REGEX REPLACE "^[^\n]*\n" "" _mpv_id "${_mpv_id}") # first line: the file
-                get_filename_component(_mpv_name "${_mpv_id}" NAME)
-                set(_mpv_frameworks $<TARGET_BUNDLE_CONTENT_DIR:sdl>/Frameworks)
-                add_custom_command(TARGET sdl POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory ${_mpv_frameworks}
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_mpv_real} ${_mpv_frameworks}/${_mpv_name}
-                    COMMAND chmod u+w ${_mpv_frameworks}/${_mpv_name}
-                    COMMAND install_name_tool -id @rpath/${_mpv_name} ${_mpv_frameworks}/${_mpv_name}
-                    COMMAND install_name_tool -change ${_mpv_id} @rpath/${_mpv_name} $<TARGET_FILE:sdl>
-                    COMMAND codesign --force --sign - ${_mpv_frameworks}/${_mpv_name}
-                    COMMAND codesign --force --sign - $<TARGET_FILE:sdl>
-                    VERBATIM
-                )
-            endif()
-            message(STATUS "sdl player: video and audio by libmpv from ${MPV_DIR}")
-        else()
-            message(WARNING "sdl player: libmpv not found (libmpv-dev, mpv; MPV_DIR), built without video and audio")
+            set(_mpv_found ON)
+            message(STATUS "sdl player: video and audio by libmpv from ${_mpv_dir}")
         endif()
+    endif()
+    if(_mpv_found)
+        target_sources(sdl PRIVATE mpv_media.cpp)
+        target_compile_definitions(sdl PRIVATE PLAYER_SDL_WITH_MPV)
+        if(MPV_LIBRARY)
+            target_include_directories(sdl SYSTEM PRIVATE ${MPV_INCLUDE_DIR})
+            target_link_libraries(sdl PRIVATE ${MPV_LIBRARY})
+        endif()
+    else()
+        message(WARNING "sdl player: libmpv not found (libmpv-dev; MPV_DIR), built without video and audio")
     endif()
 endif()
 
-# CEF for web pages, off-screen rendered into textures: Linux (x86_64, aarch64), Windows (x64), macOS (arm64). The minimal binary distribution is downloaded (about 350 MB)
-# and its C++ wrapper built.
+# CEF for web pages, off-screen rendered into textures: Linux (x86_64, aarch64), Windows (x64), macOS (arm64). The
+# minimal binary distribution is downloaded (about 350 MB) and its C++ wrapper built.
 option(PLAYER_SDL_WITH_CEF "Web pages by CEF (downloads the CEF binary distribution)" OFF)
 set(_sdl_with_cef OFF)
 if(PLAYER_SDL_WITH_CEF)
