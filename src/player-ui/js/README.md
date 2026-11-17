@@ -1,8 +1,8 @@
 # js
 
 The browser frontend of the garlic-player on the core. The core runs as WebAssembly in the page (`garlic-core.js`,
-`garlic-core.wasm`), the player itself is JavaScript (`web/`). It behaves like the [qwidget](../qwidget/README.md) and
-[qml](../qml/README.md) players: the same menu, dialogs and shortcuts.
+`garlic-core.wasm`), the player itself is JavaScript (`web/`). It behaves like the [sdl](../sdl/README.md) player: the same
+menu, dialogs and shortcuts.
 
 Only with Emscripten (see [the core](../../core/README.md#pinned-versions)) and vcpkg:
 
@@ -104,7 +104,7 @@ activated / accessKey
   killed is loaded again at the next start.
 - **Like the other players**: only the topmost medium with a picture is visible, audio covers nothing; a StartMedia is
   shown in all regions with its name, only the first one reports end and errors; fit and mediaAlign as `object-fit`
-  and `object-position` (meetBest: `scale-down`), for images and videos alike (SMIL standard; the qwidget player
+  and `object-position` (meetBest: `scale-down`), for images and videos alike (SMIL standard; the legacy players
   always centered videos and kept their aspect inside).
 
 ## Requirements of the servers

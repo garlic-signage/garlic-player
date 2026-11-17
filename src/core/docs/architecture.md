@@ -31,7 +31,7 @@ multimedia functions and the WebViews they need.
 
 ## Event loop and threads
 
-The core has no event loop of its own and starts no threads. The host (Qt event loop, Android Looper, browser,
+The core has no event loop of its own and starts no threads. The host (SDL main loop, Android Looper, browser,
 ESP32 `loop()`) drives it by calling `poll()`. Qt signals/slots are replaced by callbacks.
 
 Platform specific parts are abstracted by interfaces:
@@ -137,7 +137,7 @@ In the order of `CMakeLists.txt`, every one a static library `garlic_core_<modul
 Why the core is built the way it is. The decisions of single modules are in their docs.
 
 - **Same functionality as garlic-lib, without Qt.** One core for all players, also the browser based signage devices
-  and the ESP32. The players (QWidget, QML, Java, JS/WASM, ESP32) only do GUI, multimedia and WebViews.
+  and the ESP32. The players (SDL, Java, JS/WASM, ESP32) only do GUI, multimedia and WebViews.
 - **Keep the behaviour of garlic-lib.** Playback behaviour that looks odd is not changed on assumption; some of it was
   deliberate (e.g. `pickNumber`). Only clear bugs (crashes, overflows, parsing errors) are fixed without asking, and
   every fix is listed under "Differences to garlic-lib" in the module doc. Where garlic-lib and the SMIL standard
@@ -172,7 +172,7 @@ Why the core is built the way it is. The decisions of single modules are in thei
 - **CMake 3.31, not 4.x.** The Android SDK offers 3.31 and ESP-IDF 6 ships 4.0, so 3.31 is the lowest version that both
   toolchains have. Hence the alias for `SQLite3::SQLite3` (CMake < 4.3) and `CMAKE_POLICY_VERSION_MINIMUM 3.10` for the
   fetched miniz and doctest.
-- **Android with NDK 26, the NDK of Qt 6.8.** Its libc++ 17 has `std::format` only as experimental feature
+- **Android with NDK 26.** Its libc++ 17 has `std::format` only as experimental feature
   (`-fexperimental-library`, set in `GarlicCoreOptions.cmake`), no chrono formatters and no `from_chars` for `double`.
   So the core formats times with `common::isoDateTime` and reads doubles with `common::fromChars`, not with the
   chrono specifiers of `std::format` and `std::from_chars`.
@@ -205,6 +205,6 @@ Why the core is built the way it is. The decisions of single modules are in thei
   committed to the branch `badges`, without an external service. `build.yml` (own runners) starts only after a
   successful CI run on `master` and builds the tested commit (`GARLIC_SHA`).
 - **Trixie is older than a developer machine:** it has libxml2 2.9 (hence the version switch in `smil/expr.cpp`),
-  CMake 3.31 and Qt 6.8 without the Qt Multimedia private headers.
+  CMake 3.31 and SDL3 3.2.
 - **Never compiled yet:** `system/platform_windows.cpp`, `system/platform_apple.cpp` and the Windows branches of
   `StdFileSystem`. Errors there show up only with the first Windows or Apple build.

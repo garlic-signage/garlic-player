@@ -348,7 +348,7 @@ endif()
 # The font of the menu and the dialogs where main.cpp looks for it (SDL_GetBasePath())
 add_custom_command(TARGET sdl POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_sdl_resource_dir}/fonts
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/../qwidget/fonts/DejaVuSans.ttf
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/../fonts/DejaVuSans.ttf
             ${_sdl_resource_dir}/fonts/DejaVuSans.ttf
 )
 

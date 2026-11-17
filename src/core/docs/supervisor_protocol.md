@@ -6,8 +6,9 @@ device, install software, switch the screen, apply device settings. The core rea
 the interface `Supervisor` ([player_runtime](player_runtime.md#supervisor)), the frontend the screen through its
 `ScreenControl`; the platform part of the player speaks this protocol. The Java frontend later speaks the same.
 
-Protocol version **1**. In the player: `SupervisorClient` of `src/player-ui/supervisor`, used by the qml and the
-qwidget player with `--supervisor`; not yet on Android (intent extra), there launcher 1.x and Philips
+Protocol version **1**. In the player: `SupervisorClient` of the sdl player (`src/player-ui/sdl/supervisor_client.hpp`)
+with `--supervisor`, over a Unix socket (the named pipe of Windows is not done); not yet on Android (intent extra),
+there launcher 1.x and Philips
 ([Without protocol](#without-protocol)). garlic-lib: `LauncherInterface` (Java), `Launcher` (C++).
 
 **Test cases**: [supervisor_protocol/player.jsonl](supervisor_protocol/player.jsonl), one per line: what a supervisor
@@ -223,8 +224,9 @@ The player tries in this order:
 | 3     | Android, package `com.tpv.app.tpvlauncher` installed        | Philips                                      |
 | 4     | –                                                           | none: `Supervisor` is `nullptr`, the core only logs, the screen stays on |
 
-Launcher 1.x and Philips are implemented in the qml player for Android (`android_launcher.hpp/.cpp`, the Java classes
-in `android/`, see [its README](../../player-ui/qml/README.md#android)); `GarlicActivity` finds them before Qt starts.
+Launcher 1.x and Philips belong to the Java frontend for Android: an activity finds them before the player starts.
+The first implementation (`src/player-ui/qml`: `android_launcher.hpp/.cpp` and the Java classes in `android/`) is the
+model for it.
 
 - **Launcher 1.x** (frozen): `reboot`, `install`, `screen`, `deep_standby`. uuid, content URL and version from the
   ContentProvider `com.sagiadinos.garlic.launcher.SettingsProvider` (`uuid`, `smil_content_url`, `launcher_version`);

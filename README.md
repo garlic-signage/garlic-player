@@ -24,7 +24,7 @@ Binaries can be [downloaded](https://garlic-signage.com/garlic-player/downloads/
 ## Version 2.0 (Beta): the rewrite
 
 Version 2.0 is a rewrite. Everything a player needs besides showing media is now in **garlic-core**
-([src/core](src/core/README.md)), a Qt-free library in C++23: download and cache, SMIL parser and timing engine,
+([src/core](src/core/README.md)), a library in C++23 without Qt: download and cache, SMIL parser and timing engine,
 reports, tasks, REST API, configuration and logs. It runs in a thread of its own and drives the frontend through one
 interface, the `PlayerRuntimeApi`. The frontends only show: regions, images, videos, web pages.
 
@@ -37,44 +37,48 @@ Why:
    installations and CMS keep working. Old bugs were fixed on the way and are documented in the
    [module docs](src/core/docs).
 
-The frontends are in [src/player-ui](src/player-ui), both with Qt 6 and operated the same way:
- - **qwidget** ([src/player-ui/qwidget](src/player-ui/qwidget/README.md)), the desktop player with Qt Widgets. Video
-   and audio can be played with QtAVPlayer (default), Qt Multimedia or libvlc.
- - **qml** ([src/player-ui/qml](src/player-ui/qml/README.md)) with Qt Quick, meant for iOS; video and audio with Qt
-   Multimedia, web pages with Qt WebView.
+The frontends are in [src/player-ui](src/player-ui) and are operated the same way:
+ - **sdl** ([src/player-ui/sdl](src/player-ui/sdl/README.md)), the desktop player with SDL3 for Linux, Windows and
+   macOS. Video and audio with libmpv, web pages with CEF (Chromium) off-screen, so images, videos and web pages
+   stack by z-index.
+ - **js** ([src/player-ui/js](src/player-ui/js/README.md)), the core as WebAssembly with a player in JavaScript for
+   browsers, Tizen and webOS.
 
-The beta runs on Linux. Windows, macOS, Android and iOS follow. The code of version 1.x (Qt 5, garlic-lib and the
-old frontends) is kept in [legacy](legacy) for reference; it is not built anymore.
+The beta runs on Linux. Windows and macOS are being built, Android (Java) and iOS follow. The code of version 1.x
+(Qt 5, garlic-lib and the old frontends) is kept in [legacy](legacy) for reference; it is not built anymore.
 
 ## Build (2.0)
 
-Needs CMake 3.31+, a C++23 compiler (GCC 14 or Clang 18), Qt 6.8+ with Widgets, WebEngine and Multimedia, libvlc,
-libcurl, libmicrohttpd, SQLite and libxml2. On Debian Trixie:
+Needs CMake 3.31+, a C++23 compiler (GCC 14, Clang 18, MSVC 2022 or Apple Clang), libcurl, libmicrohttpd, SQLite,
+libxml2, SDL3 and libmpv. On Debian Trixie (x86_64 and aarch64):
 
 ```
 apt install cmake ninja-build g++ pkg-config libcurl4-openssl-dev libmicrohttpd-dev libsqlite3-dev libxml2-dev \
-    nlohmann-json3-dev qt6-base-dev qt6-webengine-dev qt6-multimedia-dev libvlc-dev
+    nlohmann-json3-dev libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev libwebp-dev
 
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_WITH_QTAVPLAYER=OFF
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
+    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build
-build/src/player-ui/qwidget/garlic-player -m fullscreen https://example.com/index.smil
+build/src/player-ui/sdl/garlic-player-sdl -m fullscreen https://example.com/index.smil
 ```
 
-The qml player needs in addition `qt6-declarative-dev qt6-webview-dev` and at runtime the `qml6-module-*` packages
-listed in its [README](src/player-ui/qml/README.md); `-DGARLIC_PLAYER_QML=OFF` or `-DGARLIC_PLAYER_QWIDGET=OFF` leave
-a player out.
+CMake downloads CEF (the minimal binary distribution of Spotify's CEF builds) and puts it next to the program.
 
-The media backends are switched with `-DPLAYER_WITH_QTAVPLAYER`, `-DPLAYER_WITH_QTMULTIMEDIA` and `-DPLAYER_WITH_VLC`
-(all `ON` by default, at least one has to stay). Without `--media-backend` the player takes QtAVPlayer, or the first
-one built in.
+**Windows (x64)** and **macOS (arm64)** take the libraries of the core from vcpkg (`src/core/vcpkg.json`), CMake
+downloads CEF and libmpv (Windows: the official libmpv of mpv, macOS: the build of media_kit):
 
-QtAVPlayer is downloaded by CMake and needs FFmpeg (`libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev
-libswscale-dev libswresample-dev`) and the private headers of Qt Multimedia. Debian Trixie does not ship those, so
-there it is switched off as above; Qt from the Qt installer and Arch Linux have them.
+```
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
+    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON \
+    -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=src/core
+```
+
+On Windows from the x64 Developer Command Prompt; on macOS add `-DCMAKE_OSX_ARCHITECTURES=arm64`. The details are in
+the [README of the sdl player](src/player-ui/sdl/README.md).
 
 ### Version
 
-The version of all players (qwidget, qml, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION), e.g.
+The version of all players (sdl, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION), e.g.
 `2.0.0-beta.900`. It goes into the user agent and into `--version`. A build server writes its version there before
 building:
 
@@ -91,22 +95,23 @@ only from build 566 on. CMake configures again by itself when the file changes.
  - logging: debug, event, play and task logs
  - resume downloads
  - HTTP redirects (up to 5) for index and media
- - video and audio with QtAVPlayer, Qt Multimedia or libvlc (qwidget), Qt Multimedia (qml)
- - images in the formats of the Qt image plugins (Jpg, Png, Gif, Svg …)
+ - video and audio with libmpv (FFmpeg), hardware decoding where the platform offers it
+ - images: Jpg, Png, Gif, Bmp, Svg, WebP
  - media cache
  - SMIL3 subset, HTML5, HTML5-Widgets and (depending on device) WebGL support
  - WebWidgets with also support parameters
  - Webserver on port 8080 (default) for the REST API
 
 ## Operating Systems Supported (2.0)
- - Linux (beta)
- - Windows, macOS, Android and iOS follow
+ - Linux x86_64 and aarch64, e.g. Raspberry Pi 4 (beta)
+ - Windows x64 and macOS arm64 (in progress)
+ - Android and iOS follow
 
 The operating systems and devices of version 1.x are listed in [README-v1.md](README-v1.md).
 
 ## Command Line Options
 
-*garlic-player [options] [SMIL_INDEX]*
+*garlic-player-sdl [options] [SMIL_INDEX]*
 
 | Option | Description |
 |-------------------------|------------------------------------------------------------------------------|
@@ -116,26 +121,13 @@ The operating systems and devices of version 1.x are listed in [README-v1.md](RE
 | `-m, --windows-mode` | `fullscreen`, `bigscreen` (one window over all screens) or `windowed` (default) |
 | `-z, --windows-size` | Window size in window mode, e.g. `980x540` (default) |
 | `-s, --screen-select` | Number of the screen to start on |
-| `--media-backend` | Video and audio with `qtavplayer` (default), `qtmultimedia` or `vlc`; only the ones built in |
+| `--supervisor` | Endpoint of the supervisor (garlic-daemon: Unix socket) |
 
 Arguments:
 SMIL_INDEX        URI or path of the SMIL index; without it the one of the settings is used. Without any index the
                   settings dialog opens.
 
-Another media backend for video and audio, only for this start (it is not stored):
-
-```
-garlic-player --media-backend qtmultimedia
-garlic-player --media-backend vlc --platform xcb -m windowed https://example.com/index.smil
-```
-
-**libvlc needs `--platform xcb`**, especially under Wayland: libvlc draws into an X11 window, and without it a second
-window opens for the video. `QT_QPA_PLATFORM=xcb` does the same.
-
-`garlic-player --help` lists the backends built in.
-
-The index of the command line wins over the one in a `config.xml`. Positioning on a screen (`-s`, `bigscreen`) needs X11
-too (`--platform xcb`).
+The index of the command line wins over the one in a `config.xml`.
 
 ## Menu
 

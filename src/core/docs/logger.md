@@ -28,7 +28,7 @@ Same names and formats as garlic-lib; event and play logs are sent to the server
 | `play_log.xml`           | `played`                       | `<contentPlayed><contentId>…</contentId><startTime>…</startTime><endTime>…</endTime></contentPlayed>` |
 | `task_execution_log.xml` | `taskState`                    | `<taskState><task id="…"><lastUpdateTime>…</lastUpdateTime><state>…</state></task></taskState>` |
 
-- Times in the XML logs are local time with offset like Qt::ISODate: `2026-10-28T03:30:56+01:00`, `…Z` at UTC
+- Times in the XML logs are local time with offset (ISO 8601): `2026-10-28T03:30:56+01:00`, `…Z` at UTC
   (`common/time_format.hpp`).
 - Severities: `debug`, `informational`, `warning`, `error`, `critical`.
 - One entry per line; the report sender wraps the lines into a root element.
@@ -53,7 +53,6 @@ again.
 ## Differences to garlic-lib
 
 - Values in the XML logs are escaped. garlic-lib wrote them raw, so e.g. a URL with `&` made the log invalid XML.
-- Qt's own messages (`qt.*`, `qtdebug.log`) belong to the Qt frontends now.
 - Free text in event categories (`qWarning(MediaControl) << "text"`) becomes a regular event or a debug.log entry
   when the callers are ported.
 

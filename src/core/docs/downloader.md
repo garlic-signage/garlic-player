@@ -215,7 +215,7 @@ refused, invalid URL, `User-Agent` arriving as `X-Signage-Agent`.
   - The extension of the URL comes first, so existing playlists keep their file names; the content type only helps
     when the URL has none, is a script or says `application/octet-stream`.
   - Rejected: a name from a hash of the content (known only after the download, resume gets hard) and names without
-    extension (Qt Multimedia, WebViews and browsers recognise the format by the extension).
+    extension (libmpv, web engines and browsers recognise the format by the extension).
 - **Up to 5 redirects** (garlic-lib: one), the limit stops redirect loops.
 - **Resume with `If-Range`.** garlic-lib appended to a `.part` with `Range` alone; if the file had changed on the
   server meanwhile, the result was a mix of two versions.

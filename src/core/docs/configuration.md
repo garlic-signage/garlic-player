@@ -78,8 +78,8 @@ writing it again gives the identical file.
   its settings, above all its `uuid`, which identifies it in the hub. The test reads a real ini of a garlic-lib player
   and writes it back byte for byte.
 - **The frontend gives the path.** QSettings wrote to `SmilControl/` (the name of 2016) at a different place per OS;
-  the core does not decide paths any more. Moving an old ini to a new place is the business of the Qt frontends, the
-  only ones with old paths: a new path without the old file creates a new `uuid`, and the player shows up in the hub
+  the core does not decide paths any more. Moving an old ini to a new place is the business of the frontend that
+  replaces a player with old paths: a new path without the old file creates a new `uuid`, and the player shows up in the hub
   as a new device.
 - **Defaults only for missing keys, never written.** garlic-lib's `initDefaultSettings()` wrote the defaults on every
   start, so a port changed in the ini was overwritten again.

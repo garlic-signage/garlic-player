@@ -1,6 +1,6 @@
 # player_runtime
 
-`PlayerRuntimeApi` is the one interface of the core for the frontends (QWidget, QML, Java, JS, ESP32). Namespace
+`PlayerRuntimeApi` is the one interface of the core for the frontends (SDL, Java, JS, ESP32). Namespace
 `garlic::core`. garlic-lib: `LibFacade`. It owns all modules, connects them and is driven by `poll()` from one
 thread. The frontend only shows: it gets events and reports what only it knows. It never talks to the downloader,
 the engine or the database directly.
@@ -148,7 +148,7 @@ new valid index
 ## Settings dialog
 
 The frontends only show the fields; reading, checking and storing is done here (garlic-lib: `ConfigDialog`, the same
-for QWidget and QML). Standby and restarts come from the CMS and are not in the dialog.
+for every Qt player). Standby and restarts come from the CMS and are not in the dialog.
 
 ```
 changePlayerSettings({player_name, index_uri, httpd_enabled, httpd_port})
@@ -198,13 +198,13 @@ core thread
 
 - Every call of the frontend goes through `post()`, also `configuration()`; nothing returns a value directly. A
   result goes back the way the frontend chooses (e.g. a promise or a queued signal in the call).
-- `wake` runs in the core thread; with Qt e.g. `QMetaObject::invokeMethod(…, Qt::QueuedConnection)`.
+- `wake` runs in the core thread; with SDL e.g. `SDL_PushEvent` of a user event, which wakes the main loop.
 - `fs`, `clock` and `transport` are used only by the core thread after `start()`.
 - After `stop()` the events not taken can still be taken; `start()` again creates a new runtime.
 
 ## Decisions
 
-- **One class for the frontend.** Every frontend (QWidget, QML, later Java, JS, ESP32) knows only this interface, the
+- **One class for the frontend.** Every frontend (SDL, JS, later Java, ESP32) knows only this interface, the
   logic exists once. In garlic-lib the player did part of it itself: it wrote the play log, put the URL of web pages
   and widgets together and read fit and volume from the parser objects.
 - **The name.** It is not only a facade: it owns and builds the modules and mediates between them. `Player` would be
@@ -221,7 +221,7 @@ core thread
 - **`nextDeadline()` at most 100 ms while downloads or report uploads run or the HTTP server is on**, because curl and libmicrohttpd run
   without threads and need `poll()`. Without both an ESP32 can sleep until the next time of the engine.
 - **Settings dialog and debug info in the core.** Reading, checking and storing exists once; every frontend has its
-  own dialog on the same two calls (garlic-lib had one dialog for QWidget and QML). Standby and restarts stay with
+  own dialog on the same two calls (garlic-lib had one dialog for its Qt players). Standby and restarts stay with
   the CMS; the HTTP server got its two fields (on, port; 8080 and on by default). A port in use stores nothing and
   keeps the old server. OK loads the index again, like garlic-lib.
 - **`-c config.xml` at every start**, before the first index, and an index URI of the command line still wins, the
@@ -233,7 +233,7 @@ core thread
   what has to be done, and every player has one counterpart per platform that passes it on. The core knows no
   platform: Java and SICP stay in the player. The name: "host" already means what calls `poll()`.
 - **Only restart and installation are in the interface**, what the core itself decides. The screen of
-  `adapi:blankScreen` is a matter of the frontend (`ScreenControl` of the qml player). uuid and content URL of a
+  `adapi:blankScreen` is a matter of the frontend (`ScreenControl` of the sdl player). uuid and content URL of a
   supervisor are only start values (`PlayerRuntimeConfig::uuid`, the index URI); the player stays the one truth of its
   identity ([supervisor_protocol](supervisor_protocol.md#settings)).
 
@@ -246,8 +246,7 @@ core thread
 - **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their
   results come with the events after the wake.
 - **A pending restart or firmware** is confirmed by `tasks.checkPending()` in `start()` ([tasks](tasks.md)).
-- **No restart after `applyCommand`**: the frontend did not call `cachesCleared()` (the QWidget player waits for
-  `clearHttpCacheCompleted` from Qt 6.7 on).
+- **No restart after `applyCommand`**: the frontend did not call `cachesCleared()`.
 - **No restart, no installation**: without a supervisor `debug.log` has `Supervisor` `none, no restart: <task_id>` or
   `none, software not installed: <path>`. With one, the counterpart of the platform did not pass it on.
 - Tests: `tests/player_runtime/test_player_runtime_api.cpp` (the whole runtime on fakes, database `:memory:`),

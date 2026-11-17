@@ -1,49 +1,62 @@
 # sdl
 
-The third frontend of the garlic-player, beside `qwidget` and `qml`: SDL3 on the core (`PlayerRuntimeApi` in a
-`ThreadedRuntime`), without Qt. Everything is drawn by one SDL renderer (OpenGL, OpenGL ES on the Raspberry Pi), so
-images, video and web pages stack exactly by z-index, which the Qt 6 players cannot guarantee for video and
-web pages (native windows). If it runs smoother than the Qt players, Qt goes.
+The desktop frontend of the garlic-player for Linux, Windows and macOS: SDL3 on the core (`PlayerRuntimeApi` in a
+`ThreadedRuntime`). Everything is drawn by one SDL renderer (OpenGL, OpenGL ES on the Raspberry Pi), so images, video
+and web pages stack exactly by z-index; native video and web windows would always lie on top.
 
 | File                         | Content                                                                         |
 |------------------------------|---------------------------------------------------------------------------------|
-| `main.cpp`                   | options like the qwidget player, supervisor, `ThreadedRuntime`, the main loop   |
-| `paths.hpp/.cpp`             | ini, cache and logs at the places of the Qt players and garlic-lib              |
+| `main.cpp`                   | options like the players before, supervisor, `ThreadedRuntime`, the main loop   |
+| `paths.hpp/.cpp`             | ini, cache and logs at the places of the players before (garlic-lib)            |
 | `player_window.hpp/.cpp`     | `PlayerWindow`: core events, regions, input, 10-click menu, dialogs, drawing    |
 | `media.hpp/.cpp`             | `Media`, image (SDL3_image), brush, web (through `WebView`), what cannot play |
 | `place.hpp/.cpp`             | `place()`: fit and mediaAlign of images and videos |
 | `mpv_media.hpp/.cpp`         | `MpvMedia`: video and audio with libmpv, rendered into a texture of the renderer |
 | `web_view.hpp`               | `WebView`: the interface for web pages per platform, and what the engine needs from `main()` and the loop |
-| `cef_web_view.cpp`           | `WebView` with CEF off-screen rendering (Linux)                                 |
+| `cef_web_view.cpp`           | `WebView` with CEF off-screen rendering (Linux, Windows, macOS)                 |
+| `file_url.hpp/.cpp`          | `fileUrl()`: a local path as `file://` URL, query and fragment kept             |
+| `mac/`                       | macOS: the CEF helper apps (`cef_helper.cpp`, their Info.plist), `CefAppProtocol` for the application class of SDL |
+| `windows/`                   | Windows: the manifest (Windows 10/11)                                           |
 | `web_view.cpp`               | the build without a web engine: web pages fail, the core goes on                |
-| `color.hpp/.cpp`             | SMIL colors as the Qt style sheets took them (#rgb, #rrggbb, #aarrggbb, rgb(), rgba(), CSS names) |
+| `color.hpp/.cpp`             | SMIL colors like the players before (#rgb, #rrggbb, #aarrggbb, rgb(), rgba(), CSS names) |
 | `dialogs.hpp/.cpp`           | settings dialog and debug dialog, drawn over the content                        |
-| `blank_screen.hpp/.cpp`      | `adapi:blankScreen`, `ScreenControl`, `DeviceControl` (as in `../supervisor`, without Qt) |
-| `supervisor_client.hpp/.cpp` | the supervisor protocol over a Unix socket (as in `../supervisor`, without Qt)  |
+| `blank_screen.hpp/.cpp`      | `adapi:blankScreen`, `ScreenControl`, `DeviceControl`                           |
+| `supervisor_client.hpp/.cpp` | the supervisor protocol over a Unix socket                                      |
 | `ui/`                        | controls copied from the DJ workstation: canvas, text, button, text field, check box, menu |
 
 ## Build
 
-Off by default, so the Qt builds stay as they are:
-
 ```
-cmake -S . -B build-sdl -G Ninja -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF -DGARLIC_PLAYER_SDL=ON
+cmake -S . -B build-sdl -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
+    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build-sdl --target sdl
 build-sdl/src/player-ui/sdl/garlic-player-sdl [-m fullscreen] [SMIL_INDEX]
 ```
 
-The font (`../qwidget/fonts/DejaVuSans.ttf`) is copied to `fonts/` next to the program.
+Windows (x64 Developer Command Prompt) and macOS (arm64) take the libraries of the core from vcpkg, in addition:
+
+```
+-DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=<garlic>/src/core
+-DCMAKE_OSX_ARCHITECTURES=arm64   # macOS
+```
+
+Windows: `garlic-player-sdl.exe` without console window, CEF and `libmpv-2.dll` next to it. macOS: the app bundle
+`garlic-player-sdl.app` with the CEF framework, the five CEF helper apps and the dylibs of libmpv in
+`Contents/Frameworks`, the font in `Contents/Resources`.
+
+The font (`../fonts/DejaVuSans.ttf`) is copied to `fonts/` next to the program.
 
 | Dependency                  | Where from                                                           |
 |-----------------------------|----------------------------------------------------------------------|
 | SDL3, SDL3_ttf, SDL3_image  | the system (or vcpkg) if there (3.2 or newer), otherwise downloaded by CMake (pinned tags) |
-| libmpv                      | pkg-config `mpv` 2.0 or newer (mpv 0.35); without it no video and audio (`PLAYER_SDL_WITH_MPV`) |
+| libmpv                      | Linux: pkg-config `mpv` 2.0 or newer (mpv 0.35). Windows: the official libmpv 0.42 of mpv (lgpl, one DLL), downloaded; the import library for MSVC is made from the headers. macOS: libmpv 0.36 of media_kit (`libmpv-darwin-build`, `video-full`), downloaded, the headers from the sources of mpv 0.36. `-DMPV_DIR=<dir>` takes another one (`include/mpv`, `libmpv*.dll`, `mpv.def` optional). Without it no video and audio (`PLAYER_SDL_WITH_MPV`) |
 | nlohmann/json               | the one of the core                                                  |
-| CEF                         | `-DPLAYER_SDL_WITH_CEF=ON` (Linux x86_64 or aarch64, by `CMAKE_SYSTEM_PROCESSOR`): the minimal binary distribution is downloaded (about 330 MB for x86_64, 430 MB for aarch64), its wrapper built, `libcef.so`, resources and locales copied next to the program. `-DFETCHCONTENT_SOURCE_DIR_CEF=<dir>` takes an extracted one instead |
+| CEF                         | `-DPLAYER_SDL_WITH_CEF=ON`: the minimal binary distribution of CEF 156 is downloaded for Linux x86_64 and aarch64, Windows x64 or macOS arm64 (about 330 MB for x86_64, 430 MB for aarch64), its wrapper built. Linux and Windows: libcef, resources and locales next to the program; macOS: the framework in the bundle. `-DFETCHCONTENT_SOURCE_DIR_CEF=<dir>` takes an extracted one instead |
 | libwebp                     | for SDL3_image when it is downloaded (WebP images)                   |
 
 Targets: Arch Linux (built here), Debian Trixie x86_64 and aarch64 with GCC 14 (the anchor for minimum versions:
-SDL3 3.2, libmpv 0.40). Debian Bookworm has no SDL3 packages; the download covers it, but it is not a target.
+SDL3 3.2, libmpv 0.40), Windows x64 (MSVC), macOS arm64. Debian Bookworm has no SDL3 packages; the download covers it,
+but it is not a target. Windows and macOS have not been built yet.
 Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev libwebp-dev`.
 
 ## How it works
@@ -54,22 +67,23 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
 - **Regions** from bottom to top by z-index: background color, background image (tiled like CSS `repeat`, `repeatX`,
   `repeatY`, `noRepeat`), then the newest medium of the region, clipped to it. A resumed medium comes to the top again.
 - **Image quality**: an image keeps its original as surface and gets a texture in the size it is drawn, made anew
-  when the region changes its size (qwidget: `Qt::SmoothTransformation`). Shrunk, it is halved step by step and
+  when the region changes its size. Shrunk, it is halved step by step and
   scaled to the exact size last; the GPU alone scales linearly from 4 pixels, and shrunk to a third or less the edges
   fray. Enlarged, the GPU scales the original.
 - **Fit and mediaAlign** by `place()` (`place.hpp/.cpp`, tested in `tests/`), for images and videos alike (SMIL
   standard): `fill` stretches, `meet` keeps the aspect inside, `meetBest` like meet but never larger, `slice` covers
   (cut by the region), without fit the original size; then placed by mediaAlign. For video mpv reports its size
   (`dwidth`/`dheight` after `MPV_EVENT_VIDEO_RECONFIG`) and renders into a texture of exactly that place
-  (`keepaspect=no`). The qwidget and the legacy players always kept the aspect inside and centered videos.
+  (`keepaspect=no`). The players before always kept the aspect inside and centered videos.
 - **Video and audio**: one mpv per medium. Video renders through the render API (OpenGL) into a framebuffer on a
   texture of the SDL renderer. mpv has an OpenGL context of its own that shares its textures with the one of the
   renderer (one for all media): in the same context the state SDL leaves broke mpv (NVIDIA: crash in the driver with
   `nvdec`, artefacts with `nvdec-copy`). A fence (OpenGL 3.2 / ES 3, else `glFinish`) lets SDL read the texture
   only when mpv has written it. The Wayland or X11 display goes to mpv for hardware frames without a copy. `hwdec=auto-safe`;
   `GARLIC_MPV_HWDEC` overrides it (e.g. `no`, `auto-copy-safe`) on a device whose driver fails with it.
-- **Web pages** (CEF, Linux): off-screen rendering into a texture of the renderer, so a page lies in its region by
-  z-index and is cut by the regions above it. Two ways, chosen at the first web page (logged once):
+- **Web pages** (CEF): off-screen rendering into a texture of the renderer, so a page lies in its region by
+  z-index and is cut by the regions above it. Windows and macOS take the CPU way below; Linux has two, chosen at the
+  first web page (logged once):
   - **GPU** (shared textures, `OnAcceleratedPaint`): CEF hands every frame as dmabuf; it is imported as EGL image
     (`EGL_EXT_image_dma_buf_import`, with modifiers if there) and copied on the GPU (`glBlitFramebuffer`) into the
     texture of the page, in the context of the SDL renderer. No read back, no upload. Needs EGL: Wayland is EGL, X11
@@ -88,15 +102,18 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
 
   CEF runs in the main thread with an external message pump (`pumpWebViews()` in every loop turn, at least every
   33 ms). The helper processes (renderer, GPU, network) are this program again: `runWebHelperProcess()` is the first
-  thing in `main()`; the GPU process is a child of the zygote without sandbox. Like the Qt players: local files may
+  thing in `main()`; the GPU process is a child of the zygote without sandbox. On macOS the subprocesses run in the helper apps of the
+  bundle; the framework is loaded at the start (`CefScopedLibraryLoader`), and the application class of SDL gets
+  `CefAppProtocol` (`mac/cef_application.mm`). Like the players before: local files may
   read remote data and other files (`allow-file-access-from-files`, `disable-web-security`), media play without a
   click, permissions are granted, no popups, after loading `overflow: hidden`. Profile and cache in
-  `~/.local/share/garlic-player/cef` (the Qt players: `QtWebEngine` next to it), log in `logs/cef.log`. No sandbox
+  `~/.local/share/garlic-player/cef`, log in `logs/cef.log`; `clear_webcache` removes the whole profile at the next
+  start. No sandbox
   (`chrome-sandbox` would have to be setuid root).
 - **Input for web pages**: a click on a page gives it the mouse and the keyboard (no `elementActivated`, no access
   keys while it has the focus; the Ctrl shortcuts of the player stay); a click elsewhere takes the keyboard back.
 - **Reports** of the media (end, error) are handed to the core after the event that caused them, only from the
-  first region of an instance, like the qwidget player.
+  first region of an instance, like the players before.
 - **Input**: ten fast clicks (< 500 ms apart) or holding 10 s open the menu (Settings, Debug infos, Exit), like every
   frontend. Keys: Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S, Ctrl+D, Ctrl+Q; other keys without modifier
   are access keys. A click on a region activates its top medium. Locked by the supervisor: no menu, no dialogs, no
@@ -105,16 +122,15 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
   screen is the base).
 - **Without an index** the settings dialog comes first; Cancel ends the player with 1 (garlic-lib).
 
-## What differs from the qwidget player
+## What differs from the players before
 
-- Video and web pages lie in their region by z-index (the Qt 6 players put native windows on top).
+- Video and web pages lie in their region by z-index (the players before put native windows on top).
 - The screenshot is the window (in full screen mode the screen), not the whole screen.
 - No `--media-backend`: libmpv only.
 - The supervisor client speaks over Unix sockets only; Windows (named pipe) is not done.
 
 ## Not done yet
 
-- **Native web views** for the other platforms behind `WebView`: WebView2 (Windows), WKWebView (macOS, iOS),
-  Android WebView. Without CEF a build has no web pages.
+- Windows and macOS: the first build and run.
 - Web pages: popups of a page (an open `<select>`), touch input (only the mouse goes to a page), the cursor shape.
 - Transitions.

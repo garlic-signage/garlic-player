@@ -3,9 +3,9 @@
 [![CI](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/garlic-signage/garlic-player/actions/workflows/ci.yml)
 ![coverage](https://raw.githubusercontent.com/garlic-signage/garlic-player/badges/coverage.svg)
 
-Qt-free rewrite of the garlic-lib in C++23. It provides the player-independent functions (download, database,
-HTTP server, SMIL parser, configuration, logger, system information) to the players (QWidget, QML, Java,
-JavaScript/WASM, ESP32).
+Rewrite of the garlic-lib in C++23, without Qt. It provides the player-independent functions (download, database,
+HTTP server, SMIL parser, configuration, logger, system information) to the players (SDL, Java, JavaScript/WASM,
+ESP32).
 
 See [docs/architecture.md](docs/architecture.md) for the design decisions. Modules: [common](docs/common.md),
 [logger](docs/logger.md), [downloader](docs/downloader.md), [database](docs/database.md), [httpd](docs/httpd.md),

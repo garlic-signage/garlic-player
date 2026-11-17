@@ -1,6 +1,6 @@
 # garlic-player Threat Model
 
-This document describes which security properties the garlic-player (version 2.0, garlic-core and the Qt frontends)
+This document describes which security properties the garlic-player (version 2.0, garlic-core and its frontends)
 is designed to provide, which behaviours are deliberate design decisions, and which weaknesses are known and
 accepted for now. It exists so that design decisions arising from the deployment model of digital signage are not
 mistaken for implementation defects, and so that operators know what they have to protect themselves.
@@ -44,7 +44,7 @@ The CMS is trusted: it decides what the player shows, which web pages it opens a
 2. **Player → CMS** (reports): HTTP `PUT` to the URLs in the subscriptions of the index, with the player's user agent.
 3. **Network → player** (REST API, `src/core/httpd`, `src/core/rest_api`): libmicrohttpd, by default on all IPv4
    interfaces, port 8080. See section 5.
-4. **Web content → device** (web pages and widgets in Qt WebEngine): see section 6.
+4. **Web content → device** (web pages and widgets in CEF/Chromium): see section 6.
 5. **Local user → player** (keys, menu, settings dialog): physical access to the device.
 
 ---
@@ -92,11 +92,11 @@ the device or the network. Never expose the port to the internet.
 
 ## 6. Web Content: Design Decision
 
-**Behaviour.** Web pages and widgets run in Qt WebEngine (Chromium). To let local widgets load remote data, the
-frontends start it with `--allow-file-access-from-files --disable-web-security` and allow local content to reach
-remote URLs and files and insecure content (`qwidget/main.cpp`, `qwidget/web.cpp`, `qml/main.cpp`; the SDL
-player does the same with CEF, `sdl/cef_web_view.cpp`). An index may also name any local path as web content
-(`src="file:///…"` or an absolute path), not only files in the cache (`src/core/tests/data/smil/issues/9.smil`).
+**Behaviour.** Web pages and widgets run in CEF (Chromium). To let local widgets load remote data, the player starts
+it with `--allow-file-access-from-files --disable-web-security`, so local content reaches remote URLs and files and
+insecure content (`src/player-ui/sdl/cef_web_view.cpp`). CEF runs without its sandbox. An index may also name any
+local path as web content (`src="file:///…"` or an absolute path), not only files in the cache
+(`src/core/tests/data/smil/issues/9.smil`).
 
 **Rationale.** Signage widgets are local HTML packages that fetch feeds and data from other origins; without these
 flags most of them do not work.
@@ -128,7 +128,7 @@ compromised CMS.
 - Attacks requiring physical access to the device (keys, settings dialog, storage).
 - Attacks requiring control of the CMS or of the network path when the operator uses plain HTTP.
 - Denial of service through raw request volume.
-- Vulnerabilities in the operating system, Qt, Chromium or the device firmware; reports about a bundled library are
+- Vulnerabilities in the operating system, Chromium (CEF), libmpv/FFmpeg or the device firmware; reports about a bundled library are
   welcome if the player uses the affected function.
 
 ---
