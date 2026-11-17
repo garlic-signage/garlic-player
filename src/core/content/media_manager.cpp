@@ -246,9 +246,11 @@ namespace garlic::core::content
         return base + std::string(src);
     }
 
-    /// Into the download queue, unless a failed download of the URL waits (retry_after).
+    /// Into the download queue, unless a failed download of the URL waits (retry_after) or downloads are held.
     void MediaManager::download(std::string_view url)
     {
+        if (downloads_held)
+            return;
         if (auto waiting = retry_after.find(url); waiting != retry_after.end() && clock.monotonic() < waiting->second)
             return;
         queue.add(std::string(url));

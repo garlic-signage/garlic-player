@@ -122,8 +122,10 @@ namespace garlic::core::content
             }
         }
 
-        // first download, not modified, or failed with a copy in the cache: play it if nothing of this source plays yet
-        if (!source_loaded && !result.local_path.empty() && result.status != DownloadStatus::NotCacheable)
+        // first download, not modified, or failed with a copy in the cache: play it if nothing of this source plays yet.
+        // Downloaded without ".ready": the cached index was removed, the new one is played as well.
+        bool removed = result.status == DownloadStatus::Downloaded;
+        if ((!source_loaded || removed) && !result.local_path.empty() && result.status != DownloadStatus::NotCacheable)
         {
             if (auto document = read(result.local_path))
             {

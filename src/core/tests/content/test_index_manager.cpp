@@ -345,3 +345,17 @@ TEST_CASE("an index that cannot be read: SMIL_NOT_AVAILABLE, nothing handed on")
     CHECK(f.titles.empty());
     CHECK(f.events().contains("<eventName>SMIL_NOT_AVAILABLE</eventName>"));
 }
+
+TEST_CASE("the cached index removed by hand: the downloaded one is handed on, also when it is the same")
+{
+    Fixture f;
+    f.serve("http://hub/player/index.smil?id=1", indexText("v1", 60), "application/smil+xml", "v1");
+    f.index.start();
+    f.runUntilIdle();
+    REQUIRE(f.titles == std::vector<std::string>{"v1"});
+
+    REQUIRE(f.fs.remove("cache/index.smil"));
+    f.wait(60s); // no cached copy: no conditional request, a full download
+    CHECK(f.titles == std::vector<std::string>{"v1", "v1"});
+    CHECK(f.fs.exists("cache/index.smil"));
+}

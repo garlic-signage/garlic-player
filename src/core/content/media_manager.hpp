@@ -71,6 +71,9 @@ namespace garlic::core::content
             /// Where a src (e.g. a backgroundImage) is to be loaded from: local path or URL; nullopt if not there yet.
             std::optional<std::string> locate(std::string_view src);
 
+            /// After clear_cache until the restart: missing files are not downloaded again.
+            void holdDownloads() noexcept { downloads_held = true; }
+
             /// The cache file names of the remote files of the current index, kept by CacheSpace.
             std::set<std::string> currentFiles() const;
 
@@ -93,6 +96,7 @@ namespace garlic::core::content
             std::set<std::string, std::less<>>    reported;      // MEDIA_UNSUPPORTED in this index version
             std::set<std::string, std::less<>>    current;       // remote URLs of the index
             std::map<std::string, std::chrono::steady_clock::time_point, std::less<>> retry_after; // failed downloads
+            bool downloads_held = false; // holdDownloads()
             std::map<std::string, int, std::less<>> in_use;      // cache file → instances playing it
             std::map<const smil::Media *, std::string> holding;  // instance of a medium → its cache file
 

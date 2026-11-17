@@ -47,6 +47,8 @@ startTemporary(uri)                   REST /v2/app/exec: another index for a whi
 - Handed on with the document is the **base** for relative `src`: the directory of a local index or the URL of a
   remote one up to the last `/` (query removed), garlic-lib: `getIndexPath`.
 - The handed on file is stored as `last_played_index_path` in the configuration.
+- If the cached index was removed (by hand), the next check downloads it fully, without `.ready`; it is handed on
+  like an update, also when it is the same, so its media are registered again.
 - Events like in garlic-lib: `SMIL_LOADED`, `SMIL_OPEN_ERROR` (with `errorMessage`, `errorLine`), `SMIL_NOT_AVAILABLE`,
   with `instanceId` `display:0`, `resourceURI`, `contentLength`, `lastModifiedTime`.
 - Without any valid index (first start, broken file) the manager tries again every 60 s. garlic-lib restarted the
@@ -107,6 +109,8 @@ load(next index)                     all waits are forgotten: every file is trie
 - **No new try after `DISK_FULL`**: the files of the index are kept by the cleanup (see below), so the space does not
   get bigger until the index changes; trying again would only fail again and cost traffic.
 - When the server is reachable again, a missing file comes at the latest after one retry time.
+- **After `clear_cache` nothing is downloaded again until the restart** (`holdDownloads()`): the cache was emptied on
+  purpose, the restart follows when the frontend has cleared its web cache. The index refresh is not held.
 - garlic-lib downloaded the media only when the index was loaded again; a file removed from the cache came back only
   with a new index or a restart.
 

@@ -433,6 +433,7 @@ namespace garlic::core
         if (clear.player)
         {
             // garlic-lib: FreeDiscSpace::clearPlayerCache
+            media->holdDownloads(); // missing files are not downloaded again until the restart
             inventory->clear();
             (void)fs.removeAll(settings.cache_dir);
             (void)fs.createDirectories(settings.cache_dir);
