@@ -12,7 +12,7 @@
 	<!--
 
 		sequence should be:
-		begin | 2, 5, 2, 10, 1s black, | 1, 2, | 6, 7, 8, 9, 10 | end
+		begin | 2, 5, 2, 10, 1s black, | 1, 2, | 6, 7, 8, 9, 10 | end
 
 		peers default is stop
 	-->

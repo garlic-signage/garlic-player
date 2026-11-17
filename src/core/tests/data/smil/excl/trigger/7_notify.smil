@@ -25,10 +25,10 @@
 
 		lower left shows standby indefinite
 
-		when key w pressed on keyboard standby image  closes
+		start notify.sh to trigger
 		and 1, 2, 3 4, 5starts indefinite in right lower region
 
-		Remark: Repeated pressing of w restarts count on 1
+		Remark: Repeated triggering restarts count on 1
 	-->
 ´			<excl repeatCount="indefinite">
 				<priorityClass>

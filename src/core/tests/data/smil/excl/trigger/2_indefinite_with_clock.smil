@@ -25,7 +25,7 @@
 	<!--
 
 		lower left shows standby
-		lower right shows 1, 2, 3 repeated indefinetely 1s after standby end
+		lower right shows 1, 2, 3 repeated indefinetely 5s after standby end
 
 		Remark: repeatCount="indefinite" in seq which wraps standby will stopped by higher priority.
 			But	Standby must be higher than standby.end+x otherwise we get an deadlock
