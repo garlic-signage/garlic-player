@@ -41,6 +41,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <vector>
@@ -125,6 +126,12 @@ namespace player
 
         bool sharedTexturesUsable(SDL_Renderer &renderer);
 
+        /// Set by clearWebCache(): the next start removes the profile of CEF (beside it, not in it)
+        std::string clearMark()
+        {
+            return standardPaths().data_dir + "/cef.clear";
+        }
+
         /**
          * CEF once, at the first web page. Its platform (ozone) follows the GPU path: the shared textures need the one
          * of SDL (Wayland or X11), whose GPU buffers (GBM) the GPU process allocates them from; headless has none, the
@@ -139,6 +146,11 @@ namespace player
                 ozone = driver == "wayland" || driver == "x11" ? driver : "headless";
             cache_root = standardPaths().data_dir + "/cef";
             std::error_code error;
+            if (std::filesystem::exists(clearMark(), error)) // clear_webcache: the whole profile, before CEF uses it
+            {
+                std::filesystem::remove_all(cache_root, error);
+                std::filesystem::remove(clearMark(), error);
+            }
             std::filesystem::create_directories(cache_root, error);
 
             std::string        dir = programDir();
@@ -848,15 +860,16 @@ namespace player
         return initialized;
     }
 
-    /// Like clearHttpCache of QtWebEngine: the caches of the profile go; the device restarts afterwards anyway
+    /**
+     * The whole profile goes (HTTP cache, cookies, local storage, IndexedDB, service workers), like app_webview of
+     * garlic-lib on Android. Not while CEF runs: only the mark here, the next start removes the profile before
+     * CefInitialize(); the device restarts afterwards anyway.
+     */
     void clearWebCache(const std::function<void()> &done)
     {
-        if (!cache_root.empty())
-            for (const char *dir : {"Cache", "Code Cache", "GPUCache", "Default/Cache", "Default/Code Cache"})
-            {
-                std::error_code error;
-                std::filesystem::remove_all(cache_root + "/" + dir, error);
-            }
+        std::ofstream mark(clearMark());
+        if (!mark)
+            std::cerr << "CEF: cannot mark the profile for clearing: " << clearMark() << "\n";
         done();
     }
 

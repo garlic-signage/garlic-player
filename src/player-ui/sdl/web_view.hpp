@@ -65,7 +65,8 @@ namespace player
     /// While true, the main loop turns at least every 33 ms for pumpWebViews()
     bool webViewsRunning();
 
-    /// ClearCaches with web: the cache of the engine goes; done() afterwards, in the main thread
+    /// ClearCaches with web: the whole profile of the engine goes (cache, cookies, local storage …), at the latest on
+    /// the next start; done() afterwards, in the main thread
     void clearWebCache(const std::function<void()> &done);
 
     /// Before the end of main(), after the last web view: closes the engine
