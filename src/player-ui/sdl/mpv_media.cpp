@@ -158,6 +158,33 @@ namespace player
         }
     }
 
+    namespace
+    {
+        VideoQuality video_quality = VideoQuality::Auto;
+
+        /// Auto: low on the GPU of a Raspberry Pi (OpenGL renderer "V3D 4.2" Pi 4, "V3D 7.1" Pi 5, "VC4 V3D" Pi 3),
+        /// read once from the context of the renderer, which is the current one in the main thread
+        VideoQuality effectiveQuality()
+        {
+            if (video_quality != VideoQuality::Auto)
+                return video_quality;
+            static const VideoQuality detected = []
+            {
+                auto get_string = reinterpret_cast<const unsigned char *(*)(GLenum)>(SDL_GL_GetProcAddress("glGetString"));
+                const unsigned char *name = get_string != nullptr ? get_string(GL_RENDERER) : nullptr;
+                bool raspberry = name != nullptr &&
+                                 std::string(reinterpret_cast<const char *>(name)).find("V3D") != std::string::npos;
+                return raspberry ? VideoQuality::Low : VideoQuality::Normal;
+            }();
+            return detected;
+        }
+    }
+
+    void setVideoQuality(VideoQuality quality)
+    {
+        video_quality = quality;
+    }
+
     void shutdownMpv()
     {
         MpvGl &c = mpvGl();
@@ -212,9 +239,17 @@ namespace player
             return;
         }
         mpv_set_option_string(mpv, "vo", "libmpv");
-        // the cheap scalers of mpv (bilinear, no dither, no deband): a 4K60 video stuttered on a Raspberry Pi 4 with
-        // the default ones, the GPU converts and scales every frame
-        mpv_set_option_string(mpv, "profile", "fast");
+        // low: the cheap scalers of mpv (profile fast: bilinear, no dither, no deband); with the default ones a 4K
+        // video stuttered on a Raspberry Pi 4, its GPU converts and scales every frame. high: profile high-quality
+        // (gpu-hq before mpv 0.37)
+        if (is_video)
+        {
+            VideoQuality quality = effectiveQuality();
+            if (quality == VideoQuality::Low)
+                mpv_set_option_string(mpv, "profile", "fast");
+            else if (quality == VideoQuality::High && mpv_set_option_string(mpv, "profile", "high-quality") < 0)
+                mpv_set_option_string(mpv, "profile", "gpu-hq");
+        }
         // hardware decoding of a Raspberry Pi without copy, the frames as GPU buffers (EGL dmabuf), which auto-safe
         // does not take: v4l2m2m for H.264 up to 1080p (decoded by the CPU a 1080p H.264 cost more than one core of a
         // Pi 4, with v4l2m2m-copy about 70 %, without copy about 40 %), drm for H.265 up to 4K (the FFmpeg of

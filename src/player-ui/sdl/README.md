@@ -93,8 +93,13 @@ sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-way
   first the decoders of a Raspberry Pi without copy, which `auto-safe` does not take: `v4l2m2m` for H.264 up to 1080p
   (a Pi 4 with a 1080p H.264: about 140 % CPU decoded in software, 70 % with `v4l2m2m-copy`, 40 % without copy),
   `drm` for H.265 up to 4K, which needs the FFmpeg of Raspberry Pi OS (a 4K60 10 bit H.265 decodes at 75 fps without
-  copy, 22 fps with). Without them mpv goes on with `auto-safe`. `GARLIC_MPV_HWDEC` overrides it (e.g. `no`, `auto-copy-safe`) on a device
-  whose driver fails with it.
+  copy, 22 fps with). Without them mpv goes on with `auto-safe`. `GARLIC_MPV_HWDEC` overrides it (e.g. `no`,
+  `auto-copy-safe`) on a device whose driver fails with it.
+- **Video quality** (`--video-quality`): `low` is mpv's profile `fast` (bilinear, no dither, no deband), `normal` its
+  defaults, `high` its profile `high-quality`; `auto` takes `low` on the GPU of a Raspberry Pi (OpenGL renderer
+  `V3D`), otherwise `normal`. A Pi 4 under KMSDRM with `low` plays 4K H.265 with 25 fps at 10 bit and nearly 30 fps
+  at 8 bit (27 of 30 frames); 30 fps at 10 bit only 21-23: importing the 10 bit frames costs its GPU about 35 ms per
+  frame. Under the Wayland desktop the compositor costs another 10-15 ms per frame.
 - **Web pages** (CEF): off-screen rendering into a texture of the renderer, so a page lies in its region by
   z-index and is cut by the regions above it. Windows and macOS take the CPU way below; Linux has two, chosen at the
   first web page (logged once):

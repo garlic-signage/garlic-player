@@ -28,6 +28,18 @@ namespace player
     /// Frees the OpenGL context of libmpv; before the renderer goes, after the last medium.
     void shutdownMpv();
 
+    /// How mpv scales and filters video (--video-quality): mpv's profiles fast and high-quality, or its defaults
+    enum class VideoQuality
+    {
+        Auto,   // low on the graphics of a Raspberry Pi (V3D), normal elsewhere
+        Low,    // mpv's profile fast (bilinear, no dither, no deband): 4K at 25/30 fps on a Raspberry Pi 4
+        Normal, // the defaults of mpv
+        High    // mpv's profile high-quality, for a strong GPU
+    };
+
+    /// Before the first video
+    void setVideoQuality(VideoQuality quality);
+
     /**
      * <video> and <audio> with libmpv, one player per medium like the AvMedia of the qwidget player. Video renders
      * with the render API (OpenGL, in a context of its own that shares the texture) into a texture of the SDL renderer, which the window draws like an image, so it

@@ -19,6 +19,9 @@
 #include "player_window.hpp"
 #include "supervisor_client.hpp"
 #include "web_view.hpp"
+#ifdef PLAYER_SDL_WITH_MPV
+    #include "mpv_media.hpp"
+#endif
 
 #include "common/clock.hpp"
 #include "common/std_file_system.hpp"
@@ -51,6 +54,7 @@ namespace
   -z, --windows-size <size>     size in windows mode, e.g. 980x540 (default)
   -s, --screen-select <screen>  number of the screen to start on (default 0)
       --supervisor <endpoint>   endpoint of the supervisor (garlic-daemon: Unix socket)
+      --video-quality <quality> auto (default: low on a Raspberry Pi, otherwise normal), low, normal or high
   -h, --help                    this help
   -v, --version                 the version
 )";
@@ -70,6 +74,7 @@ namespace
             {"-c", "config"},        {"--config", "config"},          {"-m", "windows-mode"},
             {"--windows-mode", "windows-mode"}, {"-z", "windows-size"}, {"--windows-size", "windows-size"},
             {"-s", "screen-select"}, {"--screen-select", "screen-select"}, {"--supervisor", "supervisor"},
+            {"--video-quality", "video-quality"},
         };
         Options options;
         for (int i = 1; i < argc; ++i)
@@ -198,6 +203,18 @@ int main(int argc, char *argv[])
         width  = 980;
         height = 540;
     }
+    std::string quality = value(*options, "video-quality", "auto");
+    if (quality != "auto" && quality != "low" && quality != "normal" && quality != "high")
+    {
+        std::cerr << "unknown video quality: " << quality << "\n" << usage;
+        return 1;
+    }
+#ifdef PLAYER_SDL_WITH_MPV
+    player::setVideoQuality(quality == "low"      ? player::VideoQuality::Low
+                            : quality == "normal" ? player::VideoQuality::Normal
+                            : quality == "high"   ? player::VideoQuality::High
+                                                  : player::VideoQuality::Auto);
+#endif
 
     player::prepareWebViews();
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0"); // touches come as touches, not a second time as mouse clicks

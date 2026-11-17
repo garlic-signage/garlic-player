@@ -122,6 +122,7 @@ The operating systems and devices of version 1.x are listed in [README-v1.md](RE
 | `-z, --windows-size` | Window size in window mode, e.g. `980x540` (default) |
 | `-s, --screen-select` | Number of the screen to start on |
 | `--supervisor` | Endpoint of the supervisor (garlic-daemon: Unix socket) |
+| `--video-quality` | Scaling and filtering of videos: `auto` (default: `low` on a Raspberry Pi, otherwise `normal`), `low`, `normal` or `high` |
 
 Arguments:
 SMIL_INDEX        URI or path of the SMIL index; without it the one of the settings is used. Without any index the
