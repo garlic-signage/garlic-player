@@ -67,6 +67,7 @@ namespace player
         std::function<void()>      wake_loop; // the redraw of the MediaContext: an SDL event from any thread
         std::string                cache_root;
         std::string                ozone = "headless"; // the platform of CEF on Linux, see initialize()
+        std::string                video_driver;       // of SDL: x11, wayland, kmsdrm …
 #ifdef __APPLE__
         bool framework_loaded = false; // runWebHelperProcess(): the framework is loaded at run time, not linked
 #endif
@@ -93,14 +94,14 @@ namespace player
                         return;
 #ifdef __linux__ // Windows and macOS: the defaults of Chromium (ANGLE on D3D11, Metal)
                     command_line->AppendSwitchWithValue("ozone-platform", ozone);
-                    // Wayland: ANGLE on OpenGL (EGL), the default of Chromium; with Vulkan the GPU process could not
-                    // create its context on a Raspberry Pi 4 and Chromium ended the player ("GPU process isn't usable").
-                    // X11 and headless: Vulkan, the OpenGL backend of ANGLE would reach for the X server (GLX) and
+                    // ANGLE on OpenGL (EGL), the default of Chromium; with Vulkan the GPU process of a Raspberry Pi 4
+                    // crashed under Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process
+                    // isn't usable"). X11: Vulkan, the OpenGL backend of ANGLE would reach for the X server (GLX) and
                     // the GPU process failed. GARLIC_WEB_ANGLE overrides it (gl, gl-egl, vulkan, swiftshader …)
                     const char *angle = std::getenv("GARLIC_WEB_ANGLE");
                     command_line->AppendSwitchWithValue("use-angle", angle != nullptr && *angle != '\0' ? angle
-                                                                     : ozone == "wayland"               ? "gl"
-                                                                                                        : "vulkan");
+                                                                     : video_driver == "x11"            ? "vulkan"
+                                                                                                        : "gl");
 #endif
                     // QTWEBENGINE_CHROMIUM_FLAGS of the Qt players: widgets read local files and remote data
                     command_line->AppendSwitch("allow-file-access-from-files");
@@ -176,6 +177,7 @@ namespace player
             }
 #endif
             std::string driver = SDL_GetCurrentVideoDriver() != nullptr ? SDL_GetCurrentVideoDriver() : "";
+            video_driver       = driver;
             if (sharedTexturesUsable(renderer))
                 ozone = driver == "wayland" || driver == "x11" ? driver : "headless";
             cache_root = standardPaths().data_dir + "/cef";

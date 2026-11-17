@@ -107,6 +107,9 @@ only from build 566 on. CMake configures again by itself when the file changes.
  - Windows x64 and macOS arm64 (in progress)
  - Android and iOS follow
 
+Raspberry Pi 4 with **1 GB**: 1080p videos and web pages. For **4K** (H.265, at most 30 fps) together with web pages
+use a Pi 4 with **2 GB or more**. Details in the [README of the sdl player](src/player-ui/sdl/README.md).
+
 The operating systems and devices of version 1.x are listed in [README-v1.md](README-v1.md).
 
 ## Command Line Options

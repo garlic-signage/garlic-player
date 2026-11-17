@@ -57,16 +57,29 @@ The font (`../fonts/DejaVuSans.ttf`) is copied to `fonts/` next to the program.
 Targets: Arch Linux (built here), Debian Trixie x86_64 and aarch64 with GCC 14 (the anchor for minimum versions:
 SDL3 3.2, libmpv 0.40), Windows x64 (MSVC), macOS arm64. Debian Bookworm has no SDL3 packages; the download covers it,
 but it is not a target. Windows and macOS have not been built yet.
+
+Raspberry Pi 4 with **1 GB**: 1080p videos and web pages. For **4K** (H.265, at most 30 fps) together with web pages use
+a Pi 4 with **2 GB or more**. A 4K video with 10 bit takes 270-390 MB of the 512 MB CMA (the memory of the GPU, the same
+on every Pi 4); on a Pi 4 with 1 GB about 400 MB are left for the system, the player and CEF, and with the desktop a 4K
+video ran out of CMA and the Pi hung.
 Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev libwebp-dev`.
 
 ### Runtime
 
 The AppImage takes libmpv (with FFmpeg), SDL3, NSS and VA-API from the system: on a Raspberry Pi the FFmpeg of
 Raspberry Pi OS is the one that decodes H.265 in hardware. Debian Trixie and later (Bookworm has no SDL3); a Raspberry
-Pi lacks some of them even with the full install:
+Pi lacks some of them even with the full install. The same for both AppImages (aarch64 and x86_64):
 
 ```
 sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-wayland2 libva-x11-2 libva-drm2
+```
+
+On x86_64 also the VA-API driver of the graphics, otherwise mpv decodes in software (NVIDIA: NVDEC through the
+proprietary driver, no package needed):
+
+```
+sudo apt install intel-media-va-driver   # Intel (Broadwell and newer)
+sudo apt install mesa-va-drivers         # AMD
 ```
 
 ## How it works
@@ -115,11 +128,10 @@ sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-way
     needs no display (a Raspberry Pi without desktop).
 
   The copy is submitted (`glFlush`), not waited for: CEF reuses a buffer only frames later, and `glFinish` cost about
-  8 % CPU on NVIDIA. ANGLE runs on OpenGL under Wayland (the default of
-  Chromium) and on Vulkan otherwise (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `vulkan`, `swiftshader`): with its
-  OpenGL backend the GPU process went through GLX and crashed on X11; with Vulkan under Wayland the GPU process of a
-  Raspberry Pi 4 could not create its context, and after the fallbacks Chromium ended the player ("GPU process isn't
-  usable. Goodbye."). WebGL in software if the GPU process fails.
+  8 % CPU on NVIDIA. ANGLE runs on OpenGL (the default of Chromium), only
+  on X11 on Vulkan (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `vulkan`, `swiftshader`): with its OpenGL backend the
+  GPU process went through GLX and crashed on X11; with Vulkan the GPU process of a Raspberry Pi 4 crashed under
+  Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process isn't usable. Goodbye."). WebGL in software if the GPU process fails.
 
   CEF runs in the main thread with an external message pump (`pumpWebViews()` in every loop turn, at least every
   33 ms). The helper processes (renderer, GPU, network) are this program again: `runWebHelperProcess()` is the first
