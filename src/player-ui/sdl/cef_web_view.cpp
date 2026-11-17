@@ -16,7 +16,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 /**
- * WebView with CEF off-screen rendering (Linux): the page is painted into a buffer (OnPaint), which goes into a
+ * WebView with CEF off-screen rendering (Linux, Windows, macOS): the page is painted into a buffer (OnPaint), which goes into a
  * texture of the SDL renderer, so a web page lies in its region by z-index like an image. CEF runs in the main
  * thread with an external message pump: OnScheduleMessagePumpWork wakes the main loop, which calls pumpWebViews().
  *
@@ -31,10 +31,19 @@
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
 #include "include/cef_command_line.h"
+#ifdef __APPLE__
+#include "include/wrapper/cef_library_loader.h"
+#endif
 
 #include <SDL3/SDL.h>
+#ifdef __linux__
 #include <SDL3/SDL_egl.h>
+#endif
 #include <SDL3/SDL_opengl.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -57,7 +66,10 @@ namespace player
         std::mutex                 wake_mutex;
         std::function<void()>      wake_loop; // the redraw of the MediaContext: an SDL event from any thread
         std::string                cache_root;
-        std::string                ozone = "headless"; // the platform of CEF, see initialize()
+        std::string                ozone = "headless"; // the platform of CEF on Linux, see initialize()
+#ifdef __APPLE__
+        bool framework_loaded = false; // runWebHelperProcess(): the framework is loaded at run time, not linked
+#endif
 
         Uint32 wakeLater(void * /*userdata*/, SDL_TimerID /*timer*/, Uint32 /*interval*/)
         {
@@ -79,12 +91,14 @@ namespace player
                 {
                     if (!process_type.empty()) // the helper processes get the switches of the browser process
                         return;
+#ifdef __linux__ // Windows and macOS: the defaults of Chromium (ANGLE on D3D11, Metal)
                     command_line->AppendSwitchWithValue("ozone-platform", ozone);
                     // the GPU through Vulkan: headless, the OpenGL backend of ANGLE would reach for the X server
                     // (GLX) and the GPU process failed; GARLIC_WEB_ANGLE overrides it (gl, gl-egl, swiftshader …)
                     const char *angle = std::getenv("GARLIC_WEB_ANGLE");
                     command_line->AppendSwitchWithValue("use-angle",
                                                         angle != nullptr && *angle != '\0' ? angle : "vulkan");
+#endif
                     // QTWEBENGINE_CHROMIUM_FLAGS of the Qt players: widgets read local files and remote data
                     command_line->AppendSwitch("allow-file-access-from-files");
                     command_line->AppendSwitch("disable-web-security");
@@ -117,11 +131,21 @@ namespace player
             return instance;
         }
 
-        /// The folder of the program, where CMake puts libcef.so, the resources and the locales
+        /// The folder of the program, where CMake puts libcef, the resources and the locales (not on macOS)
         std::string programDir()
         {
             const char *base = SDL_GetBasePath();
             return base != nullptr ? base : "";
+        }
+
+        /// Windows: CEF takes the instance of the program, the command line it reads itself
+        CefMainArgs mainArgs([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
+        {
+#ifdef _WIN32
+            return CefMainArgs(GetModuleHandleW(nullptr));
+#else
+            return CefMainArgs(argc, argv);
+#endif
         }
 
         bool sharedTexturesUsable(SDL_Renderer &renderer);
@@ -141,6 +165,13 @@ namespace player
         {
             if (initialized || failed)
                 return initialized;
+#ifdef __APPLE__
+            if (!framework_loaded)
+            {
+                failed = true;
+                return false;
+            }
+#endif
             std::string driver = SDL_GetCurrentVideoDriver() != nullptr ? SDL_GetCurrentVideoDriver() : "";
             if (sharedTexturesUsable(renderer))
                 ozone = driver == "wayland" || driver == "x11" ? driver : "headless";
@@ -153,8 +184,7 @@ namespace player
             }
             std::filesystem::create_directories(cache_root, error);
 
-            std::string        dir = programDir();
-            CefMainArgs        args(0, nullptr);
+            CefMainArgs        args = mainArgs(0, nullptr);
             CefSettings        settings;
             settings.no_sandbox                   = true; // chrome-sandbox would have to be setuid root
             settings.windowless_rendering_enabled = true;
@@ -164,10 +194,15 @@ namespace player
             settings.log_severity                 = LOGSEVERITY_WARNING;
             CefString(&settings.root_cache_path)  = cache_root;
             CefString(&settings.cache_path)       = cache_root;
+            CefString(&settings.log_file)         = standardPaths().log_dir + "/cef.log";
+#ifndef __APPLE__ // macOS: CEF finds them in the bundle (the framework and the helper apps in Contents/Frameworks)
+            std::string dir = programDir();
             CefString(&settings.resources_dir_path) = dir;
             CefString(&settings.locales_dir_path)   = dir + "locales";
+#endif
+#ifdef __linux__ // Windows: the program itself is the default
             CefString(&settings.browser_subprocess_path) = dir + "garlic-player-sdl";
-            CefString(&settings.log_file)                = standardPaths().log_dir + "/cef.log";
+#endif
             if (!CefInitialize(args, settings, app().get(), nullptr))
             {
                 std::cerr << "web pages: CEF cannot start\n";
@@ -179,6 +214,8 @@ namespace player
         }
 
         // ------------------------------------------------------------ shared textures (OnAcceleratedPaint)
+
+#ifdef __linux__
 
         /**
          * The GPU path: CEF hands every frame as dmabuf, which is imported as EGL image and copied on the GPU
@@ -391,6 +428,25 @@ namespace player
             t.destroyImage(t.display, image);
             return complete;
         }
+
+#else
+        // Windows, macOS: the pages through OnPaint (CEF hands D3D11 textures or IOSurfaces there, not imported)
+        struct SharedTextures
+        {
+                bool usable = false;
+        };
+
+        SharedTextures &shared()
+        {
+            static SharedTextures functions;
+            return functions;
+        }
+
+        bool sharedTexturesUsable(SDL_Renderer & /*renderer*/)
+        {
+            return false;
+        }
+#endif
 
         /// SDL key → Windows virtual key code, which CEF wants on every platform
         int windowsKeyCode(SDL_Keycode key)
@@ -686,8 +742,9 @@ namespace player
                 }
 
                 /// A frame on the GPU: copied into the texture of the page now, the buffer lives only in the callback
-                void acceleratedPaint(const CefAcceleratedPaintInfo &info)
+                void acceleratedPaint([[maybe_unused]] const CefAcceleratedPaintInfo &info)
                 {
+#ifdef __linux__
                     int w = info.extra.coded_size.width > 0 ? info.extra.coded_size.width : width;
                     int h = info.extra.coded_size.height > 0 ? info.extra.coded_size.height : height;
                     if (!prepareTexture(SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, w, h))
@@ -718,6 +775,7 @@ namespace player
                     got_shared_frame = true;
                     if (context.redraw)
                         context.redraw();
+#endif
                 }
 
                 void created(CefRefPtr<CefBrowser> created_browser)
@@ -824,23 +882,43 @@ namespace player
         return std::make_unique<CefPage>(context);
     }
 
-    /// On X11 SDL takes GLX; the shared textures of CEF need EGL, which Wayland and KMSDRM use anyway
+#ifdef __APPLE__
+    void prepareCefApplication(); // mac/cef_application.mm
+#endif
+
+    /**
+     * Linux: on X11 SDL takes GLX; the shared textures of CEF need EGL, which Wayland and KMSDRM use anyway.
+     * macOS: the application class of SDL gets what CEF needs of it.
+     */
     void prepareWebViews()
     {
+#ifdef __linux__
         SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
+#elif defined(__APPLE__)
+        prepareCefApplication();
+#endif
     }
 
-    int runWebHelperProcess(int argc, char *argv[])
+    /// macOS: the subprocesses run in the helper apps, here only the framework is loaded, before any call of CEF
+    int runWebHelperProcess([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
     {
+#ifdef __APPLE__
+        static CefScopedLibraryLoader loader; // until the end of the program
+        framework_loaded = loader.LoadInMain();
+        if (!framework_loaded)
+            std::cerr << "web pages: the CEF framework cannot be loaded\n";
+        return -1;
+#else
         for (int i = 1; i < argc; ++i)
             if (std::strncmp(argv[i], "--type=", 7) == 0)
             {
-                CefMainArgs args(argc, argv);
+                CefMainArgs args = mainArgs(argc, argv);
                 // exit here, never return: a process forked by the zygote of Chromium gets a new stack guard
                 // (--change-stack-guard-on-fork), so returning through this frame aborted with "stack smashing detected"
                 std::exit(CefExecuteProcess(args, app().get(), nullptr));
             }
         return -1; // the player itself
+#endif
     }
 
     /// What CEF scheduled, and at least every 33 ms like the external pump of cefclient: CEF does not schedule all
