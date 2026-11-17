@@ -1,5 +1,5 @@
-# The parts of the SDL player that need no window: place() for fit and mediaAlign of images and videos, the text
-# field of the dialogs.
+# The parts of the SDL player that need no window: place() for fit and mediaAlign of images and videos, fileUrl() for
+# the WebView, the text field of the dialogs.
 include(FetchContent)
 if(NOT TARGET doctest::doctest)
     # like the tests of the core: from vcpkg or the system if available, otherwise downloaded
@@ -17,8 +17,8 @@ if(NOT TARGET doctest::doctest)
     unset(CMAKE_POLICY_VERSION_MINIMUM)
 endif()
 
-add_executable(player_sdl_tests main.cpp test_place.cpp test_text_field.cpp ../place.cpp ../ui/controls.cpp
-                                ../ui/look.cpp)
+add_executable(player_sdl_tests main.cpp test_place.cpp test_text_field.cpp test_file_url.cpp ../place.cpp
+                                ../file_url.cpp ../ui/controls.cpp ../ui/look.cpp)
 target_include_directories(player_sdl_tests PRIVATE ..)
 target_link_libraries(player_sdl_tests PRIVATE doctest::doctest SDL3::Headers)
 target_compile_features(player_sdl_tests PRIVATE cxx_std_23)

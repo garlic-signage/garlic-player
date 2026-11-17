@@ -60,6 +60,7 @@ add_executable(sdl
     player_window.cpp
     media.cpp
     place.cpp
+    file_url.cpp
     color.cpp
     dialogs.cpp
     blank_screen.cpp

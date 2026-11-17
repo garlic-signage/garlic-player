@@ -69,6 +69,7 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 |------------|--------|-------|
 | `align`    | ok   |       |
 | `simple`   | ok   |       |
+| `video_align`   | ok (SDL)  | QWidget and QML not support      |
 
 ## head
 

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<smil>
+	<head>
+		<meta name="title" content="Testing PDF documents" />
+		<layout>
+			<root-layout id="display:0" width="1920" height="1080" />
+			<region regionName="screen" top="0" left="0" width="1920" height="1080" z-index="1" backgroundColor="#000" />
+		</layout>
+	</head>
+	<body>
+		<!--
+
+			sequence should be:
+			begin, A4 portrait single (1 page), A4 portrait multi (3 pages), A4 landscape single (1 page),
+			A4 landscape multi (3 pages), end
+
+			Every page has its own background color, a frame, "top" and "bottom" marks and its page number "n / total".
+			The PDFs run as text (web), like in the legacy player.
+
+		-->
+		<img xml:id="img_begin" src="../../images/begin.jpg" dur="1s" region="screen" />
+		<text xml:id="pdf_portrait_single" src="../../pdf/a4_portrait_single.pdf#toolbar=0&amp;navpanes=0&amp;view=Fit" dur="5s" region="screen" />
+		<text xml:id="pdf_portrait_multi" src="../../pdf/a4_portrait_multi.pdf#toolbar=0&amp;navpanes=0&amp;view=Fit" dur="15s" region="screen" />
+		<text xml:id="pdf_landscape_single" src="../../pdf/a4_landscape_single.pdf#toolbar=0&amp;navpanes=0&amp;view=Fit" dur="5s" region="screen" />
+		<text xml:id="pdf_landscape_multi" src="../../pdf/a4_landscape_multi.pdf#toolbar=0&amp;navpanes=0&amp;view=Fit" dur="15s" region="screen" />
+		<img xml:id="img_end" src="../../images/end.jpg" dur="1s" region="screen" />
+	</body>
+</smil>
