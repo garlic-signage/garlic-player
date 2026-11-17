@@ -143,8 +143,17 @@ namespace player
             return name == "opengl" || name == "opengles2";
         }
 
+        /**
+         * The OpenGL functions for mpv, without glFenceSync: libmpv (render API, mpv 0.40 and 0.41; mpv issue 17217,
+         * fixed in 0.42) makes a fence for every frame and deletes it only when swapping buffers, which the render
+         * API never does. On a Raspberry Pi (Mesa V3D) every fence holds a sync_file, so after about a minute the
+         * player ran out of file descriptors (1024) and showed nothing anymore. mpv works without fences (it checks
+         * for the function); that SDL reads a frame only when mpv has written it is the fence of draw().
+         */
         void *procAddress(void * /*context*/, const char *name)
         {
+            if (std::string_view(name) == "glFenceSync")
+                return nullptr;
             return reinterpret_cast<void *>(SDL_GL_GetProcAddress(name));
         }
     }
