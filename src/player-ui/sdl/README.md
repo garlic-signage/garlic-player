@@ -59,6 +59,15 @@ SDL3 3.2, libmpv 0.40), Windows x64 (MSVC), macOS arm64. Debian Bookworm has no 
 but it is not a target. Windows and macOS have not been built yet.
 Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev libwebp-dev`.
 
+### Runtime
+
+Debian Trixie on a Raspberry Pi (also the full install) lacks the VA-API libraries for Wayland, X11 and DRM, which
+the player needs to run:
+
+```
+sudo apt install libva-wayland2 libva-x11-2 libva-drm2
+```
+
 ## How it works
 
 - **Main loop** (`PlayerWindow::run`): waits for SDL events at most until the next timer (menu hold, dialog refresh,
@@ -96,9 +105,11 @@ Packages on Debian: `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev li
     needs no display (a Raspberry Pi without desktop).
 
   The copy is submitted (`glFlush`), not waited for: CEF reuses a buffer only frames later, and `glFinish` cost about
-  8 % CPU on NVIDIA. ANGLE runs on Vulkan (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `swiftshader`): with its OpenGL
-  backend the GPU process went through GLX and crashed on X11. With `ozone-platform=wayland` Chromium refuses Vulkan
-  ("not compatible with Vulkan") and uses OpenGL over EGL, which works. WebGL in software if the GPU process fails.
+  8 % CPU on NVIDIA. ANGLE runs on OpenGL under Wayland (the default of
+  Chromium) and on Vulkan otherwise (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `vulkan`, `swiftshader`): with its
+  OpenGL backend the GPU process went through GLX and crashed on X11; with Vulkan under Wayland the GPU process of a
+  Raspberry Pi 4 could not create its context, and after the fallbacks Chromium ended the player ("GPU process isn't
+  usable. Goodbye."). WebGL in software if the GPU process fails.
 
   CEF runs in the main thread with an external message pump (`pumpWebViews()` in every loop turn, at least every
   33 ms). The helper processes (renderer, GPU, network) are this program again: `runWebHelperProcess()` is the first

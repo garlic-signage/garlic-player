@@ -93,11 +93,14 @@ namespace player
                         return;
 #ifdef __linux__ // Windows and macOS: the defaults of Chromium (ANGLE on D3D11, Metal)
                     command_line->AppendSwitchWithValue("ozone-platform", ozone);
-                    // the GPU through Vulkan: headless, the OpenGL backend of ANGLE would reach for the X server
-                    // (GLX) and the GPU process failed; GARLIC_WEB_ANGLE overrides it (gl, gl-egl, swiftshader …)
+                    // Wayland: ANGLE on OpenGL (EGL), the default of Chromium; with Vulkan the GPU process could not
+                    // create its context on a Raspberry Pi 4 and Chromium ended the player ("GPU process isn't usable").
+                    // X11 and headless: Vulkan, the OpenGL backend of ANGLE would reach for the X server (GLX) and
+                    // the GPU process failed. GARLIC_WEB_ANGLE overrides it (gl, gl-egl, vulkan, swiftshader …)
                     const char *angle = std::getenv("GARLIC_WEB_ANGLE");
-                    command_line->AppendSwitchWithValue("use-angle",
-                                                        angle != nullptr && *angle != '\0' ? angle : "vulkan");
+                    command_line->AppendSwitchWithValue("use-angle", angle != nullptr && *angle != '\0' ? angle
+                                                                     : ozone == "wayland"               ? "gl"
+                                                                                                        : "vulkan");
 #endif
                     // QTWEBENGINE_CHROMIUM_FLAGS of the Qt players: widgets read local files and remote data
                     command_line->AppendSwitch("allow-file-access-from-files");
