@@ -88,8 +88,11 @@ sudo apt install libva-wayland2 libva-x11-2 libva-drm2
   texture of the SDL renderer. mpv has an OpenGL context of its own that shares its textures with the one of the
   renderer (one for all media): in the same context the state SDL leaves broke mpv (NVIDIA: crash in the driver with
   `nvdec`, artefacts with `nvdec-copy`). A fence (OpenGL 3.2 / ES 3, else `glFinish`) lets SDL read the texture
-  only when mpv has written it. The Wayland or X11 display goes to mpv for hardware frames without a copy. `hwdec=auto-safe`;
-  `GARLIC_MPV_HWDEC` overrides it (e.g. `no`, `auto-copy-safe`) on a device whose driver fails with it.
+  only when mpv has written it. The Wayland or X11 display goes to mpv for hardware frames without a copy. `hwdec=v4l2m2m,auto-safe`:
+  first the V4L2 decoder of a Raspberry Pi (H.264 up to 1080p) without copy, which `auto-safe` does not take (a Pi 4
+  with a 1080p H.264: about 140 % CPU decoded in software, 70 % with `v4l2m2m-copy`, 40 % without copy); without a V4L2
+  decoder mpv goes on with `auto-safe`. `GARLIC_MPV_HWDEC` overrides it (e.g. `no`, `auto-copy-safe`) on a device
+  whose driver fails with it.
 - **Web pages** (CEF): off-screen rendering into a texture of the renderer, so a page lies in its region by
   z-index and is cut by the regions above it. Windows and macOS take the CPU way below; Linux has two, chosen at the
   first web page (logged once):

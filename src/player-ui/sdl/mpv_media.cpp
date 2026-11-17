@@ -212,10 +212,13 @@ namespace player
             return;
         }
         mpv_set_option_string(mpv, "vo", "libmpv");
-        // hardware decoding where mpv finds a safe way; GARLIC_MPV_HWDEC overrides it (e.g. "no", "auto-copy-safe")
-        // for a device whose driver fails with it
+        // hardware decoding: first the V4L2 decoder of a Raspberry Pi (H.264 up to 1080p) without copy, the frames
+        // as GPU buffers (EGL dmabuf); auto-safe does not take it, decoded by the CPU a 1080p H.264 cost more than one
+        // core of a Pi 4, with v4l2m2m-copy about 70 %, without copy about 40 %. Without a V4L2 decoder mpv goes on
+        // with a safe way of the device. GARLIC_MPV_HWDEC overrides it (e.g. "no", "auto-copy-safe") for a device
+        // whose driver fails with it
         const char *hwdec = std::getenv("GARLIC_MPV_HWDEC");
-        mpv_set_option_string(mpv, "hwdec", hwdec != nullptr && *hwdec != '\0' ? hwdec : "auto-safe");
+        mpv_set_option_string(mpv, "hwdec", hwdec != nullptr && *hwdec != '\0' ? hwdec : "v4l2m2m,auto-safe");
         mpv_set_option_string(mpv, "load-scripts", "no"); // no osc, stats, console …
         mpv_set_option_string(mpv, "audio-client-name", "garlic-player");
         mpv_set_option_string(mpv, "idle", "yes"); // stays after the end, for repeat()
