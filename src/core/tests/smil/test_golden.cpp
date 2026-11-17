@@ -112,7 +112,9 @@ namespace
     {
         std::vector<std::filesystem::path> files;
         for (const auto &entry : std::filesystem::recursive_directory_iterator(GARLIC_CORE_TEST_DATA))
-            if (entry.is_regular_file() && entry.path().extension() == ".smil")
+            // test.smil: the scratch file for manual tests, changes all the time
+            if (entry.is_regular_file() && entry.path().extension() == ".smil" &&
+                entry.path() != std::filesystem::path(GARLIC_CORE_TEST_DATA) / "test.smil")
                 files.push_back(entry.path());
         std::ranges::sort(files);
         return files;
