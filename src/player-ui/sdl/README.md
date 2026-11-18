@@ -114,7 +114,9 @@ sudo apt install mesa-va-drivers         # AMD
   (a Pi 4 with a 1080p H.264: about 140 % CPU decoded in software, 70 % with `v4l2m2m-copy`, 40 % without copy),
   `drm` for H.265 up to 4K, which needs the FFmpeg of Raspberry Pi OS (a 4K60 10 bit H.265 decodes at 75 fps without
   copy, 22 fps with). Without them mpv goes on with `auto-safe`. `GARLIC_MPV_HWDEC` overrides it (e.g. `no`,
-  `auto-copy-safe`) on a device whose driver fails with it.
+  `auto-copy-safe`) on a device whose driver fails with it. On a Raspberry Pi (renderer `V3D`) `gpu-hwdec-interop=drmprime`,
+  the only interop its decoders need: with `auto` every mpv loaded all interops, also the one of CUDA, and wrote
+  "Cannot load libcuda.so.1" into the log for each video.
 - **Video quality** (`--video-quality`): `low` is mpv's profile `fast` (bilinear, no dither, no deband), `normal` its
   defaults, `high` its profile `high-quality`; `auto` takes `low` on the GPU of a Raspberry Pi (OpenGL renderer
   `V3D`), otherwise `normal`. A Pi 4 under KMSDRM with `low` plays 4K H.265 with 25 fps at 10 bit and nearly 30 fps

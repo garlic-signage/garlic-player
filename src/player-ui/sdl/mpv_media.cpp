@@ -198,21 +198,25 @@ namespace player
     {
         VideoQuality video_quality = VideoQuality::Auto;
 
-        /// Auto: low on the GPU of a Raspberry Pi (OpenGL renderer "V3D 4.2" Pi 4, "V3D 7.1" Pi 5, "VC4 V3D" Pi 3),
-        /// read once from the context of the renderer, which is the current one in the main thread
+        /// The GPU of a Raspberry Pi (OpenGL renderer "V3D 4.2" Pi 4, "V3D 7.1" Pi 5, "VC4 V3D" Pi 3), read once from
+        /// the context of the renderer, which is the current one in the main thread
+        bool raspberryGpu()
+        {
+            static const bool raspberry = []
+            {
+                auto get_string = reinterpret_cast<const unsigned char *(*)(GLenum)>(SDL_GL_GetProcAddress("glGetString"));
+                const unsigned char *name = get_string != nullptr ? get_string(GL_RENDERER) : nullptr;
+                return name != nullptr && std::string(reinterpret_cast<const char *>(name)).find("V3D") != std::string::npos;
+            }();
+            return raspberry;
+        }
+
+        /// Auto: low on a Raspberry Pi
         VideoQuality effectiveQuality()
         {
             if (video_quality != VideoQuality::Auto)
                 return video_quality;
-            static const VideoQuality detected = []
-            {
-                auto get_string = reinterpret_cast<const unsigned char *(*)(GLenum)>(SDL_GL_GetProcAddress("glGetString"));
-                const unsigned char *name = get_string != nullptr ? get_string(GL_RENDERER) : nullptr;
-                bool raspberry = name != nullptr &&
-                                 std::string(reinterpret_cast<const char *>(name)).find("V3D") != std::string::npos;
-                return raspberry ? VideoQuality::Low : VideoQuality::Normal;
-            }();
-            return detected;
+            return raspberryGpu() ? VideoQuality::Low : VideoQuality::Normal;
         }
     }
 
@@ -294,6 +298,10 @@ namespace player
         // whose driver fails with it
         const char *hwdec = std::getenv("GARLIC_MPV_HWDEC");
         mpv_set_option_string(mpv, "hwdec", hwdec != nullptr && *hwdec != '\0' ? hwdec : "v4l2m2m,drm,auto-safe");
+        // Raspberry Pi: only the interop of v4l2m2m and drm (GPU buffers as EGL dmabuf); with auto mpv loaded every
+        // interop for each video, also the one of CUDA ("Cannot load libcuda.so.1" in the log for each video)
+        if (is_video && raspberryGpu())
+            mpv_set_option_string(mpv, "gpu-hwdec-interop", "drmprime");
         mpv_set_option_string(mpv, "load-scripts", "no"); // no osc, stats, console …
         mpv_set_option_string(mpv, "audio-client-name", "garlic-player");
         mpv_set_option_string(mpv, "idle", "yes"); // stays after the end, for repeat()
