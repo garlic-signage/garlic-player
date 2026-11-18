@@ -80,7 +80,7 @@ Like the qml player (`../qml/android_launcher.cpp`), with its Java classes:
   for the configuration of the launcher); Philips: only a default without index.
 - **Supervisor of the core**: restarts and installations (`NativeCore.Supervisor`) go to the launcher.
 - **Broadcasts** of the launcher (`ConfigReceiver`: `config_path`, `SmilIndexReceiver`: `smil_index_path`): applied,
-  without launcher ignored.
+  also without a found launcher, like the legacy player.
 - **Ending on purpose** (menu, Ctrl+Q, debug dialog): `PlayerClosedReceiver` of the garlic-launcher, which then does
   not start the player again. Cancel of the settings dialog at the start does not tell it.
 - Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.

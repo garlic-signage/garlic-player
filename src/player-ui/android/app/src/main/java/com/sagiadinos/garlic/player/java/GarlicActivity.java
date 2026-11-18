@@ -424,12 +424,12 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     // ------------------------------------------------------------------ launcher
 
-    /** A configuration.xml the launcher sends, e.g. from a USB stick; without launcher not taken (qml player) */
+    /** A configuration.xml the launcher sends, e.g. from a USB stick; also without a found launcher (legacy player) */
     private void applyConfiguration(String path)
     {
-        if (launcher == null || core == null)
+        if (core == null)
         {
-            Log.w(TAG, "broadcast without launcher: " + path);
+            Log.w(TAG, "broadcast before the start, not taken: " + path);
             return;
         }
         if (!core.applyConfiguration(path))
@@ -439,9 +439,9 @@ public class GarlicActivity extends Activity implements Media.Reports
     /** A SMIL index the launcher found, e.g. on a USB stick: played from now on */
     private void playIndex(String path)
     {
-        if (launcher == null || core == null)
+        if (core == null)
         {
-            Log.w(TAG, "broadcast without launcher: " + path);
+            Log.w(TAG, "broadcast before the start, not taken: " + path);
             return;
         }
         core.playIndex(path);
