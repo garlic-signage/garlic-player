@@ -136,14 +136,11 @@ final class Stage extends FrameLayout
 
     private final List<Region> regions = new ArrayList<>();
     private JSONObject         layout;
-    private final View         blank; // adapi:blankScreen without a launcher: black over everything
 
     Stage(Context context)
     {
         super(context);
         setBackgroundColor(Color.BLACK);
-        blank = new View(context);
-        blank.setBackgroundColor(Color.BLACK);
     }
 
     List<Region> regions() { return regions; }
@@ -208,8 +205,6 @@ final class Stage extends FrameLayout
     {
         for (Region region : regions)
             region.remove(id);
-        if (blank.getTag() != null && (long) blank.getTag() == id)
-            unblank();
     }
 
     void clearAll()
@@ -218,22 +213,6 @@ final class Stage extends FrameLayout
             region.clear();
         regions.clear();
         removeAllViews();
-        unblank();
-    }
-
-    void blank(long id)
-    {
-        blank.setTag(id);
-        if (blank.getParent() == null)
-            addView(blank, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        blank.bringToFront();
-    }
-
-    private void unblank()
-    {
-        blank.setTag(null);
-        if (blank.getParent() != null)
-            removeView(blank);
     }
 
     /** The regions by their part (0..1) of the screen: the layout is scaled to any screen like the other players */

@@ -19,6 +19,9 @@ the system, images with `BitmapFactory`; all are views of one hierarchy, so they
 | `app/…/java/FitFrame.java`   | fit and mediaAlign like `place()` of the sdl player                             |
 | `app/…/java/Dialogs.java`    | menu, settings dialog, debug dialog (with the running downloads)                 |
 | `app/…/java/Paths.java`      | ini, cache and logs at the places of the earlier players, the CA bundle for libcurl |
+| `app/…/java/BlankScreen.java` | adapi:blankScreen with the standby_mode, like `../supervisor/blank_screen.cpp` |
+| `app/…/java/LauncherInterface.java`, `GarlicLauncher.java`, `PhilipsLauncher.java`, `SICPDef.java`, `SocketClient.java` | launcher 1.x and the Philips firmware, from the qml player |
+| `app/…/java/ConfigReceiver.java`, `SmilIndexReceiver.java` | configuration and index the launcher sends |
 
 ## Build
 
@@ -62,13 +65,30 @@ What the native build needs on Android, also for a CI:
   Ctrl+S, Ctrl+D, Ctrl+Q, other keys are access keys; a touch on a region activates its top medium.
 - "Loading 1 / X" with the bar of the first download until the first medium of a layout.
 - Without an index the settings dialog comes first; Cancel ends the player.
-- `adapi:blankScreen` without a launcher: black over everything until the instance ends.
+- `adapi:blankScreen` with the `standby_mode` of the configuration: `partially` screen off until the element ends,
+  `deep` the launcher sleeps until its planned end (without one: screen off), otherwise nothing; without launcher the
+  screen stays on. Other commands fail.
+
+## Launcher
+
+Like the qml player (`../qml/android_launcher.cpp`), with its Java classes:
+- **Found** at the start: the garlic-launcher 1.x (`com.sagiadinos.garlic.launcher`), else the Philips firmware
+  (`com.tpv.app.tpvlauncher`), else none. Its device information is asked for up to 5 s in a thread (Philips answers
+  over the SICP socket on 127.0.0.1:5000).
+- **uuid** of the launcher only for a new player, a stored one stays. **Content URL**: the one of the garlic-launcher
+  wins, settings dialog with name and content URL only shown, and without index no settings dialog (the player waits
+  for the configuration of the launcher); Philips: only a default without index.
+- **Supervisor of the core**: restarts and installations (`NativeCore.Supervisor`) go to the launcher.
+- **Broadcasts** of the launcher (`ConfigReceiver`: `config_path`, `SmilIndexReceiver`: `smil_index_path`): applied,
+  without launcher ignored.
+- **Ending on purpose** (menu, Ctrl+Q, debug dialog): `PlayerClosedReceiver` of the garlic-launcher, which then does
+  not start the player again. Cancel of the settings dialog at the start does not tell it.
+- Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
 
 ## Not done yet
 
-- **Launcher 1.x and Philips** (supervisor, screen, restarts, installations, uuid and content URL of the launcher):
-  the Java classes of the qml player (`../qml/android`) are to be taken over; master volume and brightness
-  (`deviceSettings`) go there too.
+- Launcher tested in the emulator with the garlic-launcher only (uuid, content URL, locked settings, Exit); not
+  restart, installation, blankScreen, Philips.
 - Tested in the emulator (x86_64, API 31) only: images, video, web page, brush over web page and video, menu, debug
   dialog. Not yet on a device, not yet arm64-v8a and armeabi-v7a, not yet Android 7.1.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

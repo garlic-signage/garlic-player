@@ -67,8 +67,11 @@ final class Dialogs
             .show();
     }
 
-    /** Player name, content URL, HTTP server on/off and port; an error of the core keeps the dialog open */
-    static void settings(Activity activity, NativeCore core, boolean required, Runnable cancelled)
+    /**
+     * Player name, content URL, HTTP server on/off and port; an error of the core keeps the dialog open. identity_locked:
+     * name and content URL come from the garlic-launcher, they are only shown.
+     */
+    static void settings(Activity activity, NativeCore core, boolean required, boolean identity_locked, Runnable cancelled)
     {
         JSONObject current;
         try
@@ -82,6 +85,8 @@ final class Dialogs
         LinearLayout form   = column(activity);
         EditText     name   = field(activity, form, "Player name", current.optString("playerName"), false);
         EditText     index  = field(activity, form, "Content URL", current.optString("indexUri"), false);
+        name.setEnabled(!identity_locked);
+        index.setEnabled(!identity_locked);
         CheckBox     server = new CheckBox(activity);
         server.setText("HTTP server");
         server.setChecked(current.optBoolean("httpdEnabled", true));

@@ -128,15 +128,31 @@ namespace
         return answer.get();
     }
 
-    /// One player: file system, clock, transport and the core in its thread; the layout for the start events
-    class Bridge
+    PlayerRuntimeConfig supervisedBy(PlayerRuntimeConfig config, Supervisor *supervisor)
+    {
+        config.supervisor = supervisor;
+        return config;
+    }
+
+    /**
+     * One player: file system, clock, transport and the core in its thread; the layout for the start events. With a
+     * launcher the supervisor of the core: restarts and installations go to NativeCore (onReboot, onInstall), which
+     * passes them to the launcher in the UI thread.
+     */
+    class Bridge final : public Supervisor
     {
         public:
-            Bridge(jobject owner, PlayerRuntimeConfig config, downloader::CurlTransportConfig transport_config)
+            Bridge(jobject owner, PlayerRuntimeConfig config, downloader::CurlTransportConfig transport_config,
+                   bool supervised)
                 : java(owner), http(std::move(transport_config)),
-                  runtime(fs, clock, http, std::move(config), [this] { wake(); })
+                  runtime(fs, clock, http, supervisedBy(std::move(config), supervised ? this : nullptr),
+                          [this] { callJava("onWake"); })
             {
             }
+
+            // Supervisor, in the core thread
+            void reboot(const std::string &task_id) override { callJava("onReboot", &task_id); }
+            void installSoftware(const std::string &path) override { callJava("onInstall", &path); }
 
             ~Bridge()
             {
@@ -175,8 +191,9 @@ namespace
             ThreadedRuntime         runtime;
             NewLayout               layout; // the document is kept until the next one (UI thread only)
 
-            /// In the core thread: NativeCore.onWake() posts the work to the UI thread
-            void wake()
+            /// In the core thread: a method of NativeCore without or with one string, which posts the work to the
+            /// UI thread (onWake, onReboot, onInstall)
+            void callJava(const char *name, const std::string *argument = nullptr)
             {
                 if (java_vm == nullptr)
                     return;
@@ -189,8 +206,14 @@ namespace
                     attached = true;
                 }
                 jclass    type   = env->GetObjectClass(java);
-                jmethodID method = env->GetMethodID(type, "onWake", "()V");
-                if (method != nullptr)
+                jmethodID method = env->GetMethodID(type, name, argument != nullptr ? "(Ljava/lang/String;)V" : "()V");
+                if (method != nullptr && argument != nullptr)
+                {
+                    jstring value = javaString(env, *argument);
+                    env->CallVoidMethod(java, method, value);
+                    env->DeleteLocalRef(value);
+                }
+                else if (method != nullptr)
                     env->CallVoidMethod(java, method);
                 env->DeleteLocalRef(type);
                 if (env->ExceptionCheck())
@@ -315,11 +338,14 @@ extern "C"
         return JNI_VERSION_1_6;
     }
 
-    /// paths: ini, cache, logs; indexUri may be empty (the one of the ini); caBundle: PEM file of the system CAs
+    /// paths: ini, cache, logs; index may be empty (the one of the ini), the content URL of the garlic-launcher wins;
+    /// uuid of the launcher, taken only if the ini has none; caBundle: PEM file of the system CAs; supervised: with a
+    /// launcher, which restarts and installs
     JNIEXPORT jlong JNICALL Java_com_sagiadinos_garlic_player_NativeCore_create(JNIEnv *env, jobject self,
                                                                                jstring ini, jstring cache, jstring logs,
-                                                                               jstring index, jstring ca_bundle,
-                                                                               jint seed)
+                                                                               jstring index, jstring uuid,
+                                                                               jstring ca_bundle, jint seed,
+                                                                               jboolean supervised)
     {
         PlayerRuntimeConfig config;
         config.ini_path    = text(env, ini);
@@ -327,10 +353,12 @@ extern "C"
         config.log_dir     = text(env, logs);
         config.version     = PLAYER_VERSION;
         config.index_uri   = text(env, index);
+        config.uuid        = text(env, uuid);
         config.random_seed = static_cast<std::uint32_t>(seed);
         downloader::CurlTransportConfig transport;
         transport.ca_bundle = text(env, ca_bundle);
-        return reinterpret_cast<jlong>(new Bridge(env->NewGlobalRef(self), std::move(config), std::move(transport)));
+        return reinterpret_cast<jlong>(
+            new Bridge(env->NewGlobalRef(self), std::move(config), std::move(transport), supervised == JNI_TRUE));
     }
 
     /// Empty, or the error text of the start
@@ -390,11 +418,18 @@ extern "C"
                                                                                  jstring uri)
     {
         post(handle,
-             [index = text(env, uri)](PlayerRuntimeApi &api)
+             [given = text(env, uri)](PlayerRuntimeApi &api)
              {
+                 auto valid = configuration::Configuration::validateIndexUri(given);
+                 if (!valid)
+                 {
+                     __android_log_print(ANDROID_LOG_WARN, "garlic-player", "index not taken: %s", valid.error().c_str());
+                     return;
+                 }
                  PlayerSettings next = api.playerSettings();
-                 next.index_uri      = index;
-                 (void)api.changePlayerSettings(next);
+                 next.index_uri      = *valid;
+                 if (auto changed = api.changePlayerSettings(next); !changed)
+                     __android_log_print(ANDROID_LOG_WARN, "garlic-player", "index not taken: %s", changed.error().c_str());
              });
     }
 
@@ -456,6 +491,13 @@ extern "C"
                     {"downloads", downloads},
                     {"downloadsWaiting", info.downloads_waiting}};
         return javaString(env, result.dump());
+    }
+
+    /// standby_mode of the configuration (adapi:blankScreen): partially, deep, no_standby
+    JNIEXPORT jstring JNICALL Java_com_sagiadinos_garlic_player_NativeCore_standbyMode(JNIEnv *env, jclass, jlong handle)
+    {
+        return javaString(env, ask<std::string>(bridge(handle)->core(),
+                                                [](PlayerRuntimeApi &api) { return api.configuration().standbyMode(); }));
     }
 
     /// The remaining time of an instance in seconds, -1 if unknown (the deep standby of launcher 1.x)

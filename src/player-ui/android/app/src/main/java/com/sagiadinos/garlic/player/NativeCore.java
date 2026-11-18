@@ -23,7 +23,8 @@ import android.os.Looper;
 /**
  * The core (libgarlic-player.so, native/jni.cpp) in a thread of its own. Its events come as a JSON array from
  * takeEvents(), after the wake runnable ran in the UI thread. Calls into the core are posted to its thread; the
- * dialogs ask for settings and debug infos and wait for the answer.
+ * dialogs ask for settings and debug infos and wait for the answer. With a launcher the core is supervised: its
+ * restarts and installations come to the Supervisor in the UI thread.
  */
 public final class NativeCore
 {
@@ -34,15 +35,28 @@ public final class NativeCore
         System.loadLibrary("garlic-player");
     }
 
-    private final Handler  ui = new Handler(Looper.getMainLooper());
-    private final Runnable wake;
-    private long           handle;
-
-    /** wake runs in the UI thread when the core has new events */
-    public NativeCore(String ini, String cache, String logs, String index, String ca_bundle, Runnable wake)
+    /** Restarts and installations of the core (task reboot, firmwareUpdate), for the launcher */
+    public interface Supervisor
     {
-        this.wake = wake;
-        handle    = create(ini, cache, logs, index, ca_bundle, (int) System.nanoTime());
+        void reboot(String task_id);
+        void installSoftware(String path);
+    }
+
+    private final Handler    ui = new Handler(Looper.getMainLooper());
+    private final Runnable   wake;
+    private final Supervisor supervisor;
+    private long             handle;
+
+    /**
+     * wake runs in the UI thread when the core has new events. index: empty for the one of the ini; uuid: of the
+     * launcher, taken only if the ini has none; supervisor: null without launcher
+     */
+    public NativeCore(String ini, String cache, String logs, String index, String uuid, String ca_bundle, Runnable wake,
+                      Supervisor supervisor)
+    {
+        this.wake       = wake;
+        this.supervisor = supervisor;
+        handle          = create(ini, cache, logs, index, uuid, ca_bundle, (int) System.nanoTime(), supervisor != null);
     }
 
     /** null, or the error text of the start */
@@ -71,6 +85,8 @@ public final class NativeCore
     }
     public String debugInfo() { return debugInfo(handle); }
     public long remainingTime(long id) { return remainingTime(handle, id); }
+    /** standby_mode of the configuration: partially, deep, no_standby */
+    public String standbyMode() { return standbyMode(handle); }
     public void stopPlayback() { stopPlayback(handle); }
 
     /** Ends the core thread; the object is unusable afterwards */
@@ -89,7 +105,24 @@ public final class NativeCore
         ui.post(wake);
     }
 
-    private native long create(String ini, String cache, String logs, String index, String ca_bundle, int seed);
+    /** From the core thread (jni.cpp) */
+    @SuppressWarnings("unused")
+    private void onReboot(String task_id)
+    {
+        if (supervisor != null)
+            ui.post(() -> supervisor.reboot(task_id));
+    }
+
+    /** From the core thread (jni.cpp) */
+    @SuppressWarnings("unused")
+    private void onInstall(String path)
+    {
+        if (supervisor != null)
+            ui.post(() -> supervisor.installSoftware(path));
+    }
+
+    private native long create(String ini, String cache, String logs, String index, String uuid, String ca_bundle,
+                               int seed, boolean supervised);
     private static native String start(long handle);
     private static native String takeEvents(long handle);
     private static native void destroy(long handle);
@@ -105,5 +138,6 @@ public final class NativeCore
     private static native String changeSettings(long handle, String json);
     private static native String debugInfo(long handle);
     private static native long remainingTime(long handle, long id);
+    private static native String standbyMode(long handle);
     private static native void stopPlayback(long handle);
 }

@@ -19,6 +19,9 @@ package com.sagiadinos.garlic.player.java;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -59,6 +62,10 @@ import java.io.IOException;
  * events change the stage. Video and audio with Media3, web pages with the WebView of the system, all as views of one
  * hierarchy, so they stack by z-index (TextureView, not SurfaceView). Operated like every player: ten fast touches or
  * one held for 10 s open the menu, Ctrl+S, Ctrl+D, Ctrl+Q with a keyboard, other keys are access keys.
+ *
+ * Launcher 1.x or the Philips firmware like the qml player: uuid and content URL at the start, restarts and
+ * installations of the core, the screen at adapi:blankScreen, the configuration and index the launcher sends, and
+ * that the player ended on purpose.
  */
 public class GarlicActivity extends Activity implements Media.Reports
 {
@@ -73,6 +80,11 @@ public class GarlicActivity extends Activity implements Media.Reports
     private ProgressBar   loading_bar;
     private JSONObject    downloads    = new JSONObject();
     private boolean       media_shown;  // since the layout: "Loading" only before its first medium
+
+    private LauncherInterface       launcher; // null without one
+    private final BlankScreen       blank_screen    = new BlankScreen();
+    private final BroadcastReceiver config_receiver = new ConfigReceiver(this::applyConfiguration);
+    private final BroadcastReceiver index_receiver  = new SmilIndexReceiver(this::playIndex);
 
     // ten fast touches (< 500 ms apart) or one held for 10 s open the menu
     private long           released_at;
@@ -93,6 +105,14 @@ public class GarlicActivity extends Activity implements Media.Reports
                                                                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         setContentView(root);
 
+        if (isPackageInstalled(GarlicLauncher.PACKAGE_NAME))
+            launcher = new GarlicLauncher(getApplicationContext());
+        else if (isPackageInstalled(PhilipsLauncher.PACKAGE_NAME))
+            launcher = new PhilipsLauncher(getApplicationContext());
+        blank_screen.setControl(launcher);
+        register(config_receiver, ConfigReceiver.ACTION);
+        register(index_receiver, SmilIndexReceiver.ACTION);
+
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_REQUEST);
         else
@@ -110,6 +130,8 @@ public class GarlicActivity extends Activity implements Media.Reports
     @Override
     protected void onDestroy()
     {
+        unregisterReceiver(config_receiver);
+        unregisterReceiver(index_receiver);
         if (stage != null)
             stage.clearAll();
         if (core != null)
@@ -139,15 +161,76 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     // ------------------------------------------------------------------ core
 
-    /** Without permission for the shared storage cache and logs stay inside the app (the launcher cannot update) */
+    /**
+     * Without permission for the shared storage cache and logs stay inside the app (the launcher cannot update).
+     * With a launcher its device information first, in a thread: Philips answers over the SICP socket, which may not be
+     * connected yet; asked again for up to 5 s like the qml and the legacy player.
+     */
     private void startCore(boolean storage)
     {
-        if (core != null)
+        if (launcher == null)
+        {
+            createCore(storage);
+            return;
+        }
+        LauncherInterface asked = launcher;
+        new Thread(() -> {
+            long deadline = SystemClock.uptimeMillis() + 5000;
+            do
+            {
+                asked.fetchDeviceInformation();
+                if (!asked.getUUIDFromLauncher().isEmpty())
+                    break;
+                SystemClock.sleep(250);
+            } while (SystemClock.uptimeMillis() < deadline);
+            Log.i(TAG, "launcher: " + asked.getLauncherName() + " " + asked.getLauncherVersion() + " uuid: "
+                       + asked.getUUIDFromLauncher());
+            ui.post(() -> createCore(storage));
+        }, "launcher").start();
+    }
+
+    /** The garlic-launcher gives name and content URL: the settings dialog shows them, but does not change them */
+    private boolean identityLocked()
+    {
+        return launcher instanceof GarlicLauncher;
+    }
+
+    private void createCore(boolean storage)
+    {
+        if (core != null || isFinishing())
             return;
         if (!storage)
             Log.w(TAG, "no permission for the shared storage: cache and logs inside the app");
-        Paths paths = new Paths(this, storage);
-        core        = new NativeCore(paths.ini, paths.cache, paths.logs, "", Paths.caBundle(this), this::drain);
+        Paths  paths = new Paths(this, storage);
+        String index = "", uuid = "", fallback_index = "";
+        NativeCore.Supervisor supervisor = null;
+        if (launcher != null)
+        {
+            LauncherInterface l = launcher;
+            uuid       = l.getUUIDFromLauncher(); // only for a new player: a stored uuid stays
+            supervisor = new NativeCore.Supervisor()
+            {
+                @Override
+                public void reboot(String task_id)
+                {
+                    Log.i(TAG, "launcher: reboot " + task_id);
+                    l.rebootOS(task_id);
+                }
+
+                @Override
+                public void installSoftware(String path)
+                {
+                    Log.i(TAG, "launcher: install " + path);
+                    l.installSoftware(path);
+                }
+            };
+            if (identityLocked())
+                index = l.getContentUrlFromLauncher(); // the content URL of the garlic-launcher wins
+            else
+                fallback_index = l.getContentUrlFromLauncher(); // Philips: only a default
+        }
+        core = new NativeCore(paths.ini, paths.cache, paths.logs, index, uuid, Paths.caBundle(this), this::drain,
+                              supervisor);
         String error = core.start();
         if (error != null)
         {
@@ -156,14 +239,34 @@ public class GarlicActivity extends Activity implements Media.Reports
             return;
         }
         drain();
-        // without an index the settings dialog comes first; Cancel ends the player (garlic-lib)
+        // without an index the settings dialog comes first, Cancel ends the player (garlic-lib); not when the
+        // garlic-launcher gives the content URL: the player waits for its configuration
+        boolean without_index = indexOf(core.settings()).isEmpty();
+        if (without_index && !fallback_index.isEmpty())
+        {
+            try
+            {
+                JSONObject next = new JSONObject(core.settings());
+                next.put("indexUri", fallback_index);
+                without_index = core.changeSettings(next.toString()) != null;
+            }
+            catch (JSONException ignored)
+            {
+            }
+        }
+        if (without_index && !identityLocked())
+            Dialogs.settings(this, core, true, false, this::finish);
+    }
+
+    private static String indexOf(String settings)
+    {
         try
         {
-            if (new JSONObject(core.settings()).optString("indexUri").isEmpty())
-                Dialogs.settings(this, core, true, this::finish);
+            return new JSONObject(settings).optString("indexUri");
         }
-        catch (JSONException ignored)
+        catch (JSONException error)
         {
+            return "";
         }
     }
 
@@ -196,7 +299,10 @@ public class GarlicActivity extends Activity implements Media.Reports
                 break;
             case "background": stage.backgroundImage(event.optString("src"), event.optString("path")); break;
             case "start": start(event); break;
-            case "stop": stage.stop(id); break;
+            case "stop":
+                blank_screen.end(id);
+                stage.stop(id);
+                break;
             case "repeat": forEach(id, Media::replay); break;
             case "pause":
                 for (Stage.Region region : stage.regions())
@@ -247,10 +353,15 @@ public class GarlicActivity extends Activity implements Media.Reports
         String  kind    = event.getString("kind");
         String  source  = event.optString("source");
         String  label   = event.optString("label");
-        if (kind.equals("command"))
+        if (kind.equals("command")) // garlic-lib only knew adapi:blankScreen, which needs the launcher
         {
             if (source.equalsIgnoreCase("adapi:blankScreen"))
-                stage.blank(id);
+                blank_screen.begin(id, core.standbyMode(), () -> core.remainingTime(id));
+            else
+            {
+                Log.w(TAG, "unknown command " + source);
+                mediaFailed(id);
+            }
             return;
         }
         JSONArray regions = event.optJSONArray("regions");
@@ -309,6 +420,62 @@ public class GarlicActivity extends Activity implements Media.Reports
     {
         if (core != null)
             core.mediaFailed(id);
+    }
+
+    // ------------------------------------------------------------------ launcher
+
+    /** A configuration.xml the launcher sends, e.g. from a USB stick; without launcher not taken (qml player) */
+    private void applyConfiguration(String path)
+    {
+        if (launcher == null || core == null)
+        {
+            Log.w(TAG, "broadcast without launcher: " + path);
+            return;
+        }
+        if (!core.applyConfiguration(path))
+            Log.w(TAG, "configuration not applied: " + path);
+    }
+
+    /** A SMIL index the launcher found, e.g. on a USB stick: played from now on */
+    private void playIndex(String path)
+    {
+        if (launcher == null || core == null)
+        {
+            Log.w(TAG, "broadcast without launcher: " + path);
+            return;
+        }
+        core.playIndex(path);
+    }
+
+    /** Ends the player on purpose (menu, keys, debug dialog): the launcher shall not start it again */
+    private void quit()
+    {
+        if (launcher != null)
+            launcher.closedCorrectly();
+        finishAndRemoveTask();
+    }
+
+    /** Android 13+ asks for the flag; the broadcasts of the launcher come from another app */
+    private void register(BroadcastReceiver receiver, String action)
+    {
+        IntentFilter filter = new IntentFilter(action);
+        if (Build.VERSION.SDK_INT >= 33)
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+        else
+            registerReceiver(receiver, filter);
+    }
+
+    private boolean isPackageInstalled(String name)
+    {
+        try
+        {
+            getPackageManager().getPackageInfo(name, 0);
+            return true;
+        }
+        catch (PackageManager.NameNotFoundException error)
+        {
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------ tasks
@@ -481,7 +648,7 @@ public class GarlicActivity extends Activity implements Media.Reports
             {
                 case KeyEvent.KEYCODE_S: openSettings(); return true;
                 case KeyEvent.KEYCODE_D: openDebug(); return true;
-                case KeyEvent.KEYCODE_Q: finishAndRemoveTask(); return true;
+                case KeyEvent.KEYCODE_Q: quit(); return true;
                 default: return super.dispatchKeyEvent(event);
             }
         }
@@ -497,18 +664,18 @@ public class GarlicActivity extends Activity implements Media.Reports
     private void openMenu()
     {
         fast_touches = 0;
-        Dialogs.menu(this, this::openSettings, this::openDebug, this::finishAndRemoveTask);
+        Dialogs.menu(this, this::openSettings, this::openDebug, this::quit);
     }
 
     private void openSettings()
     {
         if (core != null)
-            Dialogs.settings(this, core, false, null);
+            Dialogs.settings(this, core, false, identityLocked(), null);
     }
 
     private void openDebug()
     {
         if (core != null)
-            Dialogs.debug(this, core, stage::playing, this::finishAndRemoveTask);
+            Dialogs.debug(this, core, stage::playing, this::quit);
     }
 }
