@@ -1,0 +1,267 @@
+/*
+ garlic-player: SMIL Player for Digital Signage
+ Copyright (C) 2026 Nikolaos Sagiadinos <garlic@saghiadinos.de>
+ This file is part of the GarlicSignage source code
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License, version 3,
+ as published by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+package com.sagiadinos.garlic.player.java;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import com.sagiadinos.garlic.player.NativeCore;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Supplier;
+
+/**
+ * The menu and the two dialogs of every player (garlic-lib ConfigDialog and DebugInfos): reading, checking and storing
+ * the settings is done by the core, the dialogs only show the fields.
+ */
+final class Dialogs
+{
+    private Dialogs() {}
+
+    /** Settings, Debug infos, Exit */
+    static void menu(Activity activity, Runnable settings, Runnable debug, Runnable exit)
+    {
+        new AlertDialog.Builder(activity)
+            .setItems(new CharSequence[]{"Settings", "Debug infos", "Exit"}, (dialog, which) -> {
+                if (which == 0)
+                    settings.run();
+                else if (which == 1)
+                    debug.run();
+                else
+                    exit.run();
+            })
+            .show();
+    }
+
+    /** Player name, content URL, HTTP server on/off and port; an error of the core keeps the dialog open */
+    static void settings(Activity activity, NativeCore core, boolean required, Runnable cancelled)
+    {
+        JSONObject current;
+        try
+        {
+            current = new JSONObject(core.settings());
+        }
+        catch (JSONException error)
+        {
+            current = new JSONObject();
+        }
+        LinearLayout form   = column(activity);
+        EditText     name   = field(activity, form, "Player name", current.optString("playerName"), false);
+        EditText     index  = field(activity, form, "Content URL", current.optString("indexUri"), false);
+        CheckBox     server = new CheckBox(activity);
+        server.setText("HTTP server");
+        server.setChecked(current.optBoolean("httpdEnabled", true));
+        form.addView(server);
+        EditText port  = field(activity, form, "Port", String.valueOf(current.optInt("httpdPort", 8080)), true);
+        TextView error = new TextView(activity);
+        error.setTextColor(Color.rgb(235, 90, 90));
+        error.setVisibility(View.GONE);
+        form.addView(error);
+
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+            .setTitle("Settings")
+            .setView(form)
+            .setPositiveButton("OK", null)
+            .setNegativeButton("Cancel", (d, w) -> {
+                if (cancelled != null)
+                    cancelled.run();
+            })
+            .setCancelable(!required)
+            .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            JSONObject next = new JSONObject();
+            try
+            {
+                next.put("playerName", name.getText().toString().trim());
+                next.put("indexUri", index.getText().toString().trim());
+                next.put("httpdEnabled", server.isChecked());
+                next.put("httpdPort", parsePort(port.getText().toString()));
+            }
+            catch (JSONException ignored)
+            {
+            }
+            String failed = core.changeSettings(next.toString());
+            if (failed == null)
+            {
+                dialog.dismiss();
+                return;
+            }
+            error.setText(failed);
+            error.setVisibility(View.VISIBLE);
+        }));
+        dialog.show();
+    }
+
+    /** Resources and identity, the running downloads and what plays; refreshed every second */
+    static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing, Runnable quit)
+    {
+        LinearLayout content = column(activity);
+        TextView     text    = new TextView(activity);
+        text.setTypeface(Typeface.MONOSPACE);
+        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        content.addView(text);
+        ScrollView scroll = new ScrollView(activity);
+        scroll.addView(content);
+
+        Handler  timer   = new Handler(Looper.getMainLooper());
+        Runnable[] tick  = new Runnable[1];
+        tick[0] = () -> {
+            text.setText(debugText(core.debugInfo(), playing.get()));
+            timer.postDelayed(tick[0], 1000);
+        };
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+            .setTitle("Information")
+            .setView(scroll)
+            .setPositiveButton("Close", null)
+            .setNegativeButton("Quit", (d, w) -> quit.run())
+            .create();
+        dialog.setOnDismissListener(d -> timer.removeCallbacks(tick[0]));
+        tick[0].run();
+        dialog.show();
+    }
+
+    static String debugText(String json, List<String> playing)
+    {
+        StringBuilder out = new StringBuilder();
+        try
+        {
+            JSONObject info = new JSONObject(json);
+            line(out, "Playlist", info.optString("title").isEmpty() ? "-" : info.optString("title"));
+            line(out, "User agent", info.optString("userAgent"));
+            line(out, "Disk (cache)", freeOf(info, "diskFree", "diskTotal"));
+            line(out, "System memory", freeOf(info, "memoryFree", "memoryTotal"));
+            long used = info.optLong("memoryUsed");
+            line(out, "Player memory", used == 0 ? "-"
+                : bytes(used) + ", max " + bytes(info.optLong("memoryMax")) + " at " + info.optString("memoryMaxTime"));
+            int threads = info.optInt("threads");
+            line(out, "Threads", threads == 0 ? "-" : threads + ", max " + info.optInt("threadsMax"));
+            JSONArray downloads = info.optJSONArray("downloads");
+            boolean   first     = true;
+            for (int i = 0; downloads != null && i < downloads.length(); ++i)
+            {
+                JSONObject d        = downloads.getJSONObject(i);
+                long       received = d.optLong("received");
+                long       total    = d.optLong("total");
+                String amount = total == 0 ? mib(received) + " MiB"
+                    : (received * 100 / total) + " %  " + mib(received) + " / " + mib(total) + " MiB";
+                line(out, first ? "Downloading" : "", d.optString("name") + "  " + amount);
+                first = false;
+            }
+            long waiting = info.optLong("downloadsWaiting");
+            if (waiting > 0)
+                line(out, first ? "Downloading" : "", "+" + waiting + " waiting");
+            else if (first)
+                line(out, "Downloading", "-");
+        }
+        catch (JSONException error)
+        {
+            out.append(error.getMessage()).append('\n');
+        }
+        if (playing.isEmpty())
+            line(out, "Playing", "-");
+        for (int i = 0; i < playing.size(); ++i)
+            line(out, i == 0 ? "Playing" : "", playing.get(i));
+        return out.toString();
+    }
+
+    private static void line(StringBuilder out, String label, String value)
+    {
+        out.append(String.format(Locale.ROOT, "%-14s %s%n", label, value));
+    }
+
+    private static String freeOf(JSONObject info, String free, String total)
+    {
+        if (info.isNull(free) || info.isNull(total))
+            return "-";
+        return bytes(info.optLong(free)) + " free of " + bytes(info.optLong(total));
+    }
+
+    /** Like QLocale::formattedDataSize: "1.50 GiB" */
+    static String bytes(long value)
+    {
+        String[] units = {"bytes", "KiB", "MiB", "GiB", "TiB"};
+        double   size  = value;
+        int      unit  = 0;
+        while (size >= 1024 && unit < 4)
+        {
+            size /= 1024;
+            ++unit;
+        }
+        return unit == 0 ? value + " bytes" : String.format(Locale.ROOT, "%.2f %s", size, units[unit]);
+    }
+
+    private static String mib(long value)
+    {
+        return String.format(Locale.ROOT, "%.1f", value / (1024.0 * 1024.0));
+    }
+
+    private static int parsePort(String text)
+    {
+        try
+        {
+            return Integer.parseInt(text.trim());
+        }
+        catch (NumberFormatException error)
+        {
+            return 0; // the core rejects it with its message
+        }
+    }
+
+    private static LinearLayout column(Activity activity)
+    {
+        LinearLayout layout = new LinearLayout(activity);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int padding = Math.round(20 * activity.getResources().getDisplayMetrics().density);
+        layout.setPadding(padding, padding / 2, padding, 0);
+        return layout;
+    }
+
+    private static EditText field(Activity activity, ViewGroup form, String label, String value, boolean number)
+    {
+        TextView caption = new TextView(activity);
+        caption.setText(label);
+        form.addView(caption);
+        EditText edit = new EditText(activity);
+        edit.setText(value);
+        edit.setSingleLine(true);
+        edit.setGravity(Gravity.START);
+        if (number)
+            edit.setInputType(InputType.TYPE_CLASS_NUMBER);
+        form.addView(edit);
+        return edit;
+    }
+}

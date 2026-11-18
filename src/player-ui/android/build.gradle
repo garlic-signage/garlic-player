@@ -1,0 +1,4 @@
+plugins {
+    // 8.6: works with the build tools 34; 8.12 needs the build tools 35
+    id 'com.android.application' version '8.6.0' apply false
+}

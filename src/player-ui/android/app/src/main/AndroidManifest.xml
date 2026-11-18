@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  garlic-player for Android: Java on the core (libgarlic-player.so). Package and activity are the ones of the earlier
+  players: launcher 1.x and the Philips firmware start and update the player by these names, and an update keeps the
+  settings (uuid) only with the same package.
+  targetSdk 29 (app/build.gradle) with requestLegacyExternalStorage: cache and logs stay in /sdcard/garlic-player
+  with WRITE_EXTERNAL_STORAGE also on Android 11+, where launcher 1.x reads the downloaded APK.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Android 11+: the launcher packages must be visible to find them and to query the SettingsProvider -->
+    <queries>
+        <package android:name="com.sagiadinos.garlic.launcher" />
+        <package android:name="com.tpv.app.tpvlauncher" />
+        <provider android:authorities="com.sagiadinos.garlic.launcher.SettingsProvider" />
+    </queries>
+
+    <application
+        android:hardwareAccelerated="true"
+        android:label="garlic-player"
+        android:icon="@drawable/icon"
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        android:allowBackup="false">
+        <activity
+            android:name="com.sagiadinos.garlic.player.java.GarlicActivity"
+            android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
+            android:label="garlic-player"
+            android:launchMode="singleTop"
+            android:screenOrientation="unspecified"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

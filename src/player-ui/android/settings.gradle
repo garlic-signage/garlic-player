@@ -1,0 +1,16 @@
+// The Android player: Java on the core (native/, built by build-native.sh into app/src/main/jniLibs)
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'garlic-player'
+include ':app'

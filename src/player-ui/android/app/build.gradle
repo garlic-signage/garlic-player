@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+// the version of all players (src/player-ui/VERSION), e.g. 2.0.0-beta.900: the number after the last dot is the build
+def playerVersion = file('../../VERSION').readLines().first().trim()
+def build = playerVersion.tokenize('.').last().isInteger() ? playerVersion.tokenize('.').last().toInteger() : 1
+
+android {
+    namespace 'com.sagiadinos.garlic.player'
+    compileSdk 34
+
+    defaultConfig {
+        // the package of the earlier players, so an installed player keeps its settings and uuid
+        applicationId 'com.sagiadinos.garlic.player'
+        minSdk 25        // Android 7.1.1
+        targetSdk 29     // the shared storage with WRITE_EXTERNAL_STORAGE also on Android 11+, like the earlier players
+        versionCode 20000000 + build
+        versionName playerVersion
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true // the .so files extracted, also on Android 7
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    def media3 = '1.4.1'
+    implementation "androidx.media3:media3-exoplayer:$media3"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3"
+    implementation "androidx.annotation:annotation:1.8.2"
+}

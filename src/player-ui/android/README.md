@@ -1,0 +1,74 @@
+# android
+
+The Android frontend of the garlic-player: Java on the core (`PlayerRuntimeApi` in a `ThreadedRuntime`), like the sdl
+and the JS player. Video and audio with Media3 (ExoPlayer, the decoders of the device), web pages with the WebView of
+the system, images with `BitmapFactory`; all are views of one hierarchy, so they stack by z-index (video in a
+`TextureView`, not a `SurfaceView`, which would lie over or under everything). Android 7.1.1 (API 25) or newer.
+
+| File                         | Content                                                                          |
+|------------------------------|----------------------------------------------------------------------------------|
+| `native/jni.cpp`             | the bridge: the core in its thread, events and dialog data as JSON for Java, calls back into the core; SMIL colors with `../sdl/color.cpp` |
+| `native/CMakeLists.txt`      | `libgarlic-player.so` with the core (`libcore.so`)                               |
+| `build-native.sh`            | builds the native part for one ABI with the NDK and vcpkg into `app/src/main/jniLibs/<abi>` |
+| `vcpkg/triplets/`            | vcpkg's Android triplets with API 25 instead of 28                               |
+| `vcpkg/ports/openssl/`       | vcpkg's OpenSSL, for x86_64 without assembly (the emulator)                       |
+| `app/…/NativeCore.java`      | the native methods; the wake of the core thread runs in the UI thread            |
+| `app/…/java/GarlicActivity.java` | events of the core, media per region, menu, keys, loading, screenshot, clear_webcache |
+| `app/…/java/Stage.java`      | regions by z-index with background color and image, media stacked, the topmost with a picture visible |
+| `app/…/java/Media.java`      | image, video/audio (Media3), web page (WebView), brush                           |
+| `app/…/java/FitFrame.java`   | fit and mediaAlign like `place()` of the sdl player                             |
+| `app/…/java/Dialogs.java`    | menu, settings dialog, debug dialog (with the running downloads)                 |
+| `app/…/java/Paths.java`      | ini, cache and logs at the places of the earlier players, the CA bundle for libcurl |
+
+## Build
+
+```
+export ANDROID_NDK_HOME=…/Sdk/ndk/26.1.10909125 VCPKG_ROOT=… JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+./build-native.sh x86_64          # or arm64-v8a, armeabi-v7a; Release by default
+./gradlew assembleDebug           # app/build/outputs/apk/debug/app-debug.apk
+```
+
+`local.properties` (not in git) names the SDK: `sdk.dir=…/Android/Sdk`. Gradle 8.13 (wrapper), Android Gradle plugin
+8.6 (works with the build tools 34; 8.12 needs 35), compileSdk 34, minSdk 25, targetSdk 29.
+
+What the native build needs on Android, also for a CI:
+- **API 25 triplets** (`vcpkg/triplets`): vcpkg's own Android triplets take API 28, so the libraries would use
+  functions Android 7 lacks, and libxml2 would miss GNU libiconv (bionic has iconv from API 28).
+- **`-DCMAKE_CXX_SCAN_FOR_MODULES=OFF`**: CMake 4 would build the `std` module with the libstdc++ of the build machine.
+- **x86_64 only: OpenSSL without assembly** (`vcpkg/ports/openssl`): the assembler of NDK 26 does not know the SM3/SM4
+  instructions of its x86_64 assembly. arm64 and armv7 do not need it; a newer NDK neither.
+- `ANDROID_STL=c++_shared`: core and bridge are two libraries, `libc++_shared.so` goes with them.
+
+## Files of the player
+
+- **ini**: `files/.config/SmilControl/garlic-player.ini` of the app, where QSettings of the Qt players wrote it (seen
+  on a device with an earlier player): an update keeps the uuid and the player stays the same device in the CMS.
+- **cache and logs**: `/sdcard/garlic-player/{cache,logs}` with the permission for the shared storage (launcher 1.x
+  installs updates from there), otherwise inside the app. `requestLegacyExternalStorage` and targetSdk 29 keep that on
+  Android 11+, like the qml player.
+- **CA certificates**: Android has no OpenSSL store; the certificates of the system (`/apex/com.android.conscrypt/cacerts`
+  or `/system/etc/security/cacerts`) are joined into `files/ca-bundle.pem` for libcurl.
+
+## Like the other players
+
+- Regions placed by their part of the screen (0..1 of the root layout), by z-index; background color and image
+  (repeat, repeatX, repeatY, noRepeat), a background image that comes later replaces the one of the layout.
+- fit and mediaAlign for images and videos alike (SMIL standard), the region cuts the rest.
+- Only the topmost medium with a picture is visible, audio covers nothing; a paused web page is hidden.
+- Only the first region of an instance reports end and errors; a missing file fails once.
+- Web pages: local files may read remote data and other files, media play without a gesture, no new windows, no
+  scroll bars after loading; white background.
+- Ten fast touches (< 500 ms) or one held for 10 s open the menu (Settings, Debug infos, Exit); with a keyboard
+  Ctrl+S, Ctrl+D, Ctrl+Q, other keys are access keys; a touch on a region activates its top medium.
+- "Loading 1 / X" with the bar of the first download until the first medium of a layout.
+- Without an index the settings dialog comes first; Cancel ends the player.
+- `adapi:blankScreen` without a launcher: black over everything until the instance ends.
+
+## Not done yet
+
+- **Launcher 1.x and Philips** (supervisor, screen, restarts, installations, uuid and content URL of the launcher):
+  the Java classes of the qml player (`../qml/android`) are to be taken over; master volume and brightness
+  (`deviceSettings`) go there too.
+- Tested in the emulator (x86_64, API 31) only: images, video, web page, brush over web page and video, menu, debug
+  dialog. Not yet on a device, not yet arm64-v8a and armeabi-v7a, not yet Android 7.1.
+- A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

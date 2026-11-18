@@ -17,6 +17,8 @@
 */
 #include "color.hpp"
 
+#include "common/text.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -121,7 +123,8 @@ namespace player
         std::optional<double> number(const std::string &text)
         {
             double value      = 0;
-            auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+            // the core's fromChars: libc++ before 20 (NDK 26, Android player) has no std::from_chars for double
+            auto [end, error] = garlic::core::common::fromChars(text.data(), text.data() + text.size(), value);
             if (error != std::errc{} || text.empty())
                 return std::nullopt;
             if (end == text.data() + text.size() - 1 && *end == '%')
