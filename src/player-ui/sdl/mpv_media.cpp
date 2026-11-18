@@ -309,12 +309,12 @@ namespace player
         // mpv fills it completely; the window cuts what lies outside the region (slice)
         mpv_set_option_string(mpv, "keepaspect", "no");
         mpv_set_option_string(mpv, "volume", std::to_string(std::lround(volume() * 100)).c_str());
-        fences().leaky = leaksFences(mpv);
         if (mpv_initialize(mpv) < 0)
         {
             report(Outcome::Failed, "libmpv cannot start for " + source);
             return;
         }
+        fences().leaky = leaksFences(mpv); // properties only after mpv_initialize(), before it mpv-version is null
         mpv_set_wakeup_callback(mpv, &MpvMedia::wake, this);
 
         if (is_video)
