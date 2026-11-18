@@ -33,12 +33,12 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Run Arm64 Linux Build Script
-        run: /home/niko/scripts/build.sh
+        run: /home/niko/scripts/build-gp/build.sh
   build-linux-X64:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Run x64 Linux Build Script
-        run: /home/niko/scripts/build-linux.sh
+        run: /home/niko/scripts/build-gp/build-linux.sh
 #      - name: Run Android multiabiBuild Script
  #       run: /home/niko/scripts/build-android.sh
