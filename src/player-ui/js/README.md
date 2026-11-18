@@ -117,6 +117,7 @@ expose `ETag` and `Last-Modified` (`Access-Control-Expose-Headers`); see
 
 ## Not yet
 
+- **Loading**: like the sdl player, "Loading 2 / 7" and a bar while downloads run and no region shows a medium.
 - **Sound**: browsers block it without a user gesture; a video then plays muted. A kiosk browser can allow it
   (Chromium: `--autoplay-policy=no-user-gesture-required`).
 - **Memory**: IDBFS keeps all files in memory as well; many large videos need a lot of it. OPFS would avoid that, but

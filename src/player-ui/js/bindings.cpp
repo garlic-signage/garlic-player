@@ -248,6 +248,14 @@ namespace player
                             result.set("brightness", e.brightness ? val(*e.brightness) : val::null());
                             return result;
                         },
+                        [](const Downloads &e)
+                        {
+                            val result = val::object();
+                            result.set("type", std::string("downloads"));
+                            result.set("done", static_cast<double>(e.done));
+                            result.set("total", static_cast<double>(e.total));
+                            return result;
+                        },
                     },
                     event);
             }

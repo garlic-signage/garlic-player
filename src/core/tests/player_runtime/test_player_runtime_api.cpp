@@ -25,6 +25,7 @@
 #include "raw_http.hpp"
 #include "time_zone.hpp"
 
+#include <algorithm>
 #include <future>
 #include <map>
 
@@ -161,7 +162,11 @@ namespace
                               (device->brightness ? std::to_string(*device->brightness) : std::string("-")));
             else if (const auto *clear = std::get_if<tasks::ClearCaches>(&event))
                 log.push_back(std::string("clear ") + (clear->player ? "player" : "") + (clear->web ? " web" : ""));
+            else if (const auto *loading = std::get_if<Downloads>(&event))
+                downloads.push_back(std::to_string(loading->done) + "/" + std::to_string(loading->total));
         }
+
+        std::vector<std::string> downloads; // the Downloads events, "done/total"
 
         std::string seen() const
         {
@@ -185,6 +190,26 @@ TEST_CASE("start: index downloaded, NewLayout, media downloaded and started")
 
     CHECK(f.seen() == "layout first | start a");
     CHECK(f.runtime->configuration().lastPlayedIndexPath() == "cache/index.smil");
+}
+
+TEST_CASE("Downloads: done of total while the queue works, 0/0 when it is empty again")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil",
+            indexText(R"x(<seq><img xml:id="a" src="img/a.jpg" dur="10s"/><img xml:id="b" src="img/b.jpg" dur="10s"/></seq>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/img/a.jpg", "jpeg", "image/jpeg");
+    f.serve("http://hub/img/b.jpg", "jpeg", "image/jpeg");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+
+    REQUIRE(!f.downloads.empty());
+    CHECK(f.downloads.front() == "0/1"); // the index
+    CHECK(f.downloads.back() == "0/0");  // all there
+    // the media come after the index in the same count: 1 of 3 done at least once
+    CHECK(std::ranges::find(f.downloads, "1/3") != f.downloads.end());
+    for (std::size_t i = 1; i < f.downloads.size(); ++i)
+        CHECK(f.downloads[i] != f.downloads[i - 1]); // only changes are announced
 }
 
 TEST_CASE("start: a web page is not downloaded, it plays from its URL")

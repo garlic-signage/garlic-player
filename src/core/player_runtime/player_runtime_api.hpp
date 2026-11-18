@@ -107,9 +107,22 @@ namespace garlic::core
         bool operator==(const DeviceSettings &) const = default;
     };
 
+    /**
+     * The downloads of the index, the media and the tasks, whenever they change: done of total since the queue was last
+     * empty; {0, 0} when it is empty again. The frontend shows "Loading done+1 / total" while it shows no medium, so a
+     * screen is not black while the first files come.
+     */
+    struct Downloads
+    {
+        std::size_t done  = 0;
+        std::size_t total = 0;
+
+        bool operator==(const Downloads &) const = default;
+    };
+
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot, DeviceSettings>;
+                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot, DeviceSettings, Downloads>;
 
     struct PlayerRuntimeConfig
     {
@@ -256,6 +269,8 @@ namespace garlic::core
             std::optional<std::chrono::steady_clock::time_point> next_reboot;
             std::optional<std::string>                           reboot_after_clear; // task id until cachesCleared()
             DeviceSettings                                       device_settings;    // the last ones announced
+            Downloads                                            downloads;          // the last ones announced
+            std::size_t downloads_done = 0; // finished since the queue was last empty
             std::chrono::steady_clock::time_point                next_resource_log;
             std::uint64_t                                        memory_max = 0; // of the player since the start
             std::string                                          memory_max_time;
@@ -268,6 +283,7 @@ namespace garlic::core
             void findBackgrounds(std::map<std::string, std::string, std::less<>> *found);
             void planReboot(std::chrono::seconds not_before = {});
             void announceDeviceSettings();
+            void announceDownloads();
             void reboot(const std::string &task_id);
             void logResources();
             void trackProcess(DebugInfo &info);

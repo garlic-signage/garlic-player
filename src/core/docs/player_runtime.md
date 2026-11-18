@@ -63,6 +63,7 @@ while (running)
 | `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache if `web`, then always `cachesCleared()` |
 | `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
 | `DeviceSettings{volume, brightness}`    | master volume and brightness of the configuration, 0…100 or not set: at the start and when a configuration changes them; the frontend passes them to the supervisor |
+| `Downloads{done, total}`                | the downloads (index, media, tasks) whenever they change: done of total since the queue was last empty, `{0, 0}` when it is empty again; the frontend shows "Loading done+1 / total" with a bar while it shows no medium |
 
 ## Supervisor
 

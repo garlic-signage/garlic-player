@@ -153,6 +153,8 @@ sudo apt install mesa-va-drivers         # AMD
   shortcuts.
 - **Dialogs** are drawn over the content, modal; the menu and the dialogs scale with the screen (a 900 pixel high
   screen is the base).
+- **Loading**: while downloads run and no region shows a medium, "Loading 2 / 7" and a bar in the middle of the
+  screen (`Downloads` of the core), so the screen is not black while the first files come; gone with the first medium.
 - **Without an index** the settings dialog comes first; Cancel ends the player with 1 (garlic-lib).
 
 ## What differs from the players before

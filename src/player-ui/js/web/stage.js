@@ -237,6 +237,8 @@ export class Stage {
     #storage;
     #reports;
     #regions = [];
+    #loading;
+    #downloads = { done: 0, total: 0 };
     #rootImageSrc = '';
     #backgroundUrls = [];
 
@@ -245,6 +247,13 @@ export class Stage {
         this.#element = element;
         this.#storage = storage;
         this.#reports = reports;
+        // "Loading 2 / 7" and a bar while downloads run and no region shows a medium; beside the stage, which a new
+        // layout empties
+        this.#loading = document.createElement('div');
+        this.#loading.id = 'loading';
+        this.#loading.hidden = true;
+        this.#loading.innerHTML = '<span></span><div class="bar"><div></div></div>';
+        element.after(this.#loading);
     }
 
     /// The events of the core that change what is shown.
@@ -262,7 +271,20 @@ export class Stage {
                 region.raise(media);
             });
             break;
+        case 'downloads': this.#downloads = { done: event.done, total: event.total }; break;
         }
+        this.#updateLoading();
+    }
+
+    /// Like the sdl player: shown while downloads run and no region shows a medium, gone with the first medium
+    #updateLoading() {
+        const { done, total } = this.#downloads;
+        const shown = this.#regions.some((region) => region.media.length > 0);
+        this.#loading.hidden = total === 0 || shown;
+        if (this.#loading.hidden)
+            return;
+        this.#loading.querySelector('span').textContent = `Loading ${Math.min(done + 1, total)} / ${total}`;
+        this.#loading.querySelector('.bar > div').style.width = `${(100 * done) / total}%`;
     }
 
     /// "region: medium" for every medium shown, for the debug dialog

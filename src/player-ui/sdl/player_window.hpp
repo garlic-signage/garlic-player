@@ -131,6 +131,7 @@ namespace player
             std::map<garlic::core::smil::InstanceId, Instance>     instances;
             std::vector<Deferred>                                  deferred;
             std::optional<std::string>                             screenshot_path;
+            garlic::core::Downloads                                downloads; // "Loading" while no medium is shown
             Media                                                 *web_focus = nullptr; // the web page that has the keyboard
 
             // ten fast clicks/touches or one held for 10 s open the menu (also for the review of the App Store)
@@ -157,6 +158,7 @@ namespace player
             void handle(const SDL_Event &event);
             void takeEvents();
             void handleCore(const garlic::core::CoreEvent &event);
+            void drawLoading();
             void newLayout(const garlic::core::NewLayout &next);
             void backgroundImage(const garlic::core::BackgroundImage &image);
             void start(const garlic::core::smil::StartMedia &command);

@@ -195,6 +195,7 @@ namespace garlic::core
             next_resource_log = now + resource_log;
         }
 
+        announceDownloads();
         collectEngine();
         return std::exchange(events, {});
     }
@@ -338,6 +339,7 @@ namespace garlic::core
     /// poll() after start(), so all of them are there.
     void PlayerRuntimeApi::dispatch(const downloader::DownloadResult &result)
     {
+        ++downloads_done;
         if (result.url == index->url())
             index->downloaded(result);
         else if (tasks->downloaded(result))
@@ -471,6 +473,19 @@ namespace garlic::core
         if (now == device_settings)
             return;
         device_settings = now;
+        events.emplace_back(now);
+    }
+
+    /// A Downloads event when done or total changed; the count starts again when the queue is empty.
+    void PlayerRuntimeApi::announceDownloads()
+    {
+        std::size_t remaining = queue ? queue->pendingCount() + queue->runningCount() : 0;
+        if (remaining == 0)
+            downloads_done = 0;
+        Downloads now{downloads_done, downloads_done + remaining};
+        if (now == downloads)
+            return;
+        downloads = now;
         events.emplace_back(now);
     }
 

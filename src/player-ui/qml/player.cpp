@@ -168,6 +168,7 @@ namespace player
                            if (device_control != nullptr)
                                device_control->deviceSettings(e);
                        },
+                       [](const Downloads &) {}, // the loading screen is a matter of the sdl player
                    },
                    event);
     }

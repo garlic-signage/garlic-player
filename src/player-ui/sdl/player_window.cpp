@@ -18,6 +18,7 @@
 #include "player_window.hpp"
 
 #include "color.hpp"
+#include "ui/look.hpp"
 #include "web_view.hpp"
 #ifdef PLAYER_SDL_WITH_MPV
     #include "mpv_media.hpp"
@@ -461,6 +462,7 @@ namespace player
                            if (device_control != nullptr)
                                device_control->deviceSettings(e);
                        },
+                       [this](const Downloads &e) { downloads = e; },
                    },
                    event);
         dirty = true;
@@ -933,6 +935,7 @@ namespace player
                 region.stack.back()->draw(*renderer, area);
         }
         SDL_SetRenderClipRect(renderer, nullptr);
+        drawLoading();
 
         if (screenshot_path)
         {
@@ -953,6 +956,32 @@ namespace player
             menu.draw(*canvas);
         }
         SDL_RenderPresent(renderer);
+    }
+
+    /**
+     * While downloads run and no region shows a medium: "Loading 2 / 7" and a bar in the middle of the screen, so a
+     * screen is not black while the first files come (a 4K video takes minutes). Gone with the first medium.
+     */
+    void PlayerWindow::drawLoading()
+    {
+        if (downloads.total == 0)
+            return;
+        for (const Region &region : regions)
+            if (!region.stack.empty())
+                return;
+        canvas->setScale(uiScale());
+        ui::Rect    window = windowPoints();
+        std::string label  = "Loading " + std::to_string(std::min(downloads.done + 1, downloads.total)) + " / " +
+                            std::to_string(downloads.total);
+        float width = std::min(400.0F, window.width - 40.0F);
+        float x     = window.x + (window.width - width) / 2;
+        float y     = window.y + window.height / 2;
+        canvas->text({window.x + (window.width - canvas->textWidth(label)) / 2, y - canvas->textHeight() - 12}, label,
+                     ui::look::text);
+        ui::Rect bar{x, y, width, 10};
+        canvas->fillRect(bar, ui::look::field);
+        canvas->fillRect({x, y, width * static_cast<float>(downloads.done) / static_cast<float>(downloads.total), 10},
+                         ui::look::highlight_top);
     }
 
     /// garlic-lib: the whole screen as JPEG with quality 60; here the window, which is the screen in full screen mode

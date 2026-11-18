@@ -37,6 +37,35 @@ body.hide-cursor {
     display: none;
 }
 
+/* "Loading 2 / 7" while downloads run and no medium is shown (stage.js) */
+#loading {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 12px;
+    color: #e8e8eb;
+    font: 20px sans-serif;
+    pointer-events: none;
+}
+
+#loading[hidden] {
+    display: none;
+}
+
+#loading .bar {
+    width: min(400px, calc(100vw - 40px));
+    height: 10px;
+    background: #232323;
+}
+
+#loading .bar > div {
+    height: 100%;
+    width: 0;
+    background: #3e70ac;
+}
+
 .message {
     color: #888;
     display: grid;
