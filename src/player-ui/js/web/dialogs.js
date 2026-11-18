@@ -190,11 +190,13 @@ export class DebugDialog {
             playerMemory: info.memoryUsed === 0 ? '-'
                 : `${DebugDialog.#bytes(info.memoryUsed)}, max ${DebugDialog.#bytes(info.memoryMax)} at ${info.memoryMaxTime}`,
             threads: info.threads === 0 ? '-' : `${info.threads}, max ${info.threadsMax}`,
-            playing: playing.length > 0 ? playing.join('\n') : '-',
         };
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;
         this.#dialog.querySelector('[data-info="downloads"]').replaceChildren(...DebugDialog.#downloads(info));
+        // a line per medium, each cut on its own
+        this.#dialog.querySelector('[data-info="playing"]').replaceChildren(...(playing.length > 0 ? playing : ['-'])
+            .map((text) => Object.assign(document.createElement('div'), { textContent: text })));
     }
 
     /// A line per running download, the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait;

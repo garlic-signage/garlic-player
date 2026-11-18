@@ -539,17 +539,20 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     private View createLoading()
     {
-        loading = new LinearLayout(this);
+        Context ui      = Dialogs.scaled(this); // the size of the dialogs, like the sdl player
+        float   density = ui.getResources().getDisplayMetrics().density;
+        loading = new LinearLayout(ui);
         loading.setOrientation(LinearLayout.VERTICAL);
         loading.setGravity(Gravity.CENTER_HORIZONTAL);
-        loading_text = new TextView(this);
+        loading_text = new TextView(ui);
         loading_text.setTextColor(Color.rgb(232, 232, 235));
         loading_text.setTextSize(20);
-        loading.addView(loading_text);
-        loading_bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        loading_text.setGravity(Gravity.CENTER);
+        loading.addView(loading_text, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                    ViewGroup.LayoutParams.WRAP_CONTENT));
+        loading_bar = new ProgressBar(ui, null, android.R.attr.progressBarStyleHorizontal);
         loading_bar.setMax(1000);
-        int width = Math.round(400 * getResources().getDisplayMetrics().density);
-        loading.addView(loading_bar, new LinearLayout.LayoutParams(width, Math.round(12 * getResources().getDisplayMetrics().density)));
+        loading.addView(loading_bar, new LinearLayout.LayoutParams(Math.round(400 * density), Math.round(12 * density)));
         loading.setVisibility(View.GONE);
         return loading;
     }

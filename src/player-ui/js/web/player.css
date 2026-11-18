@@ -137,12 +137,19 @@ dialog h1 {
     box-sizing: border-box;
 }
 
-.wrap {
-    word-break: break-all;
+/* the debug dialog like the sdl player: rows of 30 px, every value in one line, cut with "…" */
+dialog#debug .grid {
+    grid-template-columns: max-content minmax(0, 1fr);
+    row-gap: 0;
 }
 
-.lines {
-    white-space: pre-line;
+dialog#debug .grid > span,
+[data-info="playing"] > div {
+    min-width: 0;
+    line-height: 30px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .error {

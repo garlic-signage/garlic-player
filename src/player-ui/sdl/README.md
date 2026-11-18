@@ -71,10 +71,16 @@ Raspberry Pi OS is the one that decodes H.265 in hardware. Debian Trixie and lat
 Pi lacks some of them even with the full install. The same for both AppImages (aarch64 and x86_64):
 
 ```
-sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-wayland2 libva-x11-2 libva-drm2
+sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 \
+ libva-wayland2 libva-x11-2 libva-drm2 \
+ libcurl4t64 libsqlite3-0 libmicrohttpd12t64 \
+ libglib2.0-0t64 libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
+ libdbus-1-3 libcups2t64 libexpat1 libudev1 libasound2t64 \
+ libx11-6 libxcb1 libxext6 libxfixes3 libxrandr2 libxcomposite1 libxdamage1 libxkbcommon0 \
+ libgbm1 libcairo2 libpango-1.0-0
 ```
 
-sdl: ANGLE on gl-egl under KMSDRMOn Raspberry Pi OS Lite also libfuse2: the AppImage runtime loads `libfuse.so.2` to mount itself, Lite has only fuse3
+sdl: ANGLE on gl-egl under KMSDRM on Raspberry Pi OS Lite also libfuse2: the AppImage runtime loads `libfuse.so.2` to mount itself, Lite has only fuse3
 (the full install has both):
 
 ```

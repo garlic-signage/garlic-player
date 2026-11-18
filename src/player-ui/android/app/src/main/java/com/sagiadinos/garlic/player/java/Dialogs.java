@@ -22,10 +22,10 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.ContextThemeWrapper;
@@ -45,6 +45,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -64,7 +65,7 @@ final class Dialogs
      * The activity with the density of the sdl player: max(density, screen height / 900), so menu and dialogs have the
      * same size at the same resolution on every platform, also on a 1080p screen that reports only 160 dpi.
      */
-    private static Context scaled(Activity activity)
+    static Context scaled(Activity activity)
     {
         DisplayMetrics screen = new DisplayMetrics();
         activity.getWindowManager().getDefaultDisplay().getRealMetrics(screen);
@@ -179,22 +180,23 @@ final class Dialogs
         finish(dialog, ui, 640);
     }
 
-    /** Resources and identity, the running downloads and what plays; refreshed every second */
+    /**
+     * Resources and identity, the running downloads and what plays; refreshed every second. One row of 30 points per
+     * entry like the sdl dialog: the label left, the value cut with "…", the amount of a download right.
+     */
     static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing)
     {
         Context      ui      = scaled(activity);
         LinearLayout content = column(ui);
-        TextView     text    = new TextView(ui);
-        text.setTypeface(Typeface.MONOSPACE);
-        text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        content.addView(text);
-        ScrollView scroll = new ScrollView(ui);
+        ScrollView   scroll  = new ScrollView(ui);
         scroll.addView(content);
 
         Handler  timer   = new Handler(Looper.getMainLooper());
         Runnable[] tick  = new Runnable[1];
         tick[0] = () -> {
-            text.setText(debugText(core.debugInfo(), playing.get()));
+            content.removeAllViews();
+            for (String[] row : debugRows(core.debugInfo(), playing.get()))
+                content.addView(debugRow(ui, row));
             timer.postDelayed(tick[0], 1000);
         };
         AlertDialog dialog = new AlertDialog.Builder(ui)
@@ -208,21 +210,22 @@ final class Dialogs
         finish(dialog, ui, 760);
     }
 
-    static String debugText(String json, List<String> playing)
+    /** label (empty: continues the one above), value, amount (empty or "42 %  136.0 / 323.0 MiB") */
+    static List<String[]> debugRows(String json, List<String> playing)
     {
-        StringBuilder out = new StringBuilder();
+        List<String[]> rows = new ArrayList<>();
         try
         {
             JSONObject info = new JSONObject(json);
-            line(out, "Playlist", info.optString("title").isEmpty() ? "-" : info.optString("title"));
-            line(out, "User agent", info.optString("userAgent"));
-            line(out, "Disk (cache)", freeOf(info, "diskFree", "diskTotal"));
-            line(out, "System memory", freeOf(info, "memoryFree", "memoryTotal"));
+            rows.add(row("Playlist", info.optString("title").isEmpty() ? "-" : info.optString("title")));
+            rows.add(row("User agent", info.optString("userAgent")));
+            rows.add(row("Disk (cache)", freeOf(info, "diskFree", "diskTotal")));
+            rows.add(row("System memory", freeOf(info, "memoryFree", "memoryTotal")));
             long used = info.optLong("memoryUsed");
-            line(out, "Player memory", used == 0 ? "-"
-                : bytes(used) + ", max " + bytes(info.optLong("memoryMax")) + " at " + info.optString("memoryMaxTime"));
+            rows.add(row("Player memory", used == 0 ? "-"
+                : bytes(used) + ", max " + bytes(info.optLong("memoryMax")) + " at " + info.optString("memoryMaxTime")));
             int threads = info.optInt("threads");
-            line(out, "Threads", threads == 0 ? "-" : threads + ", max " + info.optInt("threadsMax"));
+            rows.add(row("Threads", threads == 0 ? "-" : threads + ", max " + info.optInt("threadsMax")));
             JSONArray downloads = info.optJSONArray("downloads");
             boolean   first     = true;
             for (int i = 0; downloads != null && i < downloads.length(); ++i)
@@ -232,29 +235,62 @@ final class Dialogs
                 long       total    = d.optLong("total");
                 String amount = total == 0 ? mib(received) + " MiB"
                     : (received * 100 / total) + " %  " + mib(received) + " / " + mib(total) + " MiB";
-                line(out, first ? "Downloading" : "", d.optString("name") + "  " + amount);
+                rows.add(new String[]{first ? "Downloading" : "", d.optString("name"), amount});
                 first = false;
             }
             long waiting = info.optLong("downloadsWaiting");
             if (waiting > 0)
-                line(out, first ? "Downloading" : "", "+" + waiting + " waiting");
+                rows.add(row(first ? "Downloading" : "", "+" + waiting + " waiting"));
             else if (first)
-                line(out, "Downloading", "-");
+                rows.add(row("Downloading", "-"));
         }
         catch (JSONException error)
         {
-            out.append(error.getMessage()).append('\n');
+            rows.add(row("Error", error.getMessage()));
         }
         if (playing.isEmpty())
-            line(out, "Playing", "-");
+            rows.add(row("Playing", "-"));
         for (int i = 0; i < playing.size(); ++i)
-            line(out, i == 0 ? "Playing" : "", playing.get(i));
-        return out.toString();
+            rows.add(row(i == 0 ? "Playing" : "", playing.get(i)));
+        return rows;
     }
 
-    private static void line(StringBuilder out, String label, String value)
+    private static String[] row(String label, String value)
     {
-        out.append(String.format(Locale.ROOT, "%-14s %s%n", label, value));
+        return new String[]{label, value, ""};
+    }
+
+    private static View debugRow(Context ui, String[] row)
+    {
+        float        density = ui.getResources().getDisplayMetrics().density;
+        LinearLayout line    = new LinearLayout(ui);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setMinimumHeight(Math.round(30 * density));
+
+        TextView label = debugText(ui, row[0], Color.rgb(150, 152, 158));
+        line.addView(label, new LinearLayout.LayoutParams(Math.round(150 * density), ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView value = debugText(ui, row[1], Color.rgb(232, 232, 235));
+        value.setEllipsize(TextUtils.TruncateAt.END);
+        line.addView(value, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        if (!row[2].isEmpty())
+        {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                                             ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.leftMargin = Math.round(16 * density);
+            line.addView(debugText(ui, row[2], Color.rgb(232, 232, 235)), params);
+        }
+        return line;
+    }
+
+    private static TextView debugText(Context ui, String text, int color)
+    {
+        TextView view = new TextView(ui);
+        view.setText(text);
+        view.setTextColor(color);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        view.setSingleLine(true);
+        return view;
     }
 
     private static String freeOf(JSONObject info, String free, String total)
