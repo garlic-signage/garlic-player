@@ -63,7 +63,9 @@ What the native build needs on Android, also for a CI:
   scroll bars after loading; white background.
 - Ten fast touches (< 500 ms) or one held for 10 s open the menu (Settings, Debug infos, Exit); with a keyboard
   Ctrl+S, Ctrl+D, Ctrl+Q, other keys are access keys; a touch on a region activates its top medium.
-- "Loading 1 / X" with the bar of the first download until the first medium of a layout.
+- Dialogs and the loading overlay scaled like the sdl player, by max(density, screen height / 900); dialogs slightly
+  transparent. Debug infos: one row per value, cut with "…", only a centered Close.
+- "Loading 1 / X" with the bar of the first download until the first medium of a layout, centered.
 - Without an index the settings dialog comes first; Cancel ends the player.
 - `adapi:blankScreen` with the `standby_mode` of the configuration: `partially` screen off until the element ends,
   `deep` the launcher sleeps until its planned end (without one: screen off), otherwise nothing; without launcher the
@@ -81,7 +83,7 @@ Like the qml player (`../qml/android_launcher.cpp`), with its Java classes:
 - **Supervisor of the core**: restarts and installations (`NativeCore.Supervisor`) go to the launcher.
 - **Broadcasts** of the launcher (`ConfigReceiver`: `config_path`, `SmilIndexReceiver`: `smil_index_path`): applied,
   also without a found launcher, like the legacy player.
-- **Ending on purpose** (menu, Ctrl+Q, debug dialog): `PlayerClosedReceiver` of the garlic-launcher, which then does
+- **Ending on purpose** (menu, Ctrl+Q): `PlayerClosedReceiver` of the garlic-launcher, which then does
   not start the player again. Cancel of the settings dialog at the start does not tell it.
 - Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
 
@@ -89,6 +91,8 @@ Like the qml player (`../qml/android_launcher.cpp`), with its Java classes:
 
 - Launcher tested in the emulator with the garlic-launcher only (uuid, content URL, locked settings, Exit); not
   restart, installation, blankScreen, Philips.
-- Tested in the emulator (x86_64, API 31) only: images, video, web page, brush over web page and video, menu, debug
-  dialog. Not yet on a device, not yet arm64-v8a and armeabi-v7a, not yet Android 7.1.
+- Tested in the emulator (x86_64, API 31): images, video, web page, brush over web page and video, menu, debug
+  dialog. On a device (Rockchip tablet, Android 7.1.2) with armeabi-v7a, without launcher: the same plus settings
+  dialog and loading overlay; web pages need a newer system WebView than the 56 of the device (119 works). Not yet
+  arm64-v8a.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).
