@@ -133,6 +133,7 @@ namespace player
             ui::PointerRouter              router;
             std::vector<std::pair<std::string, std::string>> rows;
             std::vector<std::string>                         media;
+            std::vector<std::pair<std::string, std::string>> loading; // name, "42 %  136.0 / 323.0 MiB"
 
             void refresh();
             void check();

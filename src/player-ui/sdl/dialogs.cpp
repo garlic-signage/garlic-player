@@ -259,25 +259,29 @@ namespace player
             {"Threads", info.threads == 0 ? "-"
                                           : std::to_string(info.threads) + ", max " + std::to_string(info.threads_max)},
         };
-        // the running downloads: "title  42 % (136.0 MB of 323.0 MB)", then how many wait
-        std::vector<std::string> loading;
+        // the running downloads: the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait
+        auto mib = [](std::uint64_t value)
+        {
+            char text[32];
+            std::snprintf(text, sizeof(text), "%.1f", static_cast<double>(value) / (1024.0 * 1024.0));
+            return std::string(text);
+        };
+        loading.clear();
         for (const auto &download : info.downloads)
-            loading.push_back(download.total == 0
-                                  ? download.name + "  " + bytes(download.received)
-                                  : download.name + "  " + std::to_string(download.received * 100 / download.total) +
-                                        " % (" + bytes(download.received) + " of " + bytes(download.total) + ")");
+            loading.emplace_back(download.name,
+                                 download.total == 0
+                                     ? mib(download.received) + " MiB"
+                                     : std::to_string(download.received * 100 / download.total) + " %  " +
+                                           mib(download.received) + " / " + mib(download.total) + " MiB");
         if (info.downloads_waiting > 0)
-            loading.push_back("+" + std::to_string(info.downloads_waiting) + " waiting");
-        if (loading.empty())
-            loading.push_back("-");
-        for (std::size_t i = 0; i < loading.size(); ++i)
-            rows.emplace_back(i == 0 ? "Downloading" : "", loading[i]);
+            loading.emplace_back("+" + std::to_string(info.downloads_waiting) + " waiting", "");
         media = playing ? playing() : std::vector<std::string>();
     }
 
     void DebugDialog::layout(const ui::Rect &window)
     {
-        float lines = static_cast<float>(rows.size() + std::max<std::size_t>(media.size(), 1));
+        float lines = static_cast<float>(rows.size() + std::max<std::size_t>(loading.size(), 1) +
+                                         std::max<std::size_t>(media.size(), 1));
         area        = panel(window, 760, margin * 3 + row_height * (2 + lines * 0.75F));
         float bottom = area.y + area.height - margin - row_height;
         quit.setBounds({area.x + margin, bottom, button_width, row_height});
@@ -295,6 +299,19 @@ namespace player
         {
             canvas.text({area.x + margin, y}, label, ui::look::text_dim);
             canvas.textElided({x, y}, value, ui::look::text, width);
+            y += line;
+        }
+        canvas.text({area.x + margin, y}, "Downloading", ui::look::text_dim);
+        if (loading.empty())
+        {
+            canvas.text({x, y}, "-", ui::look::text);
+            y += line;
+        }
+        for (const auto &[name, amount] : loading)
+        {
+            float right = canvas.textWidth(amount);
+            canvas.textElided({x, y}, name, ui::look::text, width - right - (right > 0 ? 16 : 0));
+            canvas.text({x + width - right, y}, amount, ui::look::text);
             y += line;
         }
         canvas.text({area.x + margin, y}, "Playing", ui::look::text_dim);

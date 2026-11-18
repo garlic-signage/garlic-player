@@ -192,20 +192,32 @@ export class DebugDialog {
             playerMemory: info.memoryUsed === 0 ? '-'
                 : `${DebugDialog.#bytes(info.memoryUsed)}, max ${DebugDialog.#bytes(info.memoryMax)} at ${info.memoryMaxTime}`,
             threads: info.threads === 0 ? '-' : `${info.threads}, max ${info.threadsMax}`,
-            downloads: DebugDialog.#downloads(info),
             playing: playing.length > 0 ? playing.join('\n') : '-',
         };
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;
+        this.#dialog.querySelector('[data-info="downloads"]').replaceChildren(...DebugDialog.#downloads(info));
     }
 
-    /// "title  42 % (136.0 MB of 323.0 MB)" per running download, then how many wait; like the sdl player
+    /// A line per running download, the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait;
+    /// like the sdl player
     static #downloads(info) {
-        const lines = info.downloads.map((d) => (d.total === 0 ? `${d.name}  ${DebugDialog.#bytes(d.received)}`
-            : `${d.name}  ${Math.floor((100 * d.received) / d.total)} % (${DebugDialog.#bytes(d.received)} of ${DebugDialog.#bytes(d.total)})`));
+        const mib = (value) => (value / (1024 * 1024)).toFixed(1);
+        const line = (name, amount) => {
+            const row = document.createElement('div');
+            row.className = 'download';
+            const left = document.createElement('span');
+            left.textContent = name;
+            const right = document.createElement('span');
+            right.textContent = amount;
+            row.append(left, right);
+            return row;
+        };
+        const lines = info.downloads.map((d) => line(d.name, d.total === 0 ? `${mib(d.received)} MiB`
+            : `${Math.floor((100 * d.received) / d.total)} %  ${mib(d.received)} / ${mib(d.total)} MiB`));
         if (info.downloadsWaiting > 0)
-            lines.push(`+${info.downloadsWaiting} waiting`);
-        return lines.length > 0 ? lines.join('\n') : '-';
+            lines.push(line(`+${info.downloadsWaiting} waiting`, ''));
+        return lines.length > 0 ? lines : [line('-', '')];
     }
 
     static #bytes(value) {

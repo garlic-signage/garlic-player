@@ -163,3 +163,22 @@ dialog footer .left {
 dialog footer .default {
     font-weight: bold;
 }
+
+/* the running downloads in the debug dialog: the name cut on the left, percent and MiB aligned on the right */
+[data-info="downloads"] .download {
+    display: flex;
+    gap: 16px;
+}
+
+[data-info="downloads"] .download > span:first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+[data-info="downloads"] .download > span:last-child {
+    white-space: pre;
+    font-variant-numeric: tabular-nums;
+}
