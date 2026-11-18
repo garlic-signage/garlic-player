@@ -74,6 +74,13 @@ Pi lacks some of them even with the full install. The same for both AppImages (a
 sudo apt install libmpv2 libsdl3-0 libsdl3-ttf0 libsdl3-image0 libnss3 libva-wayland2 libva-x11-2 libva-drm2
 ```
 
+sdl: ANGLE on gl-egl under KMSDRMOn Raspberry Pi OS Lite also libfuse2: the AppImage runtime loads `libfuse.so.2` to mount itself, Lite has only fuse3
+(the full install has both):
+
+```
+sudo apt install libfuse2t64
+```
+
 On x86_64 also the VA-API driver of the graphics, otherwise mpv decodes in software (NVIDIA: NVDEC through the
 proprietary driver, no package needed):
 
@@ -128,10 +135,12 @@ sudo apt install mesa-va-drivers         # AMD
     needs no display (a Raspberry Pi without desktop).
 
   The copy is submitted (`glFlush`), not waited for: CEF reuses a buffer only frames later, and `glFinish` cost about
-  8 % CPU on NVIDIA. ANGLE runs on OpenGL (the default of Chromium), only
-  on X11 on Vulkan (`GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `vulkan`, `swiftshader`): with its OpenGL backend the
-  GPU process went through GLX and crashed on X11; with Vulkan the GPU process of a Raspberry Pi 4 crashed under
-  Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process isn't usable. Goodbye."). WebGL in software if the GPU process fails.
+  8 % CPU on NVIDIA. ANGLE runs on OpenGL (the default of Chromium), on X11 on Vulkan, under KMSDRM on OpenGL through
+  EGL (`gl-egl`); `GARLIC_WEB_ANGLE` overrides it, e.g. `gl`, `gl-egl`, `vulkan`, `swiftshader`. With its OpenGL backend
+  (`gl`) the GPU process went through GLX: it crashed on X11, and under KMSDRM it failed for want of an X display,
+  SwiftShader crashed after it and CEF ran without GPU (`--use-gl=disabled`). With Vulkan the GPU process of a Raspberry
+  Pi 4 crashed under Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process isn't usable.
+  Goodbye."). WebGL in software if the GPU process fails.
 
   CEF runs in the main thread with an external message pump (`pumpWebViews()` in every loop turn, at least every
   33 ms). The helper processes (renderer, GPU, network) are this program again: `runWebHelperProcess()` is the first

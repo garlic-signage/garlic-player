@@ -94,13 +94,16 @@ namespace player
                         return;
 #ifdef __linux__ // Windows and macOS: the defaults of Chromium (ANGLE on D3D11, Metal)
                     command_line->AppendSwitchWithValue("ozone-platform", ozone);
-                    // ANGLE on OpenGL (EGL), the default of Chromium; with Vulkan the GPU process of a Raspberry Pi 4
-                    // crashed under Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process
-                    // isn't usable"). X11: Vulkan, the OpenGL backend of ANGLE would reach for the X server (GLX) and
-                    // the GPU process failed. GARLIC_WEB_ANGLE overrides it (gl, gl-egl, vulkan, swiftshader …)
+                    // ANGLE on OpenGL, the default of Chromium; with Vulkan the GPU process of a Raspberry Pi 4 crashed
+                    // under Wayland and KMSDRM, and after the fallbacks Chromium ended the player ("GPU process isn't
+                    // usable"). X11: Vulkan, the OpenGL backend of ANGLE would reach for the X server (GLX) and the
+                    // GPU process failed. KMSDRM: gl-egl, OpenGL through EGL without an X server; with
+                    // gl the GPU process failed for want of an X display, SwiftShader crashed and CEF ran without GPU
+                    // (--use-gl=disabled). GARLIC_WEB_ANGLE overrides it (gl, gl-egl, vulkan, swiftshader …)
                     const char *angle = std::getenv("GARLIC_WEB_ANGLE");
                     command_line->AppendSwitchWithValue("use-angle", angle != nullptr && *angle != '\0' ? angle
                                                                      : video_driver == "x11"            ? "vulkan"
+                                                                     : video_driver == "kmsdrm"         ? "gl-egl"
                                                                                                         : "gl");
 #endif
                     // QTWEBENGINE_CHROMIUM_FLAGS of the Qt players: widgets read local files and remote data
