@@ -155,7 +155,7 @@ export class DebugDialog {
     #actions;
     #timer = null;
 
-    /// actions: {playing, quit, changed}; playing() gives the lines of the media shown
+    /// actions: {playing, changed}; playing() gives the lines of the media shown
     constructor(dialog, player, actions) {
         this.#dialog = dialog;
         this.#player = player;
@@ -177,8 +177,6 @@ export class DebugDialog {
     #closed() {
         clearInterval(this.#timer);
         this.#actions.changed();
-        if (this.#dialog.returnValue === 'quit')
-            this.#actions.quit();
     }
 
     #refresh() {

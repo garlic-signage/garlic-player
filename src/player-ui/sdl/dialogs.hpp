@@ -51,8 +51,7 @@ namespace player
             {
                 Open,
                 Accepted,
-                Rejected,
-                QuitPlayer // the debug dialog: "Quit player"
+                Rejected
             };
 
             virtual ~Dialog() = default;
@@ -128,7 +127,6 @@ namespace player
             garlic::core::ThreadedRuntime &runtime;
             Playing                        playing;
             ui::Rect                       area;
-            ui::TextButton                 quit{"Quit player"};
             ui::TextButton                 close{"Close"};
             ui::PointerRouter              router;
             std::vector<std::pair<std::string, std::string>> rows;

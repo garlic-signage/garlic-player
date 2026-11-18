@@ -19,15 +19,20 @@ package com.sagiadinos.garlic.player.java;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.util.DisplayMetrics;
 import android.util.TypedValue;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -52,10 +57,51 @@ final class Dialogs
 {
     private Dialogs() {}
 
+    /** The backgrounds of the dialogs cover about 85 %, the playing content shines through slightly (like sdl) */
+    private static final int PANEL_ALPHA = 217;
+
+    /**
+     * The activity with the density of the sdl player: max(density, screen height / 900), so menu and dialogs have the
+     * same size at the same resolution on every platform, also on a 1080p screen that reports only 160 dpi.
+     */
+    private static Context scaled(Activity activity)
+    {
+        DisplayMetrics screen = new DisplayMetrics();
+        activity.getWindowManager().getDefaultDisplay().getRealMetrics(screen);
+        float scale = Math.max(Math.max(1.0F, screen.density), screen.heightPixels / 900.0F);
+
+        Configuration config = new Configuration();
+        config.densityDpi    = Math.round(scale * DisplayMetrics.DENSITY_DEFAULT);
+        ContextThemeWrapper context = new ContextThemeWrapper(activity, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        context.applyOverrideConfiguration(config);
+        return context;
+    }
+
+    /**
+     * After show(): the width of the sdl dialog in its points (at most the screen) and the content shining through
+     * the dialog's backgrounds; buttons and fields stay opaque
+     */
+    private static void finish(AlertDialog dialog, Context ui, int points)
+    {
+        DisplayMetrics metrics = ui.getResources().getDisplayMetrics();
+        int width = Math.min(Math.round(points * metrics.density), metrics.widthPixels);
+        dialog.getWindow().setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        translucent(dialog.getWindow().getDecorView());
+    }
+
+    private static void translucent(View view)
+    {
+        if (!(view instanceof Button) && !(view instanceof EditText) && view.getBackground() != null)
+            view.getBackground().mutate().setAlpha(PANEL_ALPHA);
+        if (view instanceof ViewGroup)
+            for (int i = 0; i < ((ViewGroup) view).getChildCount(); ++i)
+                translucent(((ViewGroup) view).getChildAt(i));
+    }
+
     /** Settings, Debug infos, Exit */
     static void menu(Activity activity, Runnable settings, Runnable debug, Runnable exit)
     {
-        new AlertDialog.Builder(activity)
+        new AlertDialog.Builder(scaled(activity))
             .setItems(new CharSequence[]{"Settings", "Debug infos", "Exit"}, (dialog, which) -> {
                 if (which == 0)
                     settings.run();
@@ -82,22 +128,23 @@ final class Dialogs
         {
             current = new JSONObject();
         }
-        LinearLayout form   = column(activity);
-        EditText     name   = field(activity, form, "Player name", current.optString("playerName"), false);
-        EditText     index  = field(activity, form, "Content URL", current.optString("indexUri"), false);
+        Context      ui     = scaled(activity);
+        LinearLayout form   = column(ui);
+        EditText     name   = field(ui, form, "Player name", current.optString("playerName"), false);
+        EditText     index  = field(ui, form, "Content URL", current.optString("indexUri"), false);
         name.setEnabled(!identity_locked);
         index.setEnabled(!identity_locked);
-        CheckBox     server = new CheckBox(activity);
+        CheckBox     server = new CheckBox(ui);
         server.setText("HTTP server");
         server.setChecked(current.optBoolean("httpdEnabled", true));
         form.addView(server);
-        EditText port  = field(activity, form, "Port", String.valueOf(current.optInt("httpdPort", 8080)), true);
-        TextView error = new TextView(activity);
+        EditText port  = field(ui, form, "Port", String.valueOf(current.optInt("httpdPort", 8080)), true);
+        TextView error = new TextView(ui);
         error.setTextColor(Color.rgb(235, 90, 90));
         error.setVisibility(View.GONE);
         form.addView(error);
 
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(ui)
             .setTitle("Settings")
             .setView(form)
             .setPositiveButton("OK", null)
@@ -129,17 +176,19 @@ final class Dialogs
             error.setVisibility(View.VISIBLE);
         }));
         dialog.show();
+        finish(dialog, ui, 640);
     }
 
     /** Resources and identity, the running downloads and what plays; refreshed every second */
-    static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing, Runnable quit)
+    static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing)
     {
-        LinearLayout content = column(activity);
-        TextView     text    = new TextView(activity);
+        Context      ui      = scaled(activity);
+        LinearLayout content = column(ui);
+        TextView     text    = new TextView(ui);
         text.setTypeface(Typeface.MONOSPACE);
         text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         content.addView(text);
-        ScrollView scroll = new ScrollView(activity);
+        ScrollView scroll = new ScrollView(ui);
         scroll.addView(content);
 
         Handler  timer   = new Handler(Looper.getMainLooper());
@@ -148,15 +197,15 @@ final class Dialogs
             text.setText(debugText(core.debugInfo(), playing.get()));
             timer.postDelayed(tick[0], 1000);
         };
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(ui)
             .setTitle("Information")
             .setView(scroll)
-            .setPositiveButton("Close", null)
-            .setNegativeButton("Quit", (d, w) -> quit.run())
+            .setPositiveButton("Close", null) // the only button, centered; quitting is in the menu
             .create();
         dialog.setOnDismissListener(d -> timer.removeCallbacks(tick[0]));
         tick[0].run();
         dialog.show();
+        finish(dialog, ui, 760);
     }
 
     static String debugText(String json, List<String> playing)
@@ -246,21 +295,21 @@ final class Dialogs
         }
     }
 
-    private static LinearLayout column(Activity activity)
+    private static LinearLayout column(Context context)
     {
-        LinearLayout layout = new LinearLayout(activity);
+        LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
-        int padding = Math.round(20 * activity.getResources().getDisplayMetrics().density);
+        int padding = Math.round(20 * context.getResources().getDisplayMetrics().density);
         layout.setPadding(padding, padding / 2, padding, 0);
         return layout;
     }
 
-    private static EditText field(Activity activity, ViewGroup form, String label, String value, boolean number)
+    private static EditText field(Context context, ViewGroup form, String label, String value, boolean number)
     {
-        TextView caption = new TextView(activity);
+        TextView caption = new TextView(context);
         caption.setText(label);
         form.addView(caption);
-        EditText edit = new EditText(activity);
+        EditText edit = new EditText(context);
         edit.setText(value);
         edit.setSingleLine(true);
         edit.setGravity(Gravity.START);

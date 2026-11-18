@@ -676,6 +676,6 @@ public class GarlicActivity extends Activity implements Media.Reports
     private void openDebug()
     {
         if (core != null)
-            Dialogs.debug(this, core, stage::playing, this::quit);
+            Dialogs.debug(this, core, stage::playing);
     }
 }

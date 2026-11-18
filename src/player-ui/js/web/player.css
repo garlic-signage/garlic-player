@@ -156,8 +156,8 @@ dialog footer {
     margin-top: 16px;
 }
 
-dialog footer .left {
-    margin-right: auto;
+dialog footer.center {
+    justify-content: center;
 }
 
 dialog footer .default {

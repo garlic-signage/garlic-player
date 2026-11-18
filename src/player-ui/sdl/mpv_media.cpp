@@ -171,11 +171,22 @@ namespace player
             return t.last_fence;
         }
 
+        /// GARLIC_MPV_FENCES=0: mpv gets no glFenceSync (as before 2.0.0-dev.968), for a test of the memory on a
+        /// Raspberry Pi; mpv then takes OpenGL (ES) only in the scope of 3.1 / 2.0
+        bool fencesForMpv()
+        {
+            const char *value = std::getenv("GARLIC_MPV_FENCES");
+            return value == nullptr || std::string_view(value) != "0";
+        }
+
         void *procAddress(void * /*context*/, const char *name)
         {
             void *function = reinterpret_cast<void *>(SDL_GL_GetProcAddress(name));
             if (function != nullptr && std::string_view(name) == "glFenceSync")
             {
+                static const bool given = fencesForMpv();
+                if (!given)
+                    return nullptr;
                 fences().real = reinterpret_cast<void *(*)(GLenum, GLbitfield)>(function);
                 return reinterpret_cast<void *>(&trackFence);
             }

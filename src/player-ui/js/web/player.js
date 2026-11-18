@@ -77,7 +77,6 @@ class GarlicPlayer {
         });
         this.#debug = new DebugDialog(document.getElementById('debug'), this.#player, {
             playing: () => this.#stage.playing(),
-            quit: () => this.#quit(),
             changed,
         });
         if (this.#preview)

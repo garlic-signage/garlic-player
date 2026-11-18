@@ -717,9 +717,7 @@ namespace player
             SDL_StopTextInput(window);
         updateCursor();
         dirty = true;
-        if (result == Dialog::Result::QuitPlayer)
-            quit();
-        else if (settings_required && result != Dialog::Result::Accepted)
+        if (settings_required && result != Dialog::Result::Accepted)
         {
             exit_code = 1; // without an index nothing can be played (garlic-lib)
             running   = false;

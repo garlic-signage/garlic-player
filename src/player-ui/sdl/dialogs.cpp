@@ -83,8 +83,15 @@ namespace player
 
     void Dialog::drawPanel(ui::Canvas &canvas, const ui::Rect &area, const std::string &title)
     {
-        canvas.fillRoundedRect(area, 8.0F, ui::look::outline, ui::look::outline);
-        canvas.fillRoundedRect(area.inset(1.0F), 7.0F, ui::look::dialog_top, ui::look::dialog_bottom);
+        // slightly transparent: outline and body lie over each other, two times 156 give about 85 % cover
+        auto translucent = [](ui::Color color)
+        {
+            color.alpha = 156;
+            return color;
+        };
+        canvas.fillRoundedRect(area, 8.0F, translucent(ui::look::outline), translucent(ui::look::outline));
+        canvas.fillRoundedRect(area.inset(1.0F), 7.0F, translucent(ui::look::dialog_top),
+                               translucent(ui::look::dialog_bottom));
         canvas.text({area.x + margin, area.y + margin}, title, ui::look::text);
     }
 
@@ -240,7 +247,6 @@ namespace player
     DebugDialog::DebugDialog(garlic::core::ThreadedRuntime &r, Playing p) : runtime(r), playing(std::move(p))
     {
         close.setHighlighted(true);
-        router.add(quit);
         router.add(close);
         refresh();
     }
@@ -284,8 +290,7 @@ namespace player
                                          std::max<std::size_t>(media.size(), 1));
         area        = panel(window, 760, margin * 3 + row_height * (2 + lines * 0.75F));
         float bottom = area.y + area.height - margin - row_height;
-        quit.setBounds({area.x + margin, bottom, button_width, row_height});
-        close.setBounds({area.x + area.width - margin - button_width, bottom, button_width, row_height});
+        close.setBounds({area.x + (area.width - button_width) / 2, bottom, button_width, row_height}); // centered
     }
 
     void DebugDialog::draw(ui::Canvas &canvas) const
@@ -322,7 +327,6 @@ namespace player
             canvas.textElided({x, y}, each, ui::look::text, width);
             y += line;
         }
-        quit.draw(canvas);
         close.draw(canvas);
     }
 
@@ -335,8 +339,6 @@ namespace player
 
     void DebugDialog::check()
     {
-        if (quit.takePress())
-            state = Result::QuitPlayer;
         if (close.takePress())
             state = Result::Rejected;
     }
