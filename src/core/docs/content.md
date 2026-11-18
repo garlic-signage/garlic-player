@@ -58,7 +58,8 @@ startTemporary(uri)                   REST /v2/app/exec: another index for a whi
 
 ## MediaManager
 
-`load(document, base)` registers the media of a new index (garlic-lib: `registerFile`):
+`load(document, base)` registers the media of a new index (garlic-lib: `registerFile`): first the background images,
+then images, widgets and web pages, then video and audio, each in document order.
 
 | `src`                                   | Handling                                                          |
 |-----------------------------------------|-------------------------------------------------------------------|
@@ -187,6 +188,9 @@ makeSpace(bytes)
   playlist downloads them again (like IAdea players do): traffic limits, wear of the flash and gaps when a file is not
   there in time. Now what does not fit is not downloaded, the hub gets `DISK_FULL` and the operator makes the playlist
   smaller. A cache filled by the index also blocks other downloads (tasks, firmware) until the index changes.
+- **Small files first.** garlic-lib queued the media in document order, so a playlist that starts with large videos
+  showed nothing for minutes while two downloads ran on them. Now images, widgets and web pages go into the download
+  queue before video and audio: the first images play after seconds while the videos still load.
 - **Missing files come back without a new index.** `resolve()` asks for them again, after an error at most once per
   retry time of the index, after `DISK_FULL` only with the next index (garlic-lib: only with a new index).
 - **No `QtWebEngine` in the cache any more.** garlic-lib kept the web cache directory of the Qt players there; the

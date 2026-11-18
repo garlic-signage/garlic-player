@@ -20,6 +20,8 @@
 #include "content_fixture.hpp"
 #include "smil/parser.hpp"
 
+#include <algorithm>
+
 using namespace garlic::core;
 using namespace garlic::core::content;
 using namespace garlic::core::tests;
@@ -62,6 +64,27 @@ TEST_CASE("remote media: downloaded, then resolved to the cache file")
     REQUIRE(path.has_value());
     CHECK(f.fs.content(*path) == "jpeg");
     CHECK(path->starts_with("cache/"));
+}
+
+TEST_CASE("download order: images, widgets and web pages first, then video and audio, each in document order")
+{
+    Fixture f;
+    for (const char *name : {"v1.mp4", "a.jpg", "s.mp3", "w.wgt", "b.jpg", "v2.mp4"})
+        f.serve(std::string("http://hub/media/") + name, "data", "application/octet-stream");
+    f.load(R"(<video src="http://hub/media/v1.mp4"/>
+              <seq><img src="http://hub/media/a.jpg" dur="1s"/><audio src="http://hub/media/s.mp3"/></seq>
+              <ref src="http://hub/media/w.wgt" type="application/widget" dur="1s"/>
+              <img src="http://hub/media/b.jpg" dur="1s"/>
+              <video src="http://hub/media/v2.mp4"/>)");
+    f.runUntilIdle();
+
+    std::vector<std::string> order; // the first request of every file
+    for (const auto &request : f.transport.requests)
+        if (std::ranges::find(order, request.url) == order.end())
+            order.push_back(request.url);
+    CHECK(order == std::vector<std::string>{"http://hub/media/a.jpg", "http://hub/media/w.wgt",
+                                            "http://hub/media/b.jpg", "http://hub/media/v1.mp4",
+                                            "http://hub/media/s.mp3", "http://hub/media/v2.mp4"});
 }
 
 TEST_CASE("relative src against the base of the index, local and direct src as they are")

@@ -73,20 +73,26 @@ namespace garlic::core::content
         registerSrc(document.head.root_layout.background_image);
         for (const smil::Region &region : document.head.regions)
             registerSrc(region.background_image);
-        registerMedia(document.body);
+        // the small files first (images, widgets, web pages), then video and audio, each in document order: so the
+        // first images play after seconds while a video of hundreds of MB still loads
+        registerMedia(document.body, false);
+        registerMedia(document.body, true);
     }
 
-    void MediaManager::registerMedia(const smil::Container &container)
+    /// The media of the container into the download queue: audio_video false the others, true video and audio.
+    void MediaManager::registerMedia(const smil::Container &container, bool audio_video)
     {
         for (const smil::Node &node : container.children)
         {
             if (const auto *child = std::get_if<smil::Container>(&node))
             {
-                registerMedia(*child);
+                registerMedia(*child, audio_video);
                 continue;
             }
             const auto &media = std::get<smil::Media>(node);
             if (media.kind == smil::MediaKind::Brush)
+                continue;
+            if ((media.kind == smil::MediaKind::Video || media.kind == smil::MediaKind::Audio) != audio_video)
                 continue;
             if (supports && !supports(media))
             {

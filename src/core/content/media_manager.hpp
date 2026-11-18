@@ -104,7 +104,7 @@ namespace garlic::core::content
             std::optional<std::string> cachedFile(std::string_view url);
             void                       download(std::string_view url);
             void                       registerSrc(std::string_view src);
-            void                       registerMedia(const smil::Container &container);
+            void                       registerMedia(const smil::Container &container, bool audio_video);
             void                       reportUnsupported(const smil::Media &media);
     };
 }
