@@ -144,17 +144,53 @@ namespace player
         }
 
         /**
-         * The OpenGL functions for mpv, without glFenceSync: libmpv (render API, mpv 0.40 and 0.41; mpv issue 17217,
-         * fixed in 0.42) makes a fence for every frame and deletes it only when swapping buffers, which the render
-         * API never does. On a Raspberry Pi (Mesa V3D) every fence holds a sync_file, so after about a minute the
-         * player ran out of file descriptors (1024) and showed nothing anymore. mpv works without fences (it checks
-         * for the function); that SDL reads a frame only when mpv has written it is the fence of draw().
+         * libmpv 0.40 and 0.41 (render API; mpv issue 17217, fixed in 0.42) make a fence for every frame and delete
+         * it only when swapping buffers, which the render API never does. On a Raspberry Pi (Mesa V3D) every fence
+         * holds a sync_file, so after about a minute the player ran out of file descriptors (1024) and showed nothing
+         * anymore. Without glFenceSync mpv refuses OpenGL 3.2 and OpenGL ES 3.0 (a required function), so mpv gets
+         * it through trackFence(), which remembers the last fence: the one of the frame, made at the end of
+         * mpv_render_context_render(); draw() deletes it with these versions.
          */
+        struct FenceTracking
+        {
+                void *(*real)(GLenum, GLbitfield) = nullptr;
+                void *last_fence                   = nullptr; // of the current mpv_render_context_render()
+                bool  leaky                        = false;   // mpv 0.40 or 0.41
+        };
+
+        FenceTracking &fences()
+        {
+            static FenceTracking tracking;
+            return tracking;
+        }
+
+        void *trackFence(GLenum condition, GLbitfield flags)
+        {
+            FenceTracking &t = fences();
+            t.last_fence     = t.real(condition, flags);
+            return t.last_fence;
+        }
+
         void *procAddress(void * /*context*/, const char *name)
         {
-            if (std::string_view(name) == "glFenceSync")
-                return nullptr;
-            return reinterpret_cast<void *>(SDL_GL_GetProcAddress(name));
+            void *function = reinterpret_cast<void *>(SDL_GL_GetProcAddress(name));
+            if (function != nullptr && std::string_view(name) == "glFenceSync")
+            {
+                fences().real = reinterpret_cast<void *(*)(GLenum, GLbitfield)>(function);
+                return reinterpret_cast<void *>(&trackFence);
+            }
+            return function;
+        }
+
+        /// "mpv 0.40.0", "mpv v0.41.0-…": the versions whose render API leaks a fence per frame
+        bool leaksFences(mpv_handle *mpv)
+        {
+            char *version = mpv_get_property_string(mpv, "mpv-version");
+            if (version == nullptr)
+                return false;
+            std::string text(version);
+            mpv_free(version);
+            return text.find("0.40.") != std::string::npos || text.find("0.41.") != std::string::npos;
         }
     }
 
@@ -273,6 +309,7 @@ namespace player
         // mpv fills it completely; the window cuts what lies outside the region (slice)
         mpv_set_option_string(mpv, "keepaspect", "no");
         mpv_set_option_string(mpv, "volume", std::to_string(std::lround(volume() * 100)).c_str());
+        fences().leaky = leaksFences(mpv);
         if (mpv_initialize(mpv) < 0)
         {
             report(Outcome::Failed, "libmpv cannot start for " + source);
@@ -475,7 +512,10 @@ namespace player
                 mpv_render_param params[] = {{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
                                              {MPV_RENDER_PARAM_FLIP_Y, &flip},
                                              {MPV_RENDER_PARAM_INVALID, nullptr}};
+                fences().last_fence = nullptr;
                 mpv_render_context_render(render, params);
+                if (fences().leaky && fences().last_fence != nullptr) // the fence of the frame, never deleted by mpv
+                    gl().deleteSync(fences().last_fence);
                 // SDL may read the texture only when mpv has written it
                 if (mpvGl().has_sync)
                 {
