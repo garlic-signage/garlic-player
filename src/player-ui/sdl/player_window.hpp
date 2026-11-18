@@ -132,6 +132,7 @@ namespace player
             std::vector<Deferred>                                  deferred;
             std::optional<std::string>                             screenshot_path;
             garlic::core::Downloads                                downloads; // "Loading" while no medium is shown
+            bool media_shown = false; // since the layout: "Loading" only before its first medium, not in gaps later
             Media                                                 *web_focus = nullptr; // the web page that has the keyboard
 
             // ten fast clicks/touches or one held for 10 s open the menu (also for the review of the App Store)

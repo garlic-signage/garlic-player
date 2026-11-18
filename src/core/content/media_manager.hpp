@@ -77,6 +77,12 @@ namespace garlic::core::content
             /// The cache file names of the remote files of the current index, kept by CacheSpace.
             std::set<std::string> currentFiles() const;
 
+            /// A remote file of the current index (medium or background image), not the index or a task file
+            bool isMedia(std::string_view url) const { return current.contains(url); }
+
+            /// For the debug display: the title of the medium from the SMIL, otherwise the file name of the URL
+            std::string displayName(std::string_view url) const;
+
             std::optional<std::string> resolve(const smil::Media &media) override;
             void                       prefetch(const smil::Media &media) override;
             void                       release(const smil::Media &media) override;
@@ -95,6 +101,7 @@ namespace garlic::core::content
             std::set<std::string, std::less<>>    not_cacheable; // URLs the downloader reported as NotCacheable
             std::set<std::string, std::less<>>    reported;      // MEDIA_UNSUPPORTED in this index version
             std::set<std::string, std::less<>>    current;       // remote URLs of the index
+            std::map<std::string, std::string, std::less<>> titles; // remote URL → title of its medium, if it has one
             std::map<std::string, std::chrono::steady_clock::time_point, std::less<>> retry_after; // failed downloads
             bool downloads_held = false; // holdDownloads()
             std::map<std::string, int, std::less<>> in_use;      // cache file → instances playing it

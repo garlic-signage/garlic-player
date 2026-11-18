@@ -196,6 +196,7 @@ namespace garlic::core::downloader
         redirects   = 0;
         http_status = 0;
         no_space    = false;
+        received    = 0;
         start_error.clear();
 
         sendHead();
@@ -308,6 +309,7 @@ namespace garlic::core::downloader
         if (response.status == 206 || response.status == 200)
         {
             // 206: server continues the .part file, 200: complete file (no or outdated .part)
+            received = response.status == 206 ? fs.fileSize(partPath()).value_or(0) : 0;
             auto opened = fs.openForWrite(partPath(), response.status == 206 ? common::WriteMode::Append
                                                                              : common::WriteMode::Truncate);
             if (opened)
@@ -333,6 +335,7 @@ namespace garlic::core::downloader
             write_error = written.error().message;
             return false;
         }
+        received += chunk.size();
         return true;
     }
 

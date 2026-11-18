@@ -21,6 +21,8 @@
 #include "downloader/downloader.hpp"
 
 #include <deque>
+#include <functional>
+#include <string_view>
 #include <memory>
 #include <string>
 #include <vector>
@@ -59,6 +61,24 @@ namespace garlic::core::downloader
             std::size_t runningCount() const noexcept;
             bool        isIdle() const noexcept { return pending.empty() && runningCount() == 0; }
 
+            using UrlFilter = std::function<bool(std::string_view url)>;
+
+            /// The waiting and running jobs whose URL the filter takes
+            std::size_t count(const UrlFilter &filter) const;
+
+            /// Of the running download that started first among those the filter takes (empty: all); nothing while
+            /// none runs
+            Downloader::Progress firstProgress(const UrlFilter &filter = {}) const;
+
+            struct Running
+            {
+                std::string          url;
+                Downloader::Progress progress;
+            };
+
+            /// The running downloads in the order they started
+            std::vector<Running> running() const;
+
         private:
             struct Job
             {
@@ -70,6 +90,7 @@ namespace garlic::core::downloader
             {
                 std::unique_ptr<Downloader> downloader;
                 std::string                 url; // of the running job
+                std::uint64_t               started = 0; // order of the start, for firstProgress()
             };
 
             void startPending();
@@ -78,6 +99,7 @@ namespace garlic::core::downloader
             std::vector<Slot>            slots;
             std::deque<Job>              pending;
             Downloader::FinishedCallback on_finished;
+            std::uint64_t                starts = 0;
     };
 }
 

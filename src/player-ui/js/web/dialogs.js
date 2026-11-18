@@ -192,10 +192,20 @@ export class DebugDialog {
             playerMemory: info.memoryUsed === 0 ? '-'
                 : `${DebugDialog.#bytes(info.memoryUsed)}, max ${DebugDialog.#bytes(info.memoryMax)} at ${info.memoryMaxTime}`,
             threads: info.threads === 0 ? '-' : `${info.threads}, max ${info.threadsMax}`,
+            downloads: DebugDialog.#downloads(info),
             playing: playing.length > 0 ? playing.join('\n') : '-',
         };
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;
+    }
+
+    /// "title  42 % (136.0 MB of 323.0 MB)" per running download, then how many wait; like the sdl player
+    static #downloads(info) {
+        const lines = info.downloads.map((d) => (d.total === 0 ? `${d.name}  ${DebugDialog.#bytes(d.received)}`
+            : `${d.name}  ${Math.floor((100 * d.received) / d.total)} % (${DebugDialog.#bytes(d.received)} of ${DebugDialog.#bytes(d.total)})`));
+        if (info.downloadsWaiting > 0)
+            lines.push(`+${info.downloadsWaiting} waiting`);
+        return lines.length > 0 ? lines.join('\n') : '-';
     }
 
     static #bytes(value) {

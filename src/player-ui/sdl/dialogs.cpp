@@ -259,6 +259,19 @@ namespace player
             {"Threads", info.threads == 0 ? "-"
                                           : std::to_string(info.threads) + ", max " + std::to_string(info.threads_max)},
         };
+        // the running downloads: "title  42 % (136.0 MB of 323.0 MB)", then how many wait
+        std::vector<std::string> loading;
+        for (const auto &download : info.downloads)
+            loading.push_back(download.total == 0
+                                  ? download.name + "  " + bytes(download.received)
+                                  : download.name + "  " + std::to_string(download.received * 100 / download.total) +
+                                        " % (" + bytes(download.received) + " of " + bytes(download.total) + ")");
+        if (info.downloads_waiting > 0)
+            loading.push_back("+" + std::to_string(info.downloads_waiting) + " waiting");
+        if (loading.empty())
+            loading.push_back("-");
+        for (std::size_t i = 0; i < loading.size(); ++i)
+            rows.emplace_back(i == 0 ? "Downloading" : "", loading[i]);
         media = playing ? playing() : std::vector<std::string>();
     }
 

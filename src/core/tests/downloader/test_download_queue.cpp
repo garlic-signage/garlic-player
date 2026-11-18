@@ -134,6 +134,57 @@ TEST_CASE("no more than max_parallel downloads run at the same time")
     }
 }
 
+TEST_CASE("firstProgress: the download that started first; nothing while none runs")
+{
+    Fixture f;
+    f.serve(mediaUrl(1), "aaaaaaaa");     // 8 bytes, starts first
+    f.serve(mediaUrl(2), "bbbbbbbbbbbb"); // 12 bytes, runs beside it
+    CHECK(f.queue.firstProgress().total == 0);
+    f.queue.add(mediaUrl(1));
+    f.queue.add(mediaUrl(2));
+
+    std::uint64_t max_total = 0;
+    while (f.queue.runningCount() == 2 || max_total == 0)
+    {
+        f.transport.poll();
+        f.queue.poll();
+        auto progress = f.queue.firstProgress();
+        max_total     = std::max(max_total, progress.total);
+        if (f.queue.runningCount() == 2)
+            CHECK(progress.total != 12); // while both run: the first one (8 bytes, or 0 before its HEAD)
+        if (f.queue.isIdle())
+            break;
+    }
+    f.runUntilIdle();
+    CHECK(max_total >= 8);
+    CHECK(f.queue.firstProgress().total == 0);
+}
+
+TEST_CASE("running: the running downloads in the order they started, with their progress")
+{
+    Fixture f;
+    f.serve(mediaUrl(1), "aaaaaaaa");
+    f.serve(mediaUrl(2), "bbbbbbbbbbbb");
+    f.serve(mediaUrl(3));
+    f.queue.add(mediaUrl(1));
+    f.queue.add(mediaUrl(2));
+    f.queue.add(mediaUrl(3));
+    CHECK(f.queue.running().size() == 2);
+    CHECK(f.queue.pendingCount() == 1);
+    for (int i = 0; i < 6; ++i)
+    {
+        f.transport.poll();
+        f.queue.poll();
+    }
+    auto list = f.queue.running();
+    REQUIRE(list.size() == 2);
+    CHECK(list[0].url == mediaUrl(1));
+    CHECK(list[1].url == mediaUrl(2));
+    CHECK(list[1].progress.total == 12);
+    f.runUntilIdle();
+    CHECK(f.queue.running().empty());
+}
+
 TEST_CASE("max_parallel 0 is treated as 1")
 {
     Fixture f(0);

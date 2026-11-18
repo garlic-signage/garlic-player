@@ -104,6 +104,14 @@ namespace garlic::core::downloader
 
             bool isBusy() const noexcept { return phase != Phase::Idle; }
 
+            /// Bytes of the file so far (with a resumed .part) and its size from the server; 0 while unknown
+            struct Progress
+            {
+                std::uint64_t received = 0;
+                std::uint64_t total    = 0;
+            };
+            Progress progress() const noexcept { return {received, remote.content_length}; }
+
         private:
             enum class Phase
             {
@@ -151,6 +159,7 @@ namespace garlic::core::downloader
             std::string                           start_error; // transport refused the first request
             std::string                           write_error;
             std::unique_ptr<common::WritableFile> file;
+            std::uint64_t                         received = 0; // bytes of the file in the .part, for progress()
             std::chrono::steady_clock::time_point last_activity;
     };
 }

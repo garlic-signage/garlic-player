@@ -192,24 +192,28 @@ TEST_CASE("start: index downloaded, NewLayout, media downloaded and started")
     CHECK(f.runtime->configuration().lastPlayedIndexPath() == "cache/index.smil");
 }
 
-TEST_CASE("Downloads: done of total while the queue works, 0/0 when it is empty again")
+TEST_CASE("Downloads: only media count, done of total while they load, 0/0 when none loads any more")
 {
     Fixture f;
     f.serve("http://hub/index.smil",
             indexText(R"x(<seq><img xml:id="a" src="img/a.jpg" dur="10s"/><img xml:id="b" src="img/b.jpg" dur="10s"/></seq>)x"),
             "application/smil+xml");
     f.serve("http://hub/img/a.jpg", "jpeg", "image/jpeg");
-    f.serve("http://hub/img/b.jpg", "jpeg", "image/jpeg");
+    downloader::tests::FakeHttpTransport::Response slow; // b comes in small chunks, so a is done before it
+    slow.headers.add("Content-Type", "image/jpeg");
+    slow.headers.add("ETag", "\"v1\"");
+    slow.body       = "jpegjpegjpegjpegjpegjpeg";
+    slow.chunk_size = 1;
+    f.transport.respond(downloader::HttpMethod::Head, "http://hub/img/b.jpg", slow);
+    f.transport.respond(downloader::HttpMethod::Get, "http://hub/img/b.jpg", slow);
     REQUIRE(f.runtime->start().has_value());
     f.run(5s);
 
     REQUIRE(!f.downloads.empty());
-    CHECK(f.downloads.front() == "0/1"); // the index
-    CHECK(f.downloads.back() == "0/0");  // all there
-    // the media come after the index in the same count: 1 of 3 done at least once
-    CHECK(std::ranges::find(f.downloads, "1/3") != f.downloads.end());
-    for (std::size_t i = 1; i < f.downloads.size(); ++i)
-        CHECK(f.downloads[i] != f.downloads[i - 1]); // only changes are announced
+    CHECK(f.downloads.front() == "0/2"); // the two images, not the index: "Loading 1 / 2"
+    CHECK(std::ranges::find(f.downloads, "1/2") != f.downloads.end());
+    CHECK(f.downloads.back() == "0/0"); // all there
+    CHECK(std::ranges::find(f.downloads, "0/1") == f.downloads.end()); // the index never counted
 }
 
 TEST_CASE("start: a web page is not downloaded, it plays from its URL")

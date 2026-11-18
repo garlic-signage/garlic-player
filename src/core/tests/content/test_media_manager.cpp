@@ -87,6 +87,16 @@ TEST_CASE("download order: images, widgets and web pages first, then video and a
                                             "http://hub/media/s.mp3", "http://hub/media/v2.mp4"});
 }
 
+TEST_CASE("displayName: the title of the medium, otherwise the file name of the URL")
+{
+    Fixture f;
+    f.load(R"(<video src="http://hub/media/a1b2.mp4" title="The World"/>
+              <img src="media/c3d4.jpg?v=2" dur="1s"/>)");
+    CHECK(f.media.displayName("http://hub/media/a1b2.mp4") == "The World");
+    CHECK(f.media.displayName("http://hub/index/media/c3d4.jpg?v=2") == "c3d4.jpg");
+    CHECK(f.media.displayName("http://other/x/file.pdf#page=2") == "file.pdf");
+}
+
 TEST_CASE("relative src against the base of the index, local and direct src as they are")
 {
     Fixture f;

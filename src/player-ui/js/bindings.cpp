@@ -196,6 +196,17 @@ namespace player
                 result.set("memoryMaxTime", info.memory_max_time);
                 result.set("threads", info.threads);
                 result.set("threadsMax", info.threads_max);
+                val downloads = val::array();
+                for (const auto &download : info.downloads)
+                {
+                    val entry = val::object();
+                    entry.set("name", download.name);
+                    entry.set("received", static_cast<double>(download.received));
+                    entry.set("total", static_cast<double>(download.total));
+                    downloads.call<void>("push", entry);
+                }
+                result.set("downloads", downloads);
+                result.set("downloadsWaiting", static_cast<double>(info.downloads_waiting));
                 return result;
             }
 
@@ -254,6 +265,8 @@ namespace player
                             result.set("type", std::string("downloads"));
                             result.set("done", static_cast<double>(e.done));
                             result.set("total", static_cast<double>(e.total));
+                            result.set("bytesDone", static_cast<double>(e.bytes_done));
+                            result.set("bytesTotal", static_cast<double>(e.bytes_total));
                             return result;
                         },
                     },

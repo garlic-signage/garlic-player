@@ -20,6 +20,8 @@
 #include "common/md5.hpp"
 #include "common/memory_file_system.hpp"
 #include "downloader/downloader.hpp"
+
+#include <algorithm>
 #include "failing_file_system.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
@@ -139,6 +141,31 @@ TEST_CASE("first download: HEAD, GET, file in the cache, inventory complete")
     CHECK(entry->state == InventoryState::Complete);
     CHECK(entry->etag == "\"v1\"");
     CHECK(entry->content_length == 4);
+}
+
+TEST_CASE("progress: the received bytes of the GET and the size from the server")
+{
+    Fixture f;
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789AB", "\"v1\""));
+    auto get       = response(200, "image/jpeg", "0123456789AB", "\"v1\"");
+    get.chunk_size = 4;
+    f.transport.respond(HttpMethod::Get, media_url, get);
+
+    REQUIRE(f.downloader.start(media_url, {}, [&f](const DownloadResult &r) { f.result = r; }));
+    std::vector<std::uint64_t> seen;
+    for (int i = 0; i < 100 && f.downloader.isBusy(); ++i)
+    {
+        f.transport.poll();
+        f.downloader.poll();
+        auto progress = f.downloader.progress();
+        if (progress.total == 12 && (seen.empty() || seen.back() != progress.received))
+            seen.push_back(progress.received);
+    }
+    REQUIRE(f.result.has_value());
+    CHECK(f.result->status == DownloadStatus::Downloaded);
+    CHECK(seen.size() >= 3); // moves in steps of the chunks, not only at the end
+    CHECK(std::ranges::is_sorted(seen));
+    CHECK(seen.back() == 12);
 }
 
 TEST_CASE("changed file: the playing file stays, the new one waits as .ready")

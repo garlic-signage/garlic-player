@@ -472,6 +472,7 @@ namespace player
     void PlayerWindow::newLayout(const NewLayout &next)
     {
         clear();
+        media_shown = false; // a new playlist may wait for its files again
         for (Region &region : regions)
             if (region.background != nullptr)
                 SDL_DestroyTexture(region.background);
@@ -959,16 +960,17 @@ namespace player
     }
 
     /**
-     * While downloads run and no region shows a medium: "Loading 2 / 7" and a bar in the middle of the screen, so a
-     * screen is not black while the first files come (a 4K video takes minutes). Gone with the first medium.
+     * While downloads run and no medium was shown since the layout: "Loading 2 / 7" and a bar in the middle of the
+     * screen, so a screen is not black while the first files come (a 4K video takes minutes). Gone with the first
+     * medium and not back in a gap between media later, which would flash; again with the next layout.
      */
     void PlayerWindow::drawLoading()
     {
-        if (downloads.total == 0)
-            return;
         for (const Region &region : regions)
             if (!region.stack.empty())
-                return;
+                media_shown = true;
+        if (downloads.total == 0 || media_shown)
+            return;
         canvas->setScale(uiScale());
         ui::Rect    window = windowPoints();
         std::string label  = "Loading " + std::to_string(std::min(downloads.done + 1, downloads.total)) + " / " +
@@ -980,8 +982,11 @@ namespace player
                      ui::look::text);
         ui::Rect bar{x, y, width, 10};
         canvas->fillRect(bar, ui::look::field);
-        canvas->fillRect({x, y, width * static_cast<float>(downloads.done) / static_cast<float>(downloads.total), 10},
-                         ui::look::highlight_top);
+        // the bytes of the first download, so the bar moves at once; without a size the files
+        float fraction = downloads.bytes_total > 0
+                             ? static_cast<float>(downloads.bytes_done) / static_cast<float>(downloads.bytes_total)
+                             : static_cast<float>(downloads.done) / static_cast<float>(downloads.total);
+        canvas->fillRect({x, y, width * std::min(fraction, 1.0F), 10}, ui::look::highlight_top);
     }
 
     /// garlic-lib: the whole screen as JPEG with quality 60; here the window, which is the screen in full screen mode

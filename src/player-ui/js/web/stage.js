@@ -238,7 +238,8 @@ export class Stage {
     #reports;
     #regions = [];
     #loading;
-    #downloads = { done: 0, total: 0 };
+    #downloads = { done: 0, total: 0, bytesDone: 0, bytesTotal: 0 };
+    #mediaShown = false; // since the layout: "Loading" only before its first medium, not in gaps later
     #rootImageSrc = '';
     #backgroundUrls = [];
 
@@ -271,20 +272,26 @@ export class Stage {
                 region.raise(media);
             });
             break;
-        case 'downloads': this.#downloads = { done: event.done, total: event.total }; break;
+        case 'downloads':
+            this.#downloads = { done: event.done, total: event.total, bytesDone: event.bytesDone, bytesTotal: event.bytesTotal };
+            break;
         }
         this.#updateLoading();
     }
 
-    /// Like the sdl player: shown while downloads run and no region shows a medium, gone with the first medium
+    /// Like the sdl player: while downloads run and no medium was shown since the layout; gone with the first medium,
+    /// not back in a gap between media later (it would flash), again with the next layout
     #updateLoading() {
-        const { done, total } = this.#downloads;
-        const shown = this.#regions.some((region) => region.media.length > 0);
-        this.#loading.hidden = total === 0 || shown;
+        const { done, total, bytesDone, bytesTotal } = this.#downloads;
+        if (this.#regions.some((region) => region.media.length > 0))
+            this.#mediaShown = true;
+        this.#loading.hidden = total === 0 || this.#mediaShown;
         if (this.#loading.hidden)
             return;
         this.#loading.querySelector('span').textContent = `Loading ${Math.min(done + 1, total)} / ${total}`;
-        this.#loading.querySelector('.bar > div').style.width = `${(100 * done) / total}%`;
+        // the bytes of the first download, so the bar moves at once; without a size the files
+        const fraction = bytesTotal > 0 ? bytesDone / bytesTotal : done / total;
+        this.#loading.querySelector('.bar > div').style.width = `${100 * fraction}%`;
     }
 
     /// "region: medium" for every medium shown, for the debug dialog
@@ -303,6 +310,7 @@ export class Stage {
 
     /// A new index: the old media are stopped already (StopMedia come first), so only the regions go.
     #newLayout(layout) {
+        this.#mediaShown = false; // a new playlist may wait for its files again
         this.#backgroundUrls.forEach(Storage.release);
         this.#backgroundUrls = [];
         this.#element.replaceChildren();

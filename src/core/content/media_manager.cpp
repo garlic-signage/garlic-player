@@ -68,6 +68,7 @@ namespace garlic::core::content
         base = index_base;
         reported.clear(); // MEDIA_UNSUPPORTED again once per index version
         current.clear();
+        titles.clear();
         retry_after.clear(); // a new index tries everything again, also what did not fit
 
         registerSrc(document.head.root_layout.background_image);
@@ -100,7 +101,17 @@ namespace garlic::core::content
                 continue;
             }
             registerSrc(media.src);
+            if (!media.title.empty())
+                titles.emplace(absolute(media.src), media.title);
         }
+    }
+
+    std::string MediaManager::displayName(std::string_view url) const
+    {
+        if (auto found = titles.find(url); found != titles.end())
+            return found->second;
+        std::string_view path = url.substr(0, url.find_first_of("?#"));
+        return std::string(path.substr(path.find_last_of('/') + 1));
     }
 
     /// Remote files go to the download queue; a local widget is extracted (garlic-lib: registerFile).

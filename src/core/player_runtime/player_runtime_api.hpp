@@ -108,14 +108,17 @@ namespace garlic::core
     };
 
     /**
-     * The downloads of the index, the media and the tasks, whenever they change: done of total since the queue was last
-     * empty; {0, 0} when it is empty again. The frontend shows "Loading done+1 / total" while it shows no medium, so a
-     * screen is not black while the first files come.
+     * The downloads of the media (not the index or task files), whenever they change: done of total files since no
+     * medium was downloading, and the bytes of the running media download that started first (bytes_total 0: size
+     * unknown), at most every percent; {0, 0} when no medium is downloading any more. The frontend shows "Loading done+1 / total" with a bar of
+     * these bytes until the first medium of a layout, so a screen is not black and the bar moves at once.
      */
     struct Downloads
     {
-        std::size_t done  = 0;
-        std::size_t total = 0;
+        std::size_t   done        = 0;
+        std::size_t   total       = 0;
+        std::uint64_t bytes_done  = 0;
+        std::uint64_t bytes_total = 0;
 
         bool operator==(const Downloads &) const = default;
     };
@@ -169,6 +172,15 @@ namespace garlic::core
         std::string                  memory_max_time; // ISO 8601, when the maximum was measured
         int                          threads     = 0;
         int                          threads_max = 0;
+
+        struct Download
+        {
+            std::string   name;     // title of the medium in the SMIL, otherwise the file name of the URL
+            std::uint64_t received = 0;
+            std::uint64_t total    = 0; // 0: size not known yet
+        };
+        std::vector<Download> downloads;         // running, in the order they started
+        std::size_t           downloads_waiting = 0;
     };
 
     /**

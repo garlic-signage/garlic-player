@@ -68,6 +68,39 @@ namespace garlic::core::downloader
             std::ranges::count_if(slots, [](const Slot &slot) { return slot.downloader->isBusy(); }));
     }
 
+    std::size_t DownloadQueue::count(const UrlFilter &filter) const
+    {
+        std::size_t n = 0;
+        for (const Job &job : pending)
+            n += filter(job.url) ? 1 : 0;
+        for (const Slot &slot : slots)
+            n += slot.downloader->isBusy() && filter(slot.url) ? 1 : 0;
+        return n;
+    }
+
+    std::vector<DownloadQueue::Running> DownloadQueue::running() const
+    {
+        std::vector<const Slot *> busy;
+        for (const Slot &slot : slots)
+            if (slot.downloader->isBusy())
+                busy.push_back(&slot);
+        std::ranges::sort(busy, {}, &Slot::started);
+        std::vector<Running> list;
+        for (const Slot *slot : busy)
+            list.push_back({slot->url, slot->downloader->progress()});
+        return list;
+    }
+
+    Downloader::Progress DownloadQueue::firstProgress(const UrlFilter &filter) const
+    {
+        const Slot *first = nullptr;
+        for (const Slot &slot : slots)
+            if (slot.downloader->isBusy() && (!filter || filter(slot.url)) &&
+                (first == nullptr || slot.started < first->started))
+                first = &slot;
+        return first != nullptr ? first->downloader->progress() : Downloader::Progress{};
+    }
+
     void DownloadQueue::startPending()
     {
         for (std::size_t i = 0; i < slots.size() && !pending.empty(); ++i)
@@ -78,7 +111,8 @@ namespace garlic::core::downloader
 
             Job job = std::move(pending.front());
             pending.pop_front();
-            slot.url = job.url;
+            slot.url     = job.url;
+            slot.started = ++starts;
 
             // slots never reallocate after construction, so the index stays valid
             slot.downloader->start(std::move(job.url), std::move(job.file_name),

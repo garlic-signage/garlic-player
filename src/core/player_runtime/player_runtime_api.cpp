@@ -339,7 +339,8 @@ namespace garlic::core
     /// poll() after start(), so all of them are there.
     void PlayerRuntimeApi::dispatch(const downloader::DownloadResult &result)
     {
-        ++downloads_done;
+        if (media->isMedia(result.url))
+            ++downloads_done;
         if (result.url == index->url())
             index->downloaded(result);
         else if (tasks->downloaded(result))
@@ -476,14 +477,20 @@ namespace garlic::core
         events.emplace_back(now);
     }
 
-    /// A Downloads event when done or total changed; the count starts again when the queue is empty.
+    /// A Downloads event when the media files changed or the bytes of the first by at least a percent; only media
+    /// count (not the index, not task files), so the frontend shows "Loading 1 / X" before the first medium. The
+    /// count starts again when no medium is downloading.
     void PlayerRuntimeApi::announceDownloads()
     {
-        std::size_t remaining = queue ? queue->pendingCount() + queue->runningCount() : 0;
+        auto        is_media  = [this](std::string_view url) { return media && media->isMedia(url); };
+        std::size_t remaining = queue ? queue->count(is_media) : 0;
         if (remaining == 0)
             downloads_done = 0;
-        Downloads now{downloads_done, downloads_done + remaining};
-        if (now == downloads)
+        auto      progress = queue ? queue->firstProgress(is_media) : downloader::Downloader::Progress{};
+        Downloads now{downloads_done, downloads_done + remaining, progress.received, progress.total};
+        auto percent = [](const Downloads &d) { return d.bytes_total == 0 ? 0 : d.bytes_done * 100 / d.bytes_total; };
+        if (now.done == downloads.done && now.total == downloads.total && now.bytes_total == downloads.bytes_total &&
+            percent(now) == percent(downloads))
             return;
         downloads = now;
         events.emplace_back(now);
@@ -585,6 +592,13 @@ namespace garlic::core
                 info.memory_free = *system.memory_total - std::min(*system.memory_used, *system.memory_total);
         }
         trackProcess(info);
+        if (queue)
+        {
+            for (const auto &running : queue->running())
+                info.downloads.push_back({media ? media->displayName(running.url) : running.url,
+                                          running.progress.received, running.progress.total});
+            info.downloads_waiting = queue->pendingCount();
+        }
         return info;
     }
 }

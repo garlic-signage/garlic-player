@@ -63,7 +63,7 @@ while (running)
 | `ClearCaches{player, web}`              | the core has cleared its cache if `player`; the frontend clears the web cache if `web`, then always `cachesCleared()` |
 | `Screenshot{path}`                      | REST `/v2/task/screenshot`: save a JPEG of the screen to `path`, then `screenshotTaken(path)` |
 | `DeviceSettings{volume, brightness}`    | master volume and brightness of the configuration, 0…100 or not set: at the start and when a configuration changes them; the frontend passes them to the supervisor |
-| `Downloads{done, total}`                | the downloads (index, media, tasks) whenever they change: done of total since the queue was last empty, `{0, 0}` when it is empty again; the frontend shows "Loading done+1 / total" with a bar while it shows no medium |
+| `Downloads{done, total, bytes_done, bytes_total}` | the downloads of the media (not the index or task files) whenever they change: done of total files since no medium was downloading, and the bytes of the running media download that started first (`bytes_total` 0: size unknown), at most every percent; `{0, 0}` when no medium is downloading any more. The frontend shows "Loading done+1 / total" with a bar of these bytes until the first medium of a layout |
 
 ## Supervisor
 
@@ -171,6 +171,8 @@ agent, disk of the cache and memory of the system (from `system_info`), memory a
 (`system::processInfo`) with their maxima since the start and the time of the memory maximum. The maxima are updated at
 every call and with the resource log every 5 minutes, which now writes them to debug.log too. Without the system module
 (WASM, ESP32) the player values stay 0 and the others empty, unless the frontend gives a `system_info`.
+New: the running downloads (`downloads`, in the order they started, with received bytes and size; the name is the
+`title` of the medium in the SMIL, otherwise the file name of the URL) and how many wait (`downloads_waiting`).
 
 ## ThreadedRuntime
 
