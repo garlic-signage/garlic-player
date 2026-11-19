@@ -41,11 +41,12 @@ set(SDLIMAGE_TIF OFF CACHE BOOL "" FORCE)
 set(SDLIMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
 set(SDLIMAGE_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(SDL3_image
-    GIT_REPOSITORY    https://github.com/libsdl-org/SDL_image.git
-    GIT_TAG           release-3.2.6
-    GIT_SHALLOW       TRUE
-    SYSTEM
-    FIND_PACKAGE_ARGS 3.2 CONFIG
+        GIT_REPOSITORY    https://github.com/libsdl-org/SDL_image.git
+        GIT_TAG           release-3.2.6
+        GIT_SHALLOW       TRUE
+        GIT_SUBMODULES    ""
+        SYSTEM
+        FIND_PACKAGE_ARGS 3.2 CONFIG
 )
 FetchContent_MakeAvailable(SDL3_image)
 
@@ -279,9 +280,6 @@ if(_sdl_with_cef)
     foreach(_flags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
         set(${_flags} "${_saved_${_flags}}")
     endforeach()
-    if(APPLE)
-        enable_language(OBJCXX) # the wrapper has .mm files on macOS
-    endif()
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} ${CMAKE_CURRENT_BINARY_DIR}/libcef_dll_wrapper)
 
     target_sources(sdl PRIVATE cef_web_view.cpp)

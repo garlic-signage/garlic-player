@@ -3,7 +3,9 @@
 cmake_minimum_required(VERSION 3.31)
 
 project(garlic-player LANGUAGES C CXX)
-
+if(APPLE)
+    enable_language(OBJCXX) # the CEF wrapper and the SDL player have .mm files on macOS
+endif()
 option(GARLIC_PLAYER_QWIDGET "Build the Qt Widgets player (src/player-ui/qwidget)" ON)
 option(GARLIC_PLAYER_QML "Build the Qt Quick player (src/player-ui/qml)" ON)
 option(GARLIC_PLAYER_SDL "Build the SDL3 player without Qt (src/player-ui/sdl)" OFF)
