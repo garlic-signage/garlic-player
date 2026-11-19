@@ -40,5 +40,5 @@ jobs:
     steps:
       - name: Run x64 Linux Build Script
         run: /home/niko/scripts/build-gp/build.sh
-#      - name: Run Android multiabiBuild Script
- #       run: /home/niko/scripts/build-android.sh
+      - name: Run Android multiabiBuild Script
+        run: /home/niko/scripts/build-gp/build-android.sh
