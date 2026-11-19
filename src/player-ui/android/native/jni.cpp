@@ -491,6 +491,7 @@ extern "C"
                     {"cpu", info.cpu ? json(*info.cpu) : json(nullptr)},
                     {"cpuMax", info.cpu_max ? json(*info.cpu_max) : json(nullptr)},
                     {"cpuMaxTime", info.cpu_max_time},
+                    {"cpuSystem", info.cpu_system ? json(*info.cpu_system) : json(nullptr)},
                     {"downloads", downloads},
                     {"downloadsWaiting", info.downloads_waiting}};
         return javaString(env, result.dump());

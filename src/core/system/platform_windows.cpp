@@ -130,6 +130,10 @@ namespace garlic::core::system::platform
         }
         if (known)
             info.cpu_time = std::chrono::nanoseconds(total * 100);
+
+        FILETIME idle{}, kernel{}, user{}; // the kernel time holds the idle time
+        if (GetSystemTimes(&idle, &kernel, &user))
+            info.system_cpu = SystemCpu{ticks(kernel) + ticks(user) - ticks(idle), ticks(kernel) + ticks(user)};
         return info;
     }
 

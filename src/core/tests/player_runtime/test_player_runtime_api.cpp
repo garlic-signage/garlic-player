@@ -521,6 +521,7 @@ TEST_CASE("debug info: title, user agent, disk and memory of the system, the pla
     if (info.memory_used > 0)
         CHECK_FALSE(info.memory_max_time.empty());
     CHECK_FALSE(info.cpu.has_value()); // the load needs two measurements
+    CHECK_FALSE(info.cpu_system.has_value());
 
     f.run(1s);
     info = f.runtime->debugInfo();
@@ -529,6 +530,11 @@ TEST_CASE("debug info: title, user agent, disk and memory of the system, the pla
     CHECK(*info.cpu >= 0);
     CHECK(*info.cpu <= 100);
 #endif
+    if (info.cpu_system) // empty if no tick of the system passed between the two calls
+    {
+        CHECK(*info.cpu_system >= 0);
+        CHECK(*info.cpu_system <= 100);
+    }
 }
 
 TEST_CASE("-c config.xml: applied before the first index, an index URI of the command line wins")

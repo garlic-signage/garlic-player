@@ -561,16 +561,17 @@ namespace garlic::core
         reports::SystemInfo info = settings.system_info();
         auto percent = [](const std::optional<int> &value) { return value ? std::to_string(*value) + "%" : "-"; };
         logger->debug("Develop",
-                      std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {}) cpu {} (max {})",
+                      std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {}) cpu {} (max {}) system {}",
                                   info.free_space.value_or(0), info.total_capacity.value_or(0),
                                   info.memory_used.value_or(0), info.memory_total.value_or(0), process.memory_used,
-                                  memory_max, process.threads, threads_max, percent(process.cpu), percent(cpu_max)));
+                                  memory_max, process.threads, threads_max, percent(process.cpu), percent(cpu_max),
+                                  percent(process.cpu_system)));
     }
 
     /**
      * Memory, threads and CPU load of the player and their maxima (garlic-lib: ResourceMonitor::refresh). The load is
      * that since the sample in since, of the whole CPU: the CPU time of the player and its processes through the time
-     * that passed times the cores.
+     * that passed times the cores. That of the system: its busy through its total time of all cores.
      */
     void PlayerRuntimeApi::trackProcess(DebugInfo &info, std::optional<CpuSample> &since)
     {
@@ -578,18 +579,26 @@ namespace garlic::core
         system::ProcessInfo process = system::processInfo();
         info.memory_used            = process.memory;
         info.threads                = process.threads;
-        if (process.cpu_time)
+        CpuSample now{process.cpu_time.value_or(std::chrono::nanoseconds{}), clock.monotonic()};
+        if (process.system_cpu)
         {
-            CpuSample now{*process.cpu_time, clock.monotonic()};
-            if (since && now.at > since->at && now.used >= since->used)
-            {
-                double cores   = std::max(1U, std::thread::hardware_concurrency());
-                double used    = std::chrono::duration<double>(now.used - since->used).count();
-                double elapsed = std::chrono::duration<double>(now.at - since->at).count();
-                info.cpu       = static_cast<int>(std::lround(std::min(100.0, used * 100.0 / (elapsed * cores))));
-            }
-            since = now;
+            now.system_busy  = process.system_cpu->busy;
+            now.system_total = process.system_cpu->total;
         }
+        if (since && process.cpu_time && now.at > since->at && now.used >= since->used)
+        {
+            double cores   = std::max(1U, std::thread::hardware_concurrency());
+            double used    = std::chrono::duration<double>(now.used - since->used).count();
+            double elapsed = std::chrono::duration<double>(now.at - since->at).count();
+            info.cpu       = static_cast<int>(std::lround(std::min(100.0, used * 100.0 / (elapsed * cores))));
+        }
+        if (since && now.system_total > since->system_total && now.system_busy >= since->system_busy)
+        {
+            double busy     = static_cast<double>(now.system_busy - since->system_busy);
+            double total    = static_cast<double>(now.system_total - since->system_total);
+            info.cpu_system = static_cast<int>(std::lround(std::min(100.0, busy * 100.0 / total)));
+        }
+        since = now;
 #else
         (void)since;
 #endif

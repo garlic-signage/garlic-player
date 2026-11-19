@@ -140,6 +140,16 @@ namespace garlic::core::system::platform
             *info.cpu_time += childrenCpuTime(getpid());
 #endif
         }
+
+        host_cpu_load_info_data_t load{};
+        mach_msg_type_number_t    load_count = HOST_CPU_LOAD_INFO_COUNT;
+        if (host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, reinterpret_cast<host_info_t>(&load), &load_count) ==
+            KERN_SUCCESS)
+        {
+            std::uint64_t busy = static_cast<std::uint64_t>(load.cpu_ticks[CPU_STATE_USER]) +
+                                 load.cpu_ticks[CPU_STATE_SYSTEM] + load.cpu_ticks[CPU_STATE_NICE];
+            info.system_cpu = SystemCpu{busy, busy + load.cpu_ticks[CPU_STATE_IDLE]};
+        }
         return info;
     }
 

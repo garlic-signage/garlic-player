@@ -35,6 +35,14 @@ namespace garlic::core::system
         std::uint64_t free  = 0; // available minus the 4 % reserve, at least 0
     };
 
+    /// Time of all cores since the boot: busy and total (busy + idle). The unit differs per platform, only the ratio of
+    /// two differences counts.
+    struct SystemCpu
+    {
+        std::uint64_t busy  = 0;
+        std::uint64_t total = 0;
+    };
+
     /// Memory and threads of the player itself, for the debug display of the frontends (garlic-lib: ResourceMonitor).
     struct ProcessInfo
     {
@@ -43,6 +51,9 @@ namespace garlic::core::system
         /// CPU time (user and system) since the start of the player and of the processes it started, e.g. those of
         /// CEF; the core makes the load in percent out of two of them. Empty where the platform cannot tell.
         std::optional<std::chrono::nanoseconds> cpu_time;
+        /// The whole system, for its load beside that of the player. Empty where the platform cannot tell (Android
+        /// from version 8 on does not let an app read /proc/stat).
+        std::optional<SystemCpu> system_cpu;
     };
 
     /// Everything for the reports, on the native platforms (garlic-lib: SystemInfos). start_time: ISO 8601.
@@ -75,6 +86,10 @@ namespace garlic::core::system
 
     /// /proc/<pid>/stat; the name in parentheses may hold spaces and parentheses, so the fields count from the last ")"
     std::optional<ProcStat> parseProcStat(std::string_view text);
+
+    /// The first line of /proc/stat ("cpu  user nice system idle iowait irq softirq steal ..."): idle and iowait are
+    /// idle, the rest busy; guest is already in user.
+    std::optional<SystemCpu> parseStatCpu(std::string_view text);
 
     /// "de_DE.UTF-8", "de-DE", "de_DE@euro" → "de_DE"; empty or "POSIX" → "C" like QLocale.
     std::string normalizeLocale(std::string_view value);

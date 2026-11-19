@@ -199,6 +199,7 @@ namespace player
                 result.set("cpu", info.cpu ? val(*info.cpu) : val::null()); // null: a browser does not tell the load
                 result.set("cpuMax", info.cpu_max ? val(*info.cpu_max) : val::null());
                 result.set("cpuMaxTime", info.cpu_max_time);
+                result.set("cpuSystem", info.cpu_system ? val(*info.cpu_system) : val::null());
                 val downloads = val::array();
                 for (const auto &download : info.downloads)
                 {

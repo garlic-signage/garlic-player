@@ -98,6 +98,7 @@ namespace garlic::core::system::platform
      * CPU time: of the player and of all processes below it (the zygote, renderer and GPU processes of CEF), from
      * /proc/<pid>/stat. Android shows an app only its own processes; there it is the player process, without the
      * decoders of MediaCodec and the renderer of the WebView, which run in processes of the system.
+     * The whole system: the first line of /proc/stat.
      */
     ProcessInfo process()
     {
@@ -128,6 +129,7 @@ namespace garlic::core::system::platform
         long per_second = sysconf(_SC_CLK_TCK);
         if (processes.contains(static_cast<int>(getpid())) && per_second > 0)
             info.cpu_time = std::chrono::nanoseconds(ticks * (1'000'000'000ULL / static_cast<std::uint64_t>(per_second)));
+        info.system_cpu = parseStatCpu(readText("/proc/stat")); // Android 8+: not readable, stays empty
         return info;
     }
 

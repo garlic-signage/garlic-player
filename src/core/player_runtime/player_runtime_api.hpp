@@ -177,6 +177,9 @@ namespace garlic::core
         std::optional<int> cpu;
         std::optional<int> cpu_max;      // the highest average over the 5 minutes of the resource log, since the start
         std::string        cpu_max_time; // ISO 8601, the end of those 5 minutes
+        /// Load of the whole system (all cores = 100), same interval as cpu; empty where the platform cannot tell
+        /// (Android, WASM)
+        std::optional<int> cpu_system;
 
         struct Download
         {
@@ -298,6 +301,8 @@ namespace garlic::core
             {
                 std::chrono::nanoseconds              used{};
                 std::chrono::steady_clock::time_point at;
+                std::uint64_t                         system_busy  = 0; // of all cores, total 0: unknown
+                std::uint64_t                         system_total = 0;
             };
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log

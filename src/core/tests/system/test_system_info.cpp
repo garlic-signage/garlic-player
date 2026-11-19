@@ -59,12 +59,33 @@ TEST_CASE("process stat: parent and CPU ticks, also with spaces and parentheses 
     CHECK_FALSE(parseProcStat("").has_value());
 }
 
+TEST_CASE("/proc/stat: busy and total of all cores, idle and iowait are idle")
+{
+    auto cpu = parseStatCpu("cpu  100 10 50 800 20 5 5 10 7 0\ncpu0 50 5 25 400 10 2 3 5 3 0\n");
+    REQUIRE(cpu.has_value());
+    CHECK(cpu->total == 100u + 10 + 50 + 800 + 20 + 5 + 5 + 10); // guest is already in user
+    CHECK(cpu->busy == 100u + 10 + 50 + 5 + 5 + 10);
+
+    auto old_kernel = parseStatCpu("cpu  100 10 50 800\n");
+    REQUIRE(old_kernel.has_value());
+    CHECK(old_kernel->total == 960u);
+    CHECK(old_kernel->busy == 160u);
+
+    CHECK_FALSE(parseStatCpu("cpu0 1 2 3 4\n").has_value());
+    CHECK_FALSE(parseStatCpu("cpu  1 2\ncpu0 3 4 5 6\n").has_value());
+    CHECK_FALSE(parseStatCpu("").has_value());
+}
+
 TEST_CASE("process info: CPU time where the platform tells it")
 {
     ProcessInfo info = processInfo();
 #if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
     REQUIRE(info.cpu_time.has_value());
     CHECK(info.cpu_time->count() >= 0);
+#endif
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__APPLE__) || defined(_WIN32)
+    REQUIRE(info.system_cpu.has_value());
+    CHECK(info.system_cpu->busy <= info.system_cpu->total);
 #endif
 }
 

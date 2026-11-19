@@ -97,6 +97,33 @@ namespace garlic::core::system
         return ProcStat{static_cast<int>(fields[1]), ticks(11) + ticks(12) + ticks(13) + ticks(14)};
     }
 
+    std::optional<SystemCpu> parseStatCpu(std::string_view text)
+    {
+        if (!text.starts_with("cpu "))
+            return std::nullopt;
+        std::uint64_t fields[8] = {}; // user nice system idle iowait irq softirq steal; old kernels have fewer
+        std::size_t   position  = 3;
+        std::size_t   count     = 0;
+        auto          line_end  = std::min(text.find('\n'), text.size());
+        for (; count < std::size(fields); ++count)
+        {
+            position = text.find_first_not_of(' ', position);
+            if (position == std::string_view::npos || position >= line_end)
+                break;
+            auto end = std::min(text.find(' ', position), line_end);
+            if (std::from_chars(text.data() + position, text.data() + end, fields[count]).ec != std::errc())
+                return std::nullopt;
+            position = end;
+        }
+        if (count < 4)
+            return std::nullopt;
+        SystemCpu cpu;
+        for (std::size_t i = 0; i < count; ++i)
+            cpu.total += fields[i];
+        cpu.busy = cpu.total - fields[3] - fields[4];
+        return cpu;
+    }
+
     std::string normalizeLocale(std::string_view value)
     {
         value = value.substr(0, value.find_first_of(".@"));
