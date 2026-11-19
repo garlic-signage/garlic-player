@@ -172,6 +172,11 @@ namespace garlic::core
         std::string                  memory_max_time; // ISO 8601, when the maximum was measured
         int                          threads     = 0;
         int                          threads_max = 0;
+        /// Load of the whole CPU (all cores = 100) by the player with the processes it started (CEF), since the
+        /// previous debugInfo(); empty at the first call and where the platform cannot tell (WASM)
+        std::optional<int> cpu;
+        std::optional<int> cpu_max;      // the highest average over the 5 minutes of the resource log, since the start
+        std::string        cpu_max_time; // ISO 8601, the end of those 5 minutes
 
         struct Download
         {
@@ -288,6 +293,17 @@ namespace garlic::core
             std::string                                          memory_max_time;
             int                                                  threads_max = 0;
 
+            /// CPU time of the player at a moment, for the load until the next one
+            struct CpuSample
+            {
+                std::chrono::nanoseconds              used{};
+                std::chrono::steady_clock::time_point at;
+            };
+            std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
+            std::optional<CpuSample> cpu_of_log;        // the last resource log
+            std::optional<int>       cpu_max;
+            std::string              cpu_max_time;
+
             void dispatch(const downloader::DownloadResult &result);
             void newIndex(smil::Document document, std::string base);
             void onTask(tasks::TaskAction action);
@@ -298,7 +314,7 @@ namespace garlic::core
             void announceDownloads();
             void reboot(const std::string &task_id);
             void logResources();
-            void trackProcess(DebugInfo &info);
+            void trackProcess(DebugInfo &info, std::optional<CpuSample> &since);
             std::expected<void, std::string> restartServer(bool enabled, std::uint16_t port);
     };
 }

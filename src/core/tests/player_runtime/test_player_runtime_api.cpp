@@ -520,6 +520,15 @@ TEST_CASE("debug info: title, user agent, disk and memory of the system, the pla
     CHECK(info.threads_max >= info.threads);
     if (info.memory_used > 0)
         CHECK_FALSE(info.memory_max_time.empty());
+    CHECK_FALSE(info.cpu.has_value()); // the load needs two measurements
+
+    f.run(1s);
+    info = f.runtime->debugInfo();
+#if !defined(__EMSCRIPTEN__) && (defined(__linux__) || defined(__APPLE__) || defined(_WIN32))
+    REQUIRE(info.cpu.has_value());
+    CHECK(*info.cpu >= 0);
+    CHECK(*info.cpu <= 100);
+#endif
 }
 
 TEST_CASE("-c config.xml: applied before the first index, an index URI of the command line wins")

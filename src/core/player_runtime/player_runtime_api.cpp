@@ -36,8 +36,10 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <format>
 #include <limits>
+#include <thread>
 
 namespace garlic::core
 {
@@ -548,23 +550,48 @@ namespace garlic::core
     void PlayerRuntimeApi::logResources()
     {
         DebugInfo process;
-        trackProcess(process);
+        trackProcess(process, cpu_of_log);
+        if (process.cpu && (!cpu_max || *process.cpu > *cpu_max)) // the average of the 5 minutes since the last log
+        {
+            cpu_max      = process.cpu;
+            cpu_max_time = common::isoLocalTime(clock.now());
+        }
         if (!settings.system_info)
             return;
         reports::SystemInfo info = settings.system_info();
-        logger->debug("Develop", std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {})",
-                                             info.free_space.value_or(0), info.total_capacity.value_or(0),
-                                             info.memory_used.value_or(0), info.memory_total.value_or(0),
-                                             process.memory_used, memory_max, process.threads, threads_max));
+        auto percent = [](const std::optional<int> &value) { return value ? std::to_string(*value) + "%" : "-"; };
+        logger->debug("Develop",
+                      std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {}) cpu {} (max {})",
+                                  info.free_space.value_or(0), info.total_capacity.value_or(0),
+                                  info.memory_used.value_or(0), info.memory_total.value_or(0), process.memory_used,
+                                  memory_max, process.threads, threads_max, percent(process.cpu), percent(cpu_max)));
     }
 
-    /// Memory and threads of the player and their maxima (garlic-lib: ResourceMonitor::refresh).
-    void PlayerRuntimeApi::trackProcess(DebugInfo &info)
+    /**
+     * Memory, threads and CPU load of the player and their maxima (garlic-lib: ResourceMonitor::refresh). The load is
+     * that since the sample in since, of the whole CPU: the CPU time of the player and its processes through the time
+     * that passed times the cores.
+     */
+    void PlayerRuntimeApi::trackProcess(DebugInfo &info, std::optional<CpuSample> &since)
     {
 #if GARLIC_CORE_WITH_SYSTEM
         system::ProcessInfo process = system::processInfo();
         info.memory_used            = process.memory;
         info.threads                = process.threads;
+        if (process.cpu_time)
+        {
+            CpuSample now{*process.cpu_time, clock.monotonic()};
+            if (since && now.at > since->at && now.used >= since->used)
+            {
+                double cores   = std::max(1U, std::thread::hardware_concurrency());
+                double used    = std::chrono::duration<double>(now.used - since->used).count();
+                double elapsed = std::chrono::duration<double>(now.at - since->at).count();
+                info.cpu       = static_cast<int>(std::lround(std::min(100.0, used * 100.0 / (elapsed * cores))));
+            }
+            since = now;
+        }
+#else
+        (void)since;
 #endif
         if (info.memory_used > memory_max)
         {
@@ -575,6 +602,8 @@ namespace garlic::core
         info.memory_max      = memory_max;
         info.memory_max_time = memory_max_time;
         info.threads_max     = threads_max;
+        info.cpu_max         = cpu_max;
+        info.cpu_max_time    = cpu_max_time;
     }
 
     DebugInfo PlayerRuntimeApi::debugInfo()
@@ -591,7 +620,7 @@ namespace garlic::core
             if (system.memory_total && system.memory_used)
                 info.memory_free = *system.memory_total - std::min(*system.memory_used, *system.memory_total);
         }
-        trackProcess(info);
+        trackProcess(info, cpu_of_debug_info);
         if (queue)
         {
             for (const auto &running : queue->running())

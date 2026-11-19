@@ -488,6 +488,9 @@ extern "C"
                     {"memoryMaxTime", info.memory_max_time},
                     {"threads", info.threads},
                     {"threadsMax", info.threads_max},
+                    {"cpu", info.cpu ? json(*info.cpu) : json(nullptr)},
+                    {"cpuMax", info.cpu_max ? json(*info.cpu_max) : json(nullptr)},
+                    {"cpuMaxTime", info.cpu_max_time},
                     {"downloads", downloads},
                     {"downloadsWaiting", info.downloads_waiting}};
         return javaString(env, result.dump());

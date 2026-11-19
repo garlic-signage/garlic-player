@@ -111,7 +111,7 @@ poll()
 ├── transport, download queue       results: index → IndexManager, task files → TaskScheduler, else → MediaManager
 ├── IndexManager, Reporter, HTTP server
 ├── scheduled restart due?          → supervisor.reboot("DailyReboot")
-├── every 5 minutes                 disk and memory to debug.log (garlic-lib: ResourceMonitor)
+├── every 5 minutes                 disk, memory and CPU to debug.log (garlic-lib: ResourceMonitor)
 └── engine                          → StartMedia …
 
 new valid index
@@ -169,7 +169,9 @@ Running requests of a stopped server get 503, like when the player quits.
 `debugInfo()` gives what the debug dialog of garlic-lib showed (DebugInfos, ResourceMonitor): title of the index, user
 agent, disk of the cache and memory of the system (from `system_info`), memory and threads of the player
 (`system::processInfo`) with their maxima since the start and the time of the memory maximum. The maxima are updated at
-every call and with the resource log every 5 minutes, which now writes them to debug.log too. Without the system module
+every call and with the resource log every 5 minutes, which now writes them to debug.log too. New: the CPU load of the
+player with its processes (`cpu`, in percent of all cores, since the previous `debugInfo()`, empty at the first call)
+and the highest 5-minute average of the resource log (`cpu_max`, `cpu_max_time`); the log writes that average as `cpu`. Without the system module
 (WASM, ESP32) the player values stay 0 and the others empty, unless the frontend gives a `system_info`.
 New: the running downloads (`downloads`, in the order they started, with received bytes and size; the name is the
 `title` of the medium in the SMIL, otherwise the file name of the URL) and how many wait (`downloads_waiting`).
@@ -243,7 +245,7 @@ core thread
 ## When something goes wrong
 
 - `debug.log`: `Httpd not started: …`, and every 5 minutes one line of category `Develop` with disk, memory, player
-  memory and threads with their maxima.
+  memory, threads and CPU (5-minute average) with their maxima.
 - **Nothing plays after a new index**: `SMIL_OPEN_ERROR` (the old index plays on), or the frontend dropped the
   document of the last `NewLayout` too early.
 - **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their

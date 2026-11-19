@@ -26,7 +26,10 @@
 #include <unistd.h>
 
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
 #include <sstream>
 
 #ifdef __ANDROID__
@@ -91,9 +94,41 @@ namespace garlic::core::system::platform
         return parseMeminfo(readText("/proc/meminfo"));
     }
 
+    /**
+     * CPU time: of the player and of all processes below it (the zygote, renderer and GPU processes of CEF), from
+     * /proc/<pid>/stat. Android shows an app only its own processes; there it is the player process, without the
+     * decoders of MediaCodec and the renderer of the WebView, which run in processes of the system.
+     */
     ProcessInfo process()
     {
-        return parseProcStatus(readText("/proc/self/status"));
+        ProcessInfo info = parseProcStatus(readText("/proc/self/status"));
+
+        std::map<int, ProcStat> processes;
+        std::error_code         error;
+        for (const auto &entry : std::filesystem::directory_iterator("/proc", error))
+        {
+            const std::string name = entry.path().filename().string();
+            if (name.empty() || name.find_first_not_of("0123456789") != std::string::npos)
+                continue;
+            if (auto stat = parseProcStat(readText(("/proc/" + name + "/stat").c_str())))
+                processes.emplace(std::stoi(name), *stat);
+        }
+        std::set<int> player{static_cast<int>(getpid())};
+        for (bool grew = true; grew;) // the parents come in no particular order
+        {
+            grew = false;
+            for (const auto &[pid, stat] : processes)
+                if (player.contains(stat.parent) && player.insert(pid).second)
+                    grew = true;
+        }
+        std::uint64_t ticks = 0;
+        for (int pid : player)
+            if (auto found = processes.find(pid); found != processes.end())
+                ticks += found->second.ticks;
+        long per_second = sysconf(_SC_CLK_TCK);
+        if (processes.contains(static_cast<int>(getpid())) && per_second > 0)
+            info.cpu_time = std::chrono::nanoseconds(ticks * (1'000'000'000ULL / static_cast<std::uint64_t>(per_second)));
+        return info;
     }
 
     /// The MAC comes with AF_PACKET (garlic-lib: QNetworkInterface).

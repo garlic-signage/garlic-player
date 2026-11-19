@@ -21,16 +21,52 @@
 #include "system/ifaddrs_network.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <TargetConditionals.h>
 #include <mach/mach.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#if TARGET_OS_OSX
+    #include <libproc.h>
+    #include <mach/mach_time.h>
+#endif
 #include <net/if.h>
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <sys/sysctl.h>
 
+#include <vector>
+
 namespace garlic::core::system::platform
 {
     namespace
     {
+#if TARGET_OS_OSX
+        /// CPU time of the processes below parent, recursively; proc_pid_rusage counts in mach time units (Apple
+        /// Silicon: not nanoseconds)
+        std::chrono::nanoseconds childrenCpuTime(pid_t parent)
+        {
+            static const mach_timebase_info_data_t timebase = []
+            {
+                mach_timebase_info_data_t value{};
+                mach_timebase_info(&value);
+                return value;
+            }();
+            std::vector<pid_t> children(256);
+            int count = proc_listchildpids(parent, children.data(), static_cast<int>(children.size() * sizeof(pid_t)));
+            std::chrono::nanoseconds total{0};
+            for (int i = 0; i < count && i < static_cast<int>(children.size()); ++i)
+            {
+                rusage_info_v2 usage{};
+                if (proc_pid_rusage(children[i], RUSAGE_INFO_V2, reinterpret_cast<rusage_info_t *>(&usage)) == 0 &&
+                    timebase.denom != 0)
+                    total += std::chrono::nanoseconds((usage.ri_user_time + usage.ri_system_time) * timebase.numer /
+                                                      timebase.denom);
+                total += childrenCpuTime(children[i]);
+            }
+            return total;
+        }
+#endif
+
         std::string utf8(CFStringRef text)
         {
             if (text == nullptr)
@@ -91,6 +127,18 @@ namespace garlic::core::system::platform
             for (mach_msg_type_number_t i = 0; i < thread_count; ++i)
                 mach_port_deallocate(mach_task_self(), threads[i]);
             vm_deallocate(mach_task_self(), reinterpret_cast<vm_address_t>(threads), thread_count * sizeof(thread_act_t));
+        }
+
+        rusage usage{};
+        if (getrusage(RUSAGE_SELF, &usage) == 0)
+        {
+            auto time = [](const timeval &value)
+            { return std::chrono::seconds(value.tv_sec) + std::chrono::microseconds(value.tv_usec); };
+            info.cpu_time = time(usage.ru_utime) + time(usage.ru_stime);
+#if TARGET_OS_OSX
+            // the helper processes of CEF; VideoToolbox decodes partly in a service of the system, not counted
+            *info.cpu_time += childrenCpuTime(getpid());
+#endif
         }
         return info;
     }

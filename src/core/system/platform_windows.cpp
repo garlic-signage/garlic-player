@@ -27,6 +27,8 @@
 #include <icu.h>
 
 #include <format>
+#include <map>
+#include <set>
 #include <vector>
 
 namespace garlic::core::system::platform
@@ -81,21 +83,53 @@ namespace garlic::core::system::platform
         if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
             info.memory = counters.WorkingSetSize;
 
-        // garlic-lib: General::countThreads
+        // garlic-lib: General::countThreads; the parents for the processes the player started (CEF)
+        DWORD                   self = GetCurrentProcessId();
+        std::map<DWORD, DWORD>  parents; // process → parent
         HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snapshot != INVALID_HANDLE_VALUE)
         {
             PROCESSENTRY32 entry{};
             entry.dwSize = sizeof(entry);
-            DWORD self   = GetCurrentProcessId();
             for (BOOL ok = Process32First(snapshot, &entry); ok; ok = Process32Next(snapshot, &entry))
+            {
                 if (entry.th32ProcessID == self)
-                {
                     info.threads = static_cast<int>(entry.cntThreads);
-                    break;
-                }
+                else
+                    parents.emplace(entry.th32ProcessID, entry.th32ParentProcessID);
+            }
             CloseHandle(snapshot);
         }
+
+        // CPU time of the player and of all processes below it; that of ended ones is gone (Windows keeps none)
+        std::set<DWORD> player{self};
+        for (bool grew = true; grew;)
+        {
+            grew = false;
+            for (const auto &[pid, parent] : parents)
+                if (player.contains(parent) && player.insert(pid).second)
+                    grew = true;
+        }
+        auto ticks = [](const FILETIME &time) // 100 ns
+        { return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime; };
+        std::uint64_t total = 0;
+        bool          known = false;
+        for (DWORD pid : player)
+        {
+            HANDLE process = pid == self ? GetCurrentProcess() : OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+            if (process == nullptr)
+                continue;
+            FILETIME created{}, ended{}, kernel{}, user{};
+            if (GetProcessTimes(process, &created, &ended, &kernel, &user))
+            {
+                total += ticks(kernel) + ticks(user);
+                known = known || pid == self;
+            }
+            if (pid != self)
+                CloseHandle(process);
+        }
+        if (known)
+            info.cpu_time = std::chrono::nanoseconds(total * 100);
         return info;
     }
 

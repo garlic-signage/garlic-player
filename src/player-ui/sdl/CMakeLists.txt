@@ -279,6 +279,9 @@ if(_sdl_with_cef)
     foreach(_flags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
         set(${_flags} "${_saved_${_flags}}")
     endforeach()
+    if(APPLE)
+        enable_language(OBJCXX) # the wrapper has .mm files on macOS
+    endif()
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} ${CMAKE_CURRENT_BINARY_DIR}/libcef_dll_wrapper)
 
     target_sources(sdl PRIVATE cef_web_view.cpp)

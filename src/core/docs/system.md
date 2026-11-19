@@ -15,6 +15,7 @@ auto self = system::processInfo();          // for the debug display of a fronte
 | disk total / free        | `std::filesystem::space()` of the cache directory; 96 % count as total, 4 % stay for the system (like garlic-lib) |
 | memory total / used      | Linux/Android `/proc/meminfo`, Windows `GlobalMemoryStatusEx`, macOS/iOS `sysctl` + `host_statistics64` |
 | memory and threads of the player | `/proc/self/status`, `GetProcessMemoryInfo` + Toolhelp, `task_info` + `task_threads` |
+| CPU time of the player   | with the processes below it (CEF): Linux `/proc/<pid>/stat` of all processes, Windows Toolhelp + `GetProcessTimes`, macOS `getrusage` + `proc_listchildpids` + `proc_pid_rusage`, iOS `getrusage` |
 | network interfaces       | `getifaddrs` (Linux, Apple), `GetAdaptersAddresses` (Windows)           |
 | time zone                | IANA name: Linux `TZ`, `/etc/localtime`, `/etc/timezone`; Android `persist.sys.timezone`; Windows through ICU; Apple `CFTimeZone` |
 | locale                   | `LC_ALL`/`LC_MESSAGES`/`LANG`; Android `persist.sys.locale`; Windows `GetUserDefaultLocaleName`; Apple `CFLocale` |
@@ -27,10 +28,15 @@ auto self = system::processInfo();          // for the debug display of a fronte
   interface included. MAC in upper case, type names of Qt (`ethernet`, `wifi`, `loopback`, `virtual`, `Ppp` …); on
   Linux `wifi` if `/sys/class/net/<name>/wireless` exists. IPv6 link-local addresses get `%<interface>` like
   `QHostAddress`.
+- **CPU time** (`ProcessInfo::cpu_time`): user and system time of the player and of every process below it, so the
+  renderer and GPU processes of CEF count too; the core makes the load in percent out of two of them. Linux adds the
+  time of ended children (`cutime`, `cstime`), Windows and macOS lose that of ended processes. Not in it: Android shows
+  an app only its own processes, so the decoders of MediaCodec and the renderer of the WebView (processes of the
+  system) are missing; macOS decodes with VideoToolbox partly in a service of the system.
 - **Locale** like `QLocale::name()`: `de_DE`; `C` for `C`/`POSIX` or nothing set.
 - One `platform_*.cpp` per system, chosen by CMake: `platform_linux.cpp` (Linux, Android), `platform_windows.cpp`,
   `platform_apple.cpp`, `platform_none.cpp` (other systems: empty values). The text parsing (`parseMeminfo`,
-  `parseProcStatus`, `normalizeLocale`, `zoneName`) is in `system_info.cpp` and tested on every platform.
+  `parseProcStatus`, `parseProcStat`, `normalizeLocale`, `zoneName`) is in `system_info.cpp` and tested on every platform.
   `ifaddrs_network.cpp` reads the interfaces with `getifaddrs` for Linux and Apple; the platform file only adds
   type and MAC from the link layer (`AF_PACKET` or `AF_LINK`).
 - `platform_windows.cpp` and `platform_apple.cpp` have not been compiled yet; they are checked with the first

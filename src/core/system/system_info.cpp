@@ -19,8 +19,10 @@
 
 #include "system/platform.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <filesystem>
+#include <iterator>
 
 namespace garlic::core::system
 {
@@ -71,6 +73,28 @@ namespace garlic::core::system
         info.memory  = kilobytes(text, "VmRSS").value_or(0);
         info.threads = static_cast<int>(field(text, "Threads").value_or(0));
         return info;
+    }
+
+    std::optional<ProcStat> parseProcStat(std::string_view text)
+    {
+        auto close = text.rfind(')');
+        if (close == std::string_view::npos)
+            return std::nullopt;
+        // after the name: state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime
+        std::int64_t fields[15] = {}; // signed: tty_nr and tpgid may be -1
+        std::size_t   position   = close + 1;
+        for (std::size_t i = 0; i < std::size(fields); ++i)
+        {
+            position = text.find_first_not_of(' ', position);
+            if (position == std::string_view::npos)
+                return std::nullopt;
+            auto end = std::min(text.find(' ', position), text.size());
+            if (i > 0 && std::from_chars(text.data() + position, text.data() + end, fields[i]).ec != std::errc())
+                return std::nullopt; // i == 0: the state, a letter
+            position = end;
+        }
+        auto ticks = [&](std::size_t i) { return static_cast<std::uint64_t>(std::max<std::int64_t>(fields[i], 0)); };
+        return ProcStat{static_cast<int>(fields[1]), ticks(11) + ticks(12) + ticks(13) + ticks(14)};
     }
 
     std::string normalizeLocale(std::string_view value)

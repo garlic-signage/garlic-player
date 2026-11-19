@@ -226,6 +226,10 @@ final class Dialogs
                 : bytes(used) + ", max " + bytes(info.optLong("memoryMax")) + " at " + info.optString("memoryMaxTime")));
             int threads = info.optInt("threads");
             rows.add(row("Threads", threads == 0 ? "-" : threads + ", max " + info.optInt("threadsMax")));
+            // Android: the player process only, MediaCodec and the WebView renderer run in processes of the system
+            rows.add(row("CPU", info.isNull("cpu") ? "-"
+                : info.optInt("cpu") + " %" + (info.isNull("cpuMax") ? ""
+                    : ", max " + info.optInt("cpuMax") + " % at " + info.optString("cpuMaxTime") + " (5 min)")));
             JSONArray downloads = info.optJSONArray("downloads");
             boolean   first     = true;
             for (int i = 0; downloads != null && i < downloads.length(); ++i)

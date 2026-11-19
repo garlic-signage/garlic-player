@@ -190,6 +190,8 @@ export class DebugDialog {
             playerMemory: info.memoryUsed === 0 ? '-'
                 : `${DebugDialog.#bytes(info.memoryUsed)}, max ${DebugDialog.#bytes(info.memoryMax)} at ${info.memoryMaxTime}`,
             threads: info.threads === 0 ? '-' : `${info.threads}, max ${info.threadsMax}`,
+            cpu: info.cpu === null || info.cpu === undefined ? '-'
+                : `${info.cpu} %` + (info.cpuMax === null ? '' : `, max ${info.cpuMax} % at ${info.cpuMaxTime} (5 min)`),
         };
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;

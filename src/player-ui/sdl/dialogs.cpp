@@ -264,6 +264,11 @@ namespace player
                                                           " at " + info.memory_max_time},
             {"Threads", info.threads == 0 ? "-"
                                           : std::to_string(info.threads) + ", max " + std::to_string(info.threads_max)},
+            {"CPU", !info.cpu ? "-"
+                              : std::to_string(*info.cpu) + " %" +
+                                    (info.cpu_max ? ", max " + std::to_string(*info.cpu_max) + " % at " +
+                                                        info.cpu_max_time + " (5 min)"
+                                                  : "")},
         };
         // the running downloads: the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait
         auto mib = [](std::uint64_t value)

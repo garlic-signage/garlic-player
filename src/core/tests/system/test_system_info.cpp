@@ -49,6 +49,25 @@ TEST_CASE("process status: VmRSS and Threads")
     CHECK(info.threads == 7);
 }
 
+TEST_CASE("process stat: parent and CPU ticks, also with spaces and parentheses in the name")
+{
+    auto stat = parseProcStat("4711 (garlic (player) sdl) S 4700 4711 4711 0 -1 4194560 1200 30 0 0 250 50 7 3 20 0 42");
+    REQUIRE(stat.has_value());
+    CHECK(stat->parent == 4700);
+    CHECK(stat->ticks == 250u + 50u + 7u + 3u);
+    CHECK_FALSE(parseProcStat("4711 (garlic) S 4700").has_value());
+    CHECK_FALSE(parseProcStat("").has_value());
+}
+
+TEST_CASE("process info: CPU time where the platform tells it")
+{
+    ProcessInfo info = processInfo();
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
+    REQUIRE(info.cpu_time.has_value());
+    CHECK(info.cpu_time->count() >= 0);
+#endif
+}
+
 TEST_CASE("locale like QLocale::name()")
 {
     CHECK(normalizeLocale("de_DE.UTF-8") == "de_DE");

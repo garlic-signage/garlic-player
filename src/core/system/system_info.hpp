@@ -20,6 +20,7 @@
 
 #include "reports/system_info.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -39,6 +40,9 @@ namespace garlic::core::system
     {
         std::uint64_t memory  = 0; // resident set size in bytes
         int           threads = 0;
+        /// CPU time (user and system) since the start of the player and of the processes it started, e.g. those of
+        /// CEF; the core makes the load in percent out of two of them. Empty where the platform cannot tell.
+        std::optional<std::chrono::nanoseconds> cpu_time;
     };
 
     /// Everything for the reports, on the native platforms (garlic-lib: SystemInfos). start_time: ISO 8601.
@@ -60,6 +64,17 @@ namespace garlic::core::system
 
     /// /proc/self/status: VmRSS in bytes and Threads.
     ProcessInfo parseProcStatus(std::string_view text);
+
+    /// Of /proc/<pid>/stat: the parent and the CPU time in clock ticks, its own (utime, stime) and that of its ended
+    /// children (cutime, cstime)
+    struct ProcStat
+    {
+        int           parent = 0;
+        std::uint64_t ticks  = 0;
+    };
+
+    /// /proc/<pid>/stat; the name in parentheses may hold spaces and parentheses, so the fields count from the last ")"
+    std::optional<ProcStat> parseProcStat(std::string_view text);
 
     /// "de_DE.UTF-8", "de-DE", "de_DE@euro" → "de_DE"; empty or "POSIX" → "C" like QLocale.
     std::string normalizeLocale(std::string_view value);
