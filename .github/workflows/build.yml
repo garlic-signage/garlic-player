@@ -21,7 +21,7 @@ jobs:
 #      - name: Run iOS Build Script
 #       run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
-    if: false #github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]
     steps:
       - name: Run Windows 11 Build Script
