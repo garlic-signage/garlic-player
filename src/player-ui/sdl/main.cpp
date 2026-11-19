@@ -45,7 +45,7 @@
 
 namespace
 {
-    constexpr const char *usage = R"(Usage: garlic-player-sdl [options] [SMIL_INDEX]
+    constexpr const char *usage = R"(Usage: garlic-player [options] [SMIL_INDEX]
 
   SMIL_INDEX                    URI or path of the SMIL index; empty: the one in the settings
 

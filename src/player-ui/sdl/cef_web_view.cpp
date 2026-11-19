@@ -209,7 +209,7 @@ namespace player
             CefString(&settings.locales_dir_path)   = dir + "locales";
 #endif
 #ifdef __linux__ // Windows: the program itself is the default
-            CefString(&settings.browser_subprocess_path) = dir + "garlic-player-sdl";
+            CefString(&settings.browser_subprocess_path) = dir + "garlic-player";
 #endif
             if (!CefInitialize(args, settings, app().get(), nullptr))
             {

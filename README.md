@@ -59,7 +59,7 @@ apt install cmake ninja-build g++ pkg-config libcurl4-openssl-dev libmicrohttpd-
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
     -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build
-build/src/player-ui/sdl/garlic-player-sdl -m fullscreen https://example.com/index.smil
+build/src/player-ui/sdl/garlic-player -m fullscreen https://example.com/index.smil
 ```
 
 CMake downloads CEF (the minimal binary distribution of Spotify's CEF builds) and puts it next to the program.
@@ -114,7 +114,7 @@ The operating systems and devices of version 1.x are listed in [README-v1.md](RE
 
 ## Command Line Options
 
-*garlic-player-sdl [options] [SMIL_INDEX]*
+*garlic-player [options] [SMIL_INDEX]*
 
 | Option | Description |
 |-------------------------|------------------------------------------------------------------------------|

@@ -71,7 +71,7 @@ add_executable(sdl
     ui/pointer_router.cpp
     ui/sdl_canvas.cpp
 )
-set_target_properties(sdl PROPERTIES OUTPUT_NAME garlic-player-sdl CXX_EXTENSIONS OFF)
+set_target_properties(sdl PROPERTIES OUTPUT_NAME garlic-player CXX_EXTENSIONS OFF)
 target_compile_features(sdl PRIVATE cxx_std_23)
 if(NOT MSVC)
     target_compile_options(sdl PRIVATE -Wall -Wextra -Wpedantic)
@@ -89,7 +89,7 @@ endif()
 # which CEF needs to see the real version. windows.h without the macros min and max.
 if(WIN32)
     set_target_properties(sdl PROPERTIES WIN32_EXECUTABLE ON)
-    target_sources(sdl PRIVATE windows/garlic-player-sdl.manifest)
+    target_sources(sdl PRIVATE windows/garlic-player.manifest)
     target_compile_definitions(sdl PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
@@ -101,9 +101,9 @@ if(APPLE)
     set_source_files_properties(${_garlic_icon} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_target_properties(sdl PROPERTIES
         MACOSX_BUNDLE ON
-        MACOSX_BUNDLE_BUNDLE_NAME garlic-player-sdl
+        MACOSX_BUNDLE_BUNDLE_NAME garlic-player
         MACOSX_BUNDLE_ICON_FILE garlic-player.icns
-        MACOSX_BUNDLE_GUI_IDENTIFIER com.garlic-signage.garlic-player-sdl
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.garlic-signage.garlic-player
         BUILD_RPATH "@executable_path/../Frameworks" # libmpv and its libraries
         INSTALL_RPATH "@executable_path/../Frameworks"
     )
@@ -300,7 +300,7 @@ if(_sdl_with_cef)
 
     if(APPLE)
         # The framework in Contents/Frameworks (its resources and locales inside), next to it the helper apps
-        # "garlic-player-sdl Helper", "… Helper (Alerts)", "(GPU)", "(Plugin)", "(Renderer)": CEF starts its
+        # "garlic-player Helper", "… Helper (Alerts)", "(GPU)", "(Plugin)", "(Renderer)": CEF starts its
         # subprocesses in them, found by these names.
         COPY_MAC_FRAMEWORK(sdl ${CEF_ROOT}/Release $<TARGET_BUNDLE_DIR:sdl>)
         foreach(_suffixes ${CEF_HELPER_APP_SUFFIXES})
@@ -309,7 +309,7 @@ if(_sdl_with_cef)
             list(GET _suffixes 1 _target_suffix)
             list(GET _suffixes 2 _plist_suffix)
             set(_helper sdl_helper${_target_suffix})
-            set(_helper_name "garlic-player-sdl Helper${_name_suffix}")
+            set(_helper_name "garlic-player Helper${_name_suffix}")
             add_executable(${_helper} MACOSX_BUNDLE mac/cef_helper.cpp)
             SET_EXECUTABLE_TARGET_PROPERTIES(${_helper})
             target_link_libraries(${_helper} PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS})
@@ -317,7 +317,7 @@ if(_sdl_with_cef)
                 OUTPUT_NAME "${_helper_name}"
                 MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist.in
                 MACOSX_BUNDLE_BUNDLE_NAME "${_helper_name}"
-                MACOSX_BUNDLE_GUI_IDENTIFIER "com.garlic-signage.garlic-player-sdl.helper${_plist_suffix}"
+                MACOSX_BUNDLE_GUI_IDENTIFIER "com.garlic-signage.garlic-player.helper${_plist_suffix}"
             )
             add_dependencies(sdl ${_helper})
             add_custom_command(TARGET sdl POST_BUILD

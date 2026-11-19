@@ -30,7 +30,7 @@ and web pages stack exactly by z-index; native video and web windows would alway
 cmake -S . -B build-sdl -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
     -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build-sdl --target sdl
-build-sdl/src/player-ui/sdl/garlic-player-sdl [-m fullscreen] [SMIL_INDEX]
+build-sdl/src/player-ui/sdl/garlic-player [-m fullscreen] [SMIL_INDEX]
 ```
 
 Windows (x64 Developer Command Prompt) and macOS (arm64) take the libraries of the core from vcpkg, in addition:
@@ -40,8 +40,8 @@ Windows (x64 Developer Command Prompt) and macOS (arm64) take the libraries of t
 -DCMAKE_OSX_ARCHITECTURES=arm64   # macOS
 ```
 
-Windows: `garlic-player-sdl.exe` without console window, CEF and `libmpv-2.dll` next to it. macOS: the app bundle
-`garlic-player-sdl.app` with the CEF framework, the five CEF helper apps and the dylibs of libmpv in
+Windows: `garlic-player.exe` without console window, CEF and `libmpv-2.dll` next to it. macOS: the app bundle
+`garlic-player.app` with the CEF framework, the five CEF helper apps and the dylibs of libmpv in
 `Contents/Frameworks`, the font in `Contents/Resources`.
 
 The font (`../fonts/DejaVuSans.ttf`) is copied to `fonts/` next to the program.
