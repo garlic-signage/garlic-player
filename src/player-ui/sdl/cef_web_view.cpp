@@ -44,9 +44,14 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -978,3 +983,31 @@ namespace player
         initialized = false;
     }
 }
+
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33)
+/**
+ * Replaces mallinfo() of glibc for libcef.so (the symbol is exported, see CMakeLists.txt). The Linux builds of CEF are
+ * made against glibc 2.31 and so call mallinfo() instead of mallinfo2(): its int fields overflow from 2 GiB of malloc
+ * memory of the process (all arenas, also the ones of mpv) and the MallocDumpProvider of Chromium (thread
+ * "MemoryInfra") crashes on the negative values with a CHECK. Here the values of mallinfo2() are clamped to INT_MAX,
+ * arena + hblkhd together, because Chromium adds both as int. Can go once CEF calls mallinfo2().
+ */
+extern "C" struct mallinfo mallinfo() noexcept
+{
+    constexpr std::size_t int_max = INT_MAX;
+    const struct mallinfo2 info2  = mallinfo2();
+    const std::size_t arena       = std::min(info2.arena, int_max);
+    struct mallinfo info{};
+    info.arena    = static_cast<int>(arena);
+    info.ordblks  = static_cast<int>(std::min(info2.ordblks, int_max));
+    info.smblks   = static_cast<int>(std::min(info2.smblks, int_max));
+    info.hblks    = static_cast<int>(std::min(info2.hblks, int_max));
+    info.hblkhd   = static_cast<int>(std::min(info2.hblkhd, int_max - arena));
+    info.usmblks  = static_cast<int>(std::min(info2.usmblks, int_max));
+    info.fsmblks  = static_cast<int>(std::min(info2.fsmblks, int_max));
+    info.uordblks = static_cast<int>(std::min(info2.uordblks, int_max));
+    info.fordblks = static_cast<int>(std::min(info2.fordblks, int_max));
+    info.keepcost = static_cast<int>(std::min(info2.keepcost, int_max));
+    return info;
+}
+#endif

@@ -301,6 +301,8 @@ if(_sdl_with_cef)
     else()
         target_link_libraries(sdl PRIVATE libcef_dll_wrapper ${CEF_ROOT}/Release/libcef.so)
         set_target_properties(sdl PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN") # libcef.so next to it
+        # mallinfo() of cef_web_view.cpp replaces the one of glibc for libcef.so (crash of CEF from 2 GiB of malloc)
+        target_link_options(sdl PRIVATE LINKER:--export-dynamic-symbol=mallinfo)
     endif()
 
     if(APPLE)
