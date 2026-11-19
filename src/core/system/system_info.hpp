@@ -56,11 +56,23 @@ namespace garlic::core::system
         std::optional<SystemCpu> system_cpu;
     };
 
+    /// Temperatures in °C, the highest sensor of each part, and whether the device throttles; empty where the platform
+    /// cannot tell. Linux and Android read the sensors of the kernel; Windows and Apple tell only the throttling.
+    struct Thermal
+    {
+        std::optional<int>           cpu;
+        std::optional<int>           ram;
+        std::optional<int>           ssd;
+        std::optional<bool>          throttling;      // the platform tells it directly
+        std::optional<std::uint64_t> throttle_events; // Intel: counters of the kernel, the core compares two of them
+    };
+
     /// Everything for the reports, on the native platforms (garlic-lib: SystemInfos). start_time: ISO 8601.
     reports::SystemInfo collectSystemInfo(std::string_view cache_dir, std::string_view start_time);
 
     DiskSpace   diskSpace(std::string_view cache_dir);
     ProcessInfo processInfo();
+    Thermal     thermal();
 
     // ------------------------------------------------------------------ text parsing, testable on every platform
 
@@ -90,6 +102,22 @@ namespace garlic::core::system
     /// The first line of /proc/stat ("cpu  user nice system idle iowait irq softirq steal ..."): idle and iowait are
     /// idle, the rest busy; guest is already in user.
     std::optional<SystemCpu> parseStatCpu(std::string_view text);
+
+    /// Which part a sensor of the kernel measures, by the name of its hwmon device or the type of its thermal zone:
+    /// k10temp, coretemp, zenpower, x86_pkg_temp and cpu…/soc… (cpu_thermal, soc-thermal) the CPU, spd5118 and jc42
+    /// the RAM, nvme and drivetemp the SSD; everything else (GPU, network card, ACPI) counts not.
+    enum class ThermalPart
+    {
+        other,
+        cpu,
+        ram,
+        ssd
+    };
+    ThermalPart thermalPart(std::string_view sensor);
+
+    /// The output of "vcgencmd get_throttled" (Raspberry Pi), "throttled=0x50005": true if the frequency is capped,
+    /// the CPU throttled or the soft temperature limit active now (bits 1 to 3; bit 0, the under-voltage alone, not)
+    std::optional<bool> parseThrottled(std::string_view text);
 
     /// "de_DE.UTF-8", "de-DE", "de_DE@euro" → "de_DE"; empty or "POSIX" → "C" like QLocale.
     std::string normalizeLocale(std::string_view value);

@@ -492,6 +492,10 @@ extern "C"
                     {"cpuMax", info.cpu_max ? json(*info.cpu_max) : json(nullptr)},
                     {"cpuMaxTime", info.cpu_max_time},
                     {"cpuSystem", info.cpu_system ? json(*info.cpu_system) : json(nullptr)},
+                    {"temperatureCpu", info.temperature_cpu ? json(*info.temperature_cpu) : json(nullptr)},
+                    {"temperatureRam", info.temperature_ram ? json(*info.temperature_ram) : json(nullptr)},
+                    {"temperatureSsd", info.temperature_ssd ? json(*info.temperature_ssd) : json(nullptr)},
+                    {"throttling", info.throttling ? json(*info.throttling) : json(nullptr)},
                     {"downloads", downloads},
                     {"downloadsWaiting", info.downloads_waiting}};
         return javaString(env, result.dump());

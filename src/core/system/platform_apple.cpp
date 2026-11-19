@@ -23,6 +23,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <TargetConditionals.h>
 #include <mach/mach.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #if TARGET_OS_OSX
@@ -151,6 +153,18 @@ namespace garlic::core::system::platform
             info.system_cpu = SystemCpu{busy, busy + load.cpu_ticks[CPU_STATE_IDLE]};
         }
         return info;
+    }
+
+    /// No temperatures (only through the private SMC). Throttling: NSProcessInfo.thermalState serious (2) or critical
+    /// (3); fair is "slightly elevated" only. Through the Objective-C runtime, this file is C++.
+    Thermal thermal()
+    {
+        Thermal result;
+        id      info = reinterpret_cast<id (*)(id, SEL)>(objc_msgSend)(reinterpret_cast<id>(objc_getClass("NSProcessInfo")),
+                                                                 sel_registerName("processInfo"));
+        if (info != nullptr)
+            result.throttling = reinterpret_cast<long (*)(id, SEL)>(objc_msgSend)(info, sel_registerName("thermalState")) >= 2;
+        return result;
     }
 
     /// The MAC comes with AF_LINK.

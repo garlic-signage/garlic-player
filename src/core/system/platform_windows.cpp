@@ -23,9 +23,11 @@
 #include <windows.h>
 #include <iphlpapi.h>
 #include <psapi.h>
+#include <powrprof.h>
 #include <tlhelp32.h>
 #include <icu.h>
 
+#include <algorithm>
 #include <format>
 #include <map>
 #include <set>
@@ -135,6 +137,31 @@ namespace garlic::core::system::platform
         if (GetSystemTimes(&idle, &kernel, &user))
             info.system_cpu = SystemCpu{ticks(kernel) + ticks(user) - ticks(idle), ticks(kernel) + ticks(user)};
         return info;
+    }
+
+    /// No temperatures (WMI needs admin rights and is empty on many machines). Throttling: a core whose frequency limit
+    /// lies below its maximum (heat, but also a power plan that saves energy).
+    Thermal thermal()
+    {
+        struct ProcessorPower // PROCESSOR_POWER_INFORMATION, in no header of the SDK
+        {
+            ULONG number;
+            ULONG max_mhz;
+            ULONG current_mhz;
+            ULONG mhz_limit;
+            ULONG max_idle_state;
+            ULONG current_idle_state;
+        };
+        Thermal     result;
+        SYSTEM_INFO system{};
+        GetSystemInfo(&system);
+        std::vector<ProcessorPower> cores(system.dwNumberOfProcessors);
+        if (!cores.empty() &&
+            CallNtPowerInformation(ProcessorInformation, nullptr, 0, cores.data(),
+                                   static_cast<ULONG>(cores.size() * sizeof(ProcessorPower))) == 0) // STATUS_SUCCESS
+            result.throttling = std::ranges::any_of(cores, [](const ProcessorPower &core)
+                                                    { return core.mhz_limit < core.max_mhz; });
+        return result;
     }
 
     std::vector<reports::NetworkInterface> network()

@@ -63,6 +63,12 @@ namespace player
             return text;
         }
 
+        /// "58 °C", "-" if there is no sensor
+        std::string celsius(const std::optional<int> &value)
+        {
+            return value ? std::to_string(*value) + " °C" : "-";
+        }
+
         /// "400 MiB free of 1 GiB", "-" if the core does not know it
         std::string freeOf(const std::optional<std::uint64_t> &free, const std::optional<std::uint64_t> &total)
         {
@@ -271,7 +277,11 @@ namespace player
                                                              info.cpu_max_time + " (5 min)"
                                                        : "")) +
                         " · System " + (info.cpu_system ? std::to_string(*info.cpu_system) + " %" : "-")},
+            {"Temperature", "CPU " + celsius(info.temperature_cpu) + " · RAM " + celsius(info.temperature_ram) +
+                                " · SSD " + celsius(info.temperature_ssd) + " · Throttling" +
+                                (info.throttling ? "" : " -")},
         };
+        throttling = info.throttling;
         // the running downloads: the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait
         auto mib = [](std::uint64_t value)
         {
@@ -311,6 +321,13 @@ namespace player
         {
             canvas.text({area.x + margin, y}, label, ui::look::text_dim);
             canvas.textElided({x, y}, value, ui::look::text, width);
+            if (label == "Temperature" && throttling) // a red or green circle after the text, in the middle of the line
+            {
+                float     size   = line * 0.5F;
+                float     left   = x + std::min(canvas.textWidth(value) + size * 0.5F, width - size);
+                ui::Color color  = *throttling ? ui::look::error : ui::look::check;
+                canvas.fillRoundedRect({left, y + (line - size) / 2, size, size}, size / 2, color, color);
+            }
             y += line;
         }
         canvas.text({area.x + margin, y}, "Downloading", ui::look::text_dim);

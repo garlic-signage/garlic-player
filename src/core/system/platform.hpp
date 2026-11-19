@@ -28,6 +28,7 @@ namespace garlic::core::system::platform
 {
     Memory                                 memory();
     ProcessInfo                            process();
+    Thermal                                thermal();
     std::vector<reports::NetworkInterface> network(); // interfaces with a MAC and at least one address
     std::string                            timeZone(); // IANA name, e.g. "Europe/Berlin"
     std::string                            locale();   // e.g. "de_DE"

@@ -193,9 +193,14 @@ export class DebugDialog {
             cpu: 'Player ' + (info.cpu === null || info.cpu === undefined ? '-'
                 : `${info.cpu} %` + (info.cpuMax === null ? '' : `, max ${info.cpuMax} % at ${info.cpuMaxTime} (5 min)`))
                 + ' · System ' + (info.cpuSystem === null || info.cpuSystem === undefined ? '-' : `${info.cpuSystem} %`),
+            temperature: `CPU ${DebugDialog.#celsius(info.temperatureCpu)} · RAM ${DebugDialog.#celsius(info.temperatureRam)}`
+                + ` · SSD ${DebugDialog.#celsius(info.temperatureSsd)} · Throttling `,
+            throttling: info.throttling === null || info.throttling === undefined ? '-' : '●',
         };
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;
+        this.#dialog.querySelector('[data-info="throttling"]').style.color =
+            info.throttling === true ? 'rgb(235, 90, 90)' : info.throttling === false ? 'rgb(0, 190, 90)' : '';
         this.#dialog.querySelector('[data-info="downloads"]').replaceChildren(...DebugDialog.#downloads(info));
         // a line per medium, each cut on its own
         this.#dialog.querySelector('[data-info="playing"]').replaceChildren(...(playing.length > 0 ? playing : ['-'])
@@ -231,6 +236,10 @@ export class DebugDialog {
             ++unit;
         }
         return `${value.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+    }
+
+    static #celsius(value) {
+        return value === null || value === undefined ? '-' : `${value} °C`;
     }
 
     static #freeOf(free, total) {

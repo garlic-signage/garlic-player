@@ -25,7 +25,10 @@ import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.ContextThemeWrapper;
@@ -232,6 +235,11 @@ final class Dialogs
                 : info.optInt("cpu") + " %" + (info.isNull("cpuMax") ? ""
                     : ", max " + info.optInt("cpuMax") + " % at " + info.optString("cpuMaxTime") + " (5 min)"))
                 + " · System " + (info.isNull("cpuSystem") ? "-" : info.optInt("cpuSystem") + " %")));
+            // a red or green circle after the text, "-" where Android does not tell it (before 11)
+            String temperatures = "CPU " + celsius(info, "temperatureCpu") + " · RAM " + celsius(info, "temperatureRam")
+                + " · SSD " + celsius(info, "temperatureSsd") + " · Throttling ";
+            rows.add(info.isNull("throttling") ? row("Temperature", temperatures + "-")
+                : new String[]{"Temperature", temperatures + "●", "", info.optBoolean("throttling") ? "red" : "green"});
             JSONArray downloads = info.optJSONArray("downloads");
             boolean   first     = true;
             for (int i = 0; downloads != null && i < downloads.length(); ++i)
@@ -261,6 +269,11 @@ final class Dialogs
         return rows;
     }
 
+    private static String celsius(JSONObject info, String key)
+    {
+        return info.isNull(key) ? "-" : info.optInt(key) + " °C";
+    }
+
     private static String[] row(String label, String value)
     {
         return new String[]{label, value, ""};
@@ -277,6 +290,14 @@ final class Dialogs
         TextView label = debugText(ui, row[0], Color.rgb(150, 152, 158));
         line.addView(label, new LinearLayout.LayoutParams(Math.round(150 * density), ViewGroup.LayoutParams.WRAP_CONTENT));
         TextView value = debugText(ui, row[1], Color.rgb(232, 232, 235));
+        if (row.length > 3) // the last character in a color: the circle of the throttling
+        {
+            SpannableString colored = new SpannableString(row[1]);
+            int             color   = row[3].equals("red") ? Color.rgb(235, 90, 90) : Color.rgb(0, 190, 90);
+            colored.setSpan(new ForegroundColorSpan(color), row[1].length() - 1, row[1].length(),
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            value.setText(colored);
+        }
         value.setEllipsize(TextUtils.TruncateAt.END);
         line.addView(value, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         if (!row[2].isEmpty())

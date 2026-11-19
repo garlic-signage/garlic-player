@@ -560,18 +560,23 @@ namespace garlic::core
             return;
         reports::SystemInfo info = settings.system_info();
         auto percent = [](const std::optional<int> &value) { return value ? std::to_string(*value) + "%" : "-"; };
+        auto celsius = [](const std::optional<int> &value) { return value ? std::to_string(*value) + "°C" : "-"; };
         logger->debug("Develop",
-                      std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {}) cpu {} (max {}) system {}",
+                      std::format("disc {}/{} memory {}/{} player {} (max {}) threads {} (max {}) cpu {} (max {}) system {}"
+                                  " temperature cpu {} ram {} ssd {} throttling {}",
                                   info.free_space.value_or(0), info.total_capacity.value_or(0),
                                   info.memory_used.value_or(0), info.memory_total.value_or(0), process.memory_used,
                                   memory_max, process.threads, threads_max, percent(process.cpu), percent(cpu_max),
-                                  percent(process.cpu_system)));
+                                  percent(process.cpu_system), celsius(process.temperature_cpu),
+                                  celsius(process.temperature_ram), celsius(process.temperature_ssd),
+                                  !process.throttling ? "-" : *process.throttling ? "true" : "false"));
     }
 
     /**
      * Memory, threads and CPU load of the player and their maxima (garlic-lib: ResourceMonitor::refresh). The load is
      * that since the sample in since, of the whole CPU: the CPU time of the player and its processes through the time
-     * that passed times the cores. That of the system: its busy through its total time of all cores.
+     * that passed times the cores. That of the system: its busy through its total time of all cores. Temperatures and
+     * throttling of the device as the platform tells them; the throttle counters of Intel against the sample in since.
      */
     void PlayerRuntimeApi::trackProcess(DebugInfo &info, std::optional<CpuSample> &since)
     {
@@ -598,6 +603,15 @@ namespace garlic::core
             double total    = static_cast<double>(now.system_total - since->system_total);
             info.cpu_system = static_cast<int>(std::lround(std::min(100.0, busy * 100.0 / total)));
         }
+
+        system::Thermal thermal = system::thermal();
+        info.temperature_cpu    = thermal.cpu;
+        info.temperature_ram    = thermal.ram;
+        info.temperature_ssd    = thermal.ssd;
+        info.throttling         = thermal.throttling;
+        now.throttle_events     = thermal.throttle_events;
+        if (!info.throttling && thermal.throttle_events) // Intel: throttled since the previous sample
+            info.throttling = since && since->throttle_events && *thermal.throttle_events > *since->throttle_events;
         since = now;
 #else
         (void)since;

@@ -200,6 +200,10 @@ namespace player
                 result.set("cpuMax", info.cpu_max ? val(*info.cpu_max) : val::null());
                 result.set("cpuMaxTime", info.cpu_max_time);
                 result.set("cpuSystem", info.cpu_system ? val(*info.cpu_system) : val::null());
+                result.set("temperatureCpu", info.temperature_cpu ? val(*info.temperature_cpu) : val::null());
+                result.set("temperatureRam", info.temperature_ram ? val(*info.temperature_ram) : val::null());
+                result.set("temperatureSsd", info.temperature_ssd ? val(*info.temperature_ssd) : val::null());
+                result.set("throttling", info.throttling ? val(*info.throttling) : val::null());
                 val downloads = val::array();
                 for (const auto &download : info.downloads)
                 {

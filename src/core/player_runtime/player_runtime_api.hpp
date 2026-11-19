@@ -180,6 +180,12 @@ namespace garlic::core
         /// Load of the whole system (all cores = 100), same interval as cpu; empty where the platform cannot tell
         /// (Android, WASM)
         std::optional<int> cpu_system;
+        /// °C, the highest sensor of each part (Linux, Android), and whether the device throttles now (Linux on a
+        /// Raspberry Pi or Intel, Android 11+, Windows, Apple); empty where the platform cannot tell
+        std::optional<int>  temperature_cpu;
+        std::optional<int>  temperature_ram;
+        std::optional<int>  temperature_ssd;
+        std::optional<bool> throttling;
 
         struct Download
         {
@@ -303,6 +309,7 @@ namespace garlic::core
                 std::chrono::steady_clock::time_point at;
                 std::uint64_t                         system_busy  = 0; // of all cores, total 0: unknown
                 std::uint64_t                         system_total = 0;
+                std::optional<std::uint64_t>          throttle_events{}; // Intel
             };
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log

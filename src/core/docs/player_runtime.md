@@ -172,7 +172,9 @@ agent, disk of the cache and memory of the system (from `system_info`), memory a
 every call and with the resource log every 5 minutes, which now writes them to debug.log too. New: the CPU load of the
 player with its processes (`cpu`, in percent of all cores, since the previous `debugInfo()`, empty at the first call)
 and the highest 5-minute average of the resource log (`cpu_max`, `cpu_max_time`); the log writes that average as `cpu`. Beside it the load of the whole system (`cpu_system`, same interval, no
-maximum: it cannot be put down to the player), empty on Android. Without the system module
+maximum: it cannot be put down to the player), empty on Android. The temperatures of CPU, RAM and SSD in °C
+(`temperature_cpu`, `temperature_ram`, `temperature_ssd`) and whether the device throttles (`throttling`), see
+system.md. Without the system module
 (WASM, ESP32) the player values stay 0 and the others empty, unless the frontend gives a `system_info`.
 New: the running downloads (`downloads`, in the order they started, with received bytes and size; the name is the
 `title` of the medium in the SMIL, otherwise the file name of the URL) and how many wait (`downloads_waiting`).
@@ -246,7 +248,7 @@ core thread
 ## When something goes wrong
 
 - `debug.log`: `Httpd not started: …`, and every 5 minutes one line of category `Develop` with disk, memory, player
-  memory, threads and CPU (5-minute average) with their maxima, and the CPU load of the whole system (`system`).
+  memory, threads and CPU (5-minute average) with their maxima, the CPU load of the whole system (`system`), the temperatures and `throttling true`/`false` (`-` where unknown).
 - **Nothing plays after a new index**: `SMIL_OPEN_ERROR` (the old index plays on), or the frontend dropped the
   document of the last `NewLayout` too early.
 - **Calls of the frontend seem to be ignored**: with `ThreadedRuntime` they run only before the next `poll()`, their

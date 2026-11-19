@@ -76,6 +76,43 @@ TEST_CASE("/proc/stat: busy and total of all cores, idle and iowait are idle")
     CHECK_FALSE(parseStatCpu("").has_value());
 }
 
+TEST_CASE("thermal sensors: CPU, RAM and SSD by the name of the kernel, the rest counts not")
+{
+    for (const char *cpu : {"k10temp", "coretemp", "zenpower", "x86_pkg_temp", "cpu_thermal", "cpu-thermal",
+                            "cpu0-thermal", "soc-thermal", "soc_thermal"})
+        CHECK(thermalPart(cpu) == ThermalPart::cpu);
+    CHECK(thermalPart("spd5118") == ThermalPart::ram);
+    CHECK(thermalPart("jc42") == ThermalPart::ram);
+    CHECK(thermalPart("nvme") == ThermalPart::ssd);
+    CHECK(thermalPart("drivetemp") == ThermalPart::ssd);
+    for (const char *other : {"gpu-thermal", "amdgpu", "r8169_0_2600:00", "acpitz", "rpi_volt", ""})
+        CHECK(thermalPart(other) == ThermalPart::other);
+}
+
+TEST_CASE("vcgencmd get_throttled: frequency capped, throttled or soft limit now")
+{
+    CHECK(parseThrottled("throttled=0x0\n") == false);
+    CHECK(parseThrottled("throttled=0x50000\n") == false); // only in the past
+    CHECK(parseThrottled("throttled=0x1\n") == false);     // under-voltage alone
+    CHECK(parseThrottled("throttled=0x2\n") == true);
+    CHECK(parseThrottled("throttled=0x4\n") == true);
+    CHECK(parseThrottled("throttled=0x8\n") == true);
+    CHECK(parseThrottled("throttled=0x50005\n") == true);
+    CHECK_FALSE(parseThrottled("").has_value());
+    CHECK_FALSE(parseThrottled("VCHI initialization failed").has_value());
+}
+
+TEST_CASE("thermal: plausible values where there are any")
+{
+    Thermal now = thermal();
+    for (const auto &value : {now.cpu, now.ram, now.ssd})
+        if (value)
+        {
+            CHECK(*value > 0);
+            CHECK(*value < 150);
+        }
+}
+
 TEST_CASE("process info: CPU time where the platform tells it")
 {
     ProcessInfo info = processInfo();

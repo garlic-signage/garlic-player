@@ -124,6 +124,30 @@ namespace garlic::core::system
         return cpu;
     }
 
+    ThermalPart thermalPart(std::string_view sensor)
+    {
+        if (sensor == "k10temp" || sensor == "coretemp" || sensor == "zenpower" || sensor == "x86_pkg_temp" ||
+            sensor.starts_with("cpu") || sensor.starts_with("soc"))
+            return ThermalPart::cpu;
+        if (sensor == "spd5118" || sensor == "jc42")
+            return ThermalPart::ram;
+        if (sensor == "nvme" || sensor == "drivetemp")
+            return ThermalPart::ssd;
+        return ThermalPart::other;
+    }
+
+    std::optional<bool> parseThrottled(std::string_view text)
+    {
+        auto position = text.find("=0x");
+        if (position == std::string_view::npos)
+            return std::nullopt;
+        position += 3;
+        std::uint32_t value = 0;
+        if (std::from_chars(text.data() + position, text.data() + text.size(), value, 16).ec != std::errc())
+            return std::nullopt;
+        return (value & 0xEU) != 0;
+    }
+
     std::string normalizeLocale(std::string_view value)
     {
         value = value.substr(0, value.find_first_of(".@"));
@@ -160,6 +184,11 @@ namespace garlic::core::system
     ProcessInfo processInfo()
     {
         return platform::process();
+    }
+
+    Thermal thermal()
+    {
+        return platform::thermal();
     }
 
     reports::SystemInfo collectSystemInfo(std::string_view cache_dir, std::string_view start_time)

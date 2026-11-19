@@ -30,6 +30,11 @@ namespace garlic::core::system::platform
         return {};
     }
 
+    Thermal thermal()
+    {
+        return {};
+    }
+
     std::vector<reports::NetworkInterface> network()
     {
         return {};
