@@ -314,6 +314,7 @@ namespace garlic::core
             };
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log
+            std::optional<int>       cpu_system_of_log; // the load of the system over the 5 minutes of the last log
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
 

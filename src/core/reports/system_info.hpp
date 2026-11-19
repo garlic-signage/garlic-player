@@ -58,6 +58,7 @@ namespace garlic::core::reports
         std::optional<std::uint64_t>  free_space;
         std::optional<std::uint64_t>  memory_total;
         std::optional<std::uint64_t>  memory_used;
+        std::optional<int>            cpu_usage; // percent of all cores, the whole system (garlic-lib: always empty)
         std::vector<NetworkInterface> network;
         std::string                   locale; // e.g. "de_DE"
     };

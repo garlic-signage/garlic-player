@@ -76,7 +76,8 @@ namespace garlic::core::reports
         {
             return "<systemInfo>" + tag("systemStartTime", system.start_time) + tag("systemTimeZone", system.time_zone) +
                    tag("totalCapacity", number(system.total_capacity)) + tag("totalFreeSpace", number(system.free_space)) +
-                   tag("cpuUsage", "") + tag("memoryTotal", number(system.memory_total)) +
+                   tag("cpuUsage", system.cpu_usage ? std::to_string(*system.cpu_usage) : "") +
+                   tag("memoryTotal", number(system.memory_total)) +
                    tag("memoryUsed", number(system.memory_used)) + tag("hdmiOutput", "") + std::string(inner) +
                    "</systemInfo>";
         }

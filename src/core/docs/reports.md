@@ -72,8 +72,9 @@ are escaped.
 </report>
 ```
 
-- `<systemInfo>`: `systemStartTime`, `systemTimeZone`, `totalCapacity`, `totalFreeSpace`, `cpuUsage` (empty),
-  `memoryTotal`, `memoryUsed`, `hdmiOutput` (empty).
+- `<systemInfo>`: `systemStartTime`, `systemTimeZone`, `totalCapacity`, `totalFreeSpace`, `cpuUsage` (the load of
+  the whole system in percent of all cores, the 5-minute average of the resource log; empty before its first line and
+  on Android; garlic-lib left it empty), `memoryTotal`, `memoryUsed`, `hdmiOutput` (empty).
 - Inventory `state`: `COMPLETE`, or `TRANSFER` while downloading (garlic-lib wrote `COMPLETE` for both);
   `transferLength` is the size of the file in the cache, of `<file>.part` while downloading.
 - The log lines are taken as they are: the logger writes them as escaped XML. garlic-lib parsed them; a log with one

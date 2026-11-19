@@ -57,6 +57,15 @@ TEST_CASE("task execution report: the tasks in one taskState")
     CHECK(taskExecutionReport("uuid-1", now, tasks) == head + "<taskState>" + tasks + "</taskState></player></report>");
 }
 
+TEST_CASE("system info: the CPU load of the system as cpuUsage, empty where unknown")
+{
+    SystemInfo info = system();
+    info.cpu_usage  = 12;
+    std::string report = inventoryReport("uuid-1", now, info, {});
+    CHECK(report.find("<cpuUsage>12</cpuUsage>") != std::string::npos);
+    CHECK(inventoryReport("uuid-1", now, system(), {}).find("<cpuUsage></cpuUsage>") != std::string::npos);
+}
+
 TEST_CASE("inventory report: system info and one object per file, values escaped")
 {
     std::vector<InventoryObject> objects{{"abc", "http://hub/a.jpg?x=1&y=2", "COMPLETE", "image/jpeg", 100,

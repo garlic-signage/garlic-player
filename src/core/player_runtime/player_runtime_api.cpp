@@ -129,8 +129,16 @@ namespace garlic::core
             { return system::collectSystemInfo(cache, started); };
 #endif
         settings.system_info = system_info;
+        // the reports with the load of the system from the resource log, a 5-minute average (empty before the first)
+        auto report_info = [this, system_info]
+        {
+            reports::SystemInfo info = system_info ? system_info() : reports::SystemInfo{};
+            if (!info.cpu_usage)
+                info.cpu_usage = cpu_system_of_log;
+            return info;
+        };
         reporter = std::make_unique<reports::Reporter>(transport, fs, clock, *logger, config, *inventory,
-                                                       settings.cache_dir, system_info);
+                                                       settings.cache_dir, report_info);
         tasks = std::make_unique<tasks::TaskScheduler>(*queue, fs, *logger, config, settings.cache_dir,
                                                        [this](tasks::TaskAction a) { onTask(std::move(a)); });
         tasks->checkPending();
@@ -552,6 +560,7 @@ namespace garlic::core
     {
         DebugInfo process;
         trackProcess(process, cpu_of_log);
+        cpu_system_of_log = process.cpu_system;
         if (process.cpu && (!cpu_max || *process.cpu > *cpu_max)) // the average of the 5 minutes since the last log
         {
             cpu_max      = process.cpu;
