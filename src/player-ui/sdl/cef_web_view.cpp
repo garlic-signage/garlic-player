@@ -984,7 +984,8 @@ namespace player
     }
 }
 
-#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33)
+#if defined(__GLIBC__)
+#if __GLIBC_PREREQ(2, 33)
 /**
  * Replaces mallinfo() of glibc for libcef.so (the symbol is exported, see CMakeLists.txt). The Linux builds of CEF are
  * made against glibc 2.31 and so call mallinfo() instead of mallinfo2(): its int fields overflow from 2 GiB of malloc
@@ -1010,4 +1011,5 @@ extern "C" struct mallinfo mallinfo() noexcept
     info.keepcost = static_cast<int>(std::min(info2.keepcost, int_max));
     return info;
 }
+#endif
 #endif
