@@ -17,11 +17,11 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - name: Run macOS Build Script
-        run: /Users/niko/Deployment/scripts/build-macosx.sh
+        run: /Users/niko/scripts/build-gp/build.sh
 #      - name: Run iOS Build Script
 #       run: /Users/niko/Deployment/scripts/build-ios.sh
   build-windows:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: false #github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, X64, Windows]
     steps:
       - name: Run Windows 11 Build Script
