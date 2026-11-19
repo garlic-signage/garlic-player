@@ -479,6 +479,7 @@ extern "C"
             downloads.push_back({{"name", download.name}, {"received", download.received}, {"total", download.total}});
         json result{{"title", info.index_title},
                     {"userAgent", info.user_agent},
+                    {"version", info.version},
                     {"diskFree", optionalNumber(info.disk_free)},
                     {"diskTotal", optionalNumber(info.disk_total)},
                     {"memoryFree", optionalNumber(info.memory_free)},

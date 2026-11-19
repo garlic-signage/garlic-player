@@ -167,7 +167,7 @@ Running requests of a stopped server get 503, like when the player quits.
 ## Debug dialog
 
 `debugInfo()` gives what the debug dialog of garlic-lib showed (DebugInfos, ResourceMonitor): title of the index, user
-agent, disk of the cache and memory of the system (from `system_info`), memory and threads of the player
+agent, the version of the player (`version`, from the file VERSION, in the title of the dialog), disk of the cache and memory of the system (from `system_info`), memory and threads of the player
 (`system::processInfo`) with their maxima since the start and the time of the memory maximum. The maxima are updated at
 every call and with the resource log every 5 minutes, which now writes them to debug.log too. New: the CPU load of the
 player with its processes (`cpu`, in percent of all cores, since the previous `debugInfo()`, empty at the first call)

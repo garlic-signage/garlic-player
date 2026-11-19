@@ -197,6 +197,8 @@ export class DebugDialog {
                 + ` · SSD ${DebugDialog.#celsius(info.temperatureSsd)} · Throttling `,
             throttling: info.throttling === null || info.throttling === undefined ? '-' : '●',
         };
+        this.#dialog.querySelector('[data-info="heading"]').textContent =
+            info.version ? `Information · ${info.version}` : 'Information';
         for (const [key, value] of Object.entries(values))
             this.#dialog.querySelector(`[data-info="${key}"]`).textContent = value;
         this.#dialog.querySelector('[data-info="throttling"]').style.color =

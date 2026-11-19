@@ -18,6 +18,7 @@
 #include <doctest/doctest.h>
 
 #include "common/memory_file_system.hpp"
+#include "common/version.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "httpd/mhd_server.hpp"
@@ -512,6 +513,7 @@ TEST_CASE("debug info: title, user agent, disk and memory of the system, the pla
     DebugInfo info = f.runtime->debugInfo();
     CHECK(info.index_title == "lobby");
     CHECK(info.user_agent == f.runtime->configuration().userAgent());
+    CHECK(info.version == garlic::core::common::version());
     CHECK(info.disk_total == 1000u);
     CHECK(info.disk_free == 400u);
     CHECK(info.memory_total == 2048u);

@@ -282,6 +282,7 @@ namespace player
                                 (info.throttling ? "" : " -")},
         };
         throttling = info.throttling;
+        version    = info.version;
         // the running downloads: the name left (cut), "42 %  136.0 / 323.0 MiB" right; then how many wait
         auto mib = [](std::uint64_t value)
         {
@@ -312,7 +313,7 @@ namespace player
 
     void DebugDialog::draw(ui::Canvas &canvas) const
     {
-        drawPanel(canvas, area, "Information");
+        drawPanel(canvas, area, version.empty() ? "Information" : "Information · " + version);
         float line  = row_height * 0.75F;
         float y     = area.y + margin + row_height;
         float x     = area.x + margin + label_width;

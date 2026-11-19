@@ -202,8 +202,17 @@ final class Dialogs
                 content.addView(debugRow(ui, row));
             timer.postDelayed(tick[0], 1000);
         };
+        String version = "";
+        try
+        {
+            version = new JSONObject(core.debugInfo()).optString("version");
+        }
+        catch (JSONException error)
+        {
+            // the title without the version
+        }
         AlertDialog dialog = new AlertDialog.Builder(ui)
-            .setTitle("Information")
+            .setTitle(version.isEmpty() ? "Information" : "Information · " + version)
             .setView(scroll)
             .setPositiveButton("Close", null) // the only button, centered; quitting is in the menu
             .create();

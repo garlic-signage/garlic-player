@@ -18,6 +18,7 @@
 #include "player_runtime/player_runtime_api.hpp"
 
 #include "common/time_format.hpp"
+#include "common/version.hpp"
 #include "content/index_manager.hpp"
 #include "database/inventory_table.hpp"
 #include "downloader/download_queue.hpp"
@@ -634,6 +635,7 @@ namespace garlic::core
         DebugInfo info;
         info.index_title = document ? document->head.title : std::string();
         info.user_agent  = config.userAgent();
+        info.version     = common::version();
         if (settings.system_info)
         {
             reports::SystemInfo system = settings.system_info();

@@ -163,6 +163,7 @@ namespace garlic::core
     {
         std::string                  index_title;
         std::string                  user_agent;
+        std::string                  version; // of the player, the file VERSION (common::version())
         std::optional<std::uint64_t> disk_total;   // of the cache, 96 % of the disk like garlic-lib
         std::optional<std::uint64_t> disk_free;
         std::optional<std::uint64_t> memory_total; // of the system

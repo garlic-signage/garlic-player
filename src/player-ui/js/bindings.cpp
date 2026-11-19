@@ -187,6 +187,7 @@ namespace player
                 val       result = val::object();
                 result.set("title", info.index_title);
                 result.set("userAgent", info.user_agent);
+                result.set("version", info.version);
                 result.set("diskFree", optionalNumber(info.disk_free));
                 result.set("diskTotal", optionalNumber(info.disk_total));
                 result.set("memoryFree", optionalNumber(info.memory_free));
