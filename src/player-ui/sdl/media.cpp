@@ -20,6 +20,7 @@
 #include "color.hpp"
 #include "file_url.hpp"
 #include "web_view.hpp"
+#include "common/text.hpp"
 
 #ifdef PLAYER_SDL_WITH_MPV
     #include "mpv_media.hpp"
@@ -227,7 +228,7 @@ namespace player
         if (!level.ends_with('%'))
             return 1;
         double percent    = 0;
-        auto [end, error] = std::from_chars(level.data(), level.data() + level.size() - 1, percent);
+        auto [end, error] = garlic::core::common::fromChars(level.data(), level.data() + level.size() - 1, percent);
         if (error != std::errc{} || end != level.data() + level.size() - 1)
             return 1;
         return std::clamp(percent / 100, 0.0, 1.0);
