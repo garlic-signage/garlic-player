@@ -31,6 +31,10 @@ export ANDROID_NDK_HOME=…/Sdk/ndk/26.1.10909125 VCPKG_ROOT=… JAVA_HOME=/usr/
 ./gradlew assembleDebug           # app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Version: `app/build.gradle` reads `../VERSION`, `versionName` is it as it is, `versionCode` 20000000 + the build
+number the build server appends (`2.0.0.997`, `2.0.0-dev.996`, see the [README](../../../README.md#version)). Android
+updates only to a higher `versionCode`, so `assembleRelease` stops without that number; a debug build takes 1.
+
 `local.properties` (not in git) names the SDK: `sdk.dir=…/Android/Sdk`. Gradle 8.13 (wrapper), Android Gradle plugin
 8.6 (works with the build tools 34; 8.12 needs 35), compileSdk 34, minSdk 25, targetSdk 29.
 
@@ -64,7 +68,9 @@ What the native build needs on Android, also for a CI:
 - Ten fast touches (< 500 ms) or one held for 10 s open the menu (Settings, Debug infos, Exit); with a keyboard
   Ctrl+S, Ctrl+D, Ctrl+Q, other keys are access keys; a touch on a region activates its top medium.
 - Dialogs and the loading overlay scaled like the sdl player, by max(density, screen height / 900); dialogs slightly
-  transparent. Debug infos: one row per value, cut with "…", only a centered Close.
+  transparent. Debug infos: one row per value, cut with "…", only a centered Close. CPU is the player process only
+  (MediaCodec and the WebView renderer run in processes of the system), the system load stays `-` (Android 8+ does
+  not let an app read `/proc/stat`); temperatures where the thermal zones are readable, throttling from Android 11 on.
 - "Loading 1 / X" with the bar of the first download until the first medium of a layout, centered.
 - Without an index the settings dialog comes first; Cancel ends the player.
 - `adapi:blankScreen` with the `standby_mode` of the configuration: `partially` screen off until the element ends,

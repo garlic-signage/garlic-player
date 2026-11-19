@@ -78,16 +78,19 @@ the [README of the sdl player](src/player-ui/sdl/README.md).
 
 ### Version
 
-The version of all players (sdl, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION), e.g.
-`2.0.0-beta.900`. It goes into the user agent and into `--version`. A build server writes its version there before
-building:
+The version of all players (sdl, Android, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION):
+`2.0.0-dev` during development, `2.0.0` for a release. It goes into the user agent, into `--version` and into the
+title of the debug infos. The build server always appends its build number with a dot before building, for a release
+as for a dev build:
 
 ```
-echo "2.0.0-beta.$BUILD_NUMBER" > src/player-ui/VERSION
+echo "$(cat src/player-ui/VERSION).$BUILD_NUMBER" > src/player-ui/VERSION   # 2.0.0.997, 2.0.0-dev.996
 ```
 
 The number after the last dot is the build: garlic-hub gives the full index (multizone, prefetch, priority classes)
-only from build 566 on. CMake configures again by itself when the file changes.
+only from build 566 on, and Android updates by it (`versionCode` 20000000 + build). A release build of Android stops
+when the number is missing, otherwise it would lie below the dev builds and Android would refuse the update.
+CMake configures again by itself when the file changes.
 
 ## Features
  - full screen on one screen, one window over all screens (bigscreen) or windowed, start screen selectable
@@ -137,7 +140,9 @@ The index of the command line wins over the one in a `config.xml`.
 
 Ten fast clicks or touches (less than 500 ms apart) or one held for 10 seconds, anywhere on the screen, open a menu:
  - **Settings**: player name, content URL, HTTP server on/off and port
- - **Debug infos**: playlist, user agent, disk, memory, threads and the media playing in each region
+ - **Debug infos**: the version in the title; playlist, user agent, disk, memory of the system and of the player,
+   threads, CPU load of the player and of the system, temperatures of CPU, RAM and SSD with the throttling (a red or
+   green circle), the running downloads and the media playing in each region
  - **Exit**
 
 Holding is meant for interactive content, where fast clicks reach the page too. All players work the same way.
