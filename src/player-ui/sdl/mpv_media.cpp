@@ -313,7 +313,12 @@ namespace player
         // interop for each video, also the one of CUDA ("Cannot load libcuda.so.1" in the log for each video)
         if (is_video && raspberryGpu())
             mpv_set_option_string(mpv, "gpu-hwdec-interop", "drmprime");
-        mpv_set_option_string(mpv, "load-scripts", "no"); // no osc, stats, console …
+        // no scripts: load-scripts only for the ones of the config directory, the built-in ones have options of their
+        // own (each a Lua state in a thread of its own per video); an option an older mpv does not know fails quietly
+        mpv_set_option_string(mpv, "load-scripts", "no");
+        for (const char *script : {"load-stats-overlay", "load-console", "load-select", "load-positioning",
+                                   "load-context-menu", "load-commands", "load-auto-profiles"})
+            mpv_set_option_string(mpv, script, "no");
         mpv_set_option_string(mpv, "audio-client-name", "garlic-player");
         mpv_set_option_string(mpv, "idle", "yes"); // stays after the end, for repeat()
         mpv_set_option_string(mpv, "keep-open", "no");
