@@ -27,7 +27,7 @@ the system, images with `BitmapFactory`; all are views of one hierarchy, so they
 
 ```
 export ANDROID_NDK_HOME=…/Sdk/ndk/26.1.10909125 VCPKG_ROOT=… JAVA_HOME=/usr/lib/jvm/java-17-openjdk
-./build-native.sh x86_64          # or arm64-v8a, armeabi-v7a; Release by default
+./build-native.sh x86_64          # or x86, arm64-v8a, armeabi-v7a; Release by default
 ./gradlew assembleDebug           # app/build/outputs/apk/debug/app-debug.apk
 ```
 

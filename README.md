@@ -41,10 +41,12 @@ The frontends are in [src/player-ui](src/player-ui) and are operated the same wa
  - **sdl** ([src/player-ui/sdl](src/player-ui/sdl/README.md)), the desktop player with SDL3 for Linux, Windows and
    macOS. Video and audio with libmpv, web pages with CEF (Chromium) off-screen, so images, videos and web pages
    stack by z-index.
+ - **android** ([src/player-ui/android](src/player-ui/android/README.md)), Java with the core through JNI, video with
+   Media3 (ExoPlayer) and web pages in the WebView of the system; Android 7.1.1 and newer.
  - **js** ([src/player-ui/js](src/player-ui/js/README.md)), the core as WebAssembly with a player in JavaScript for
    browsers, Tizen and webOS.
 
-The beta runs on Linux. Windows and macOS are being built, Android (Java) and iOS follow. The code of version 1.x
+The beta runs on Linux, Windows, macOS and Android; iOS follows later. The code of version 1.x
 (Qt 5, garlic-lib and the old frontends) is kept in [legacy](legacy) for reference; it is not built anymore.
 
 ## Build (2.0)
@@ -107,8 +109,9 @@ CMake configures again by itself when the file changes.
 
 ## Operating Systems Supported (2.0)
  - Linux x86_64 and aarch64, e.g. Raspberry Pi 4 (beta)
- - Windows x64 and macOS arm64 (in progress)
- - Android and iOS follow
+ - Windows x64 and macOS arm64 (beta)
+ - Android 7.1.1 and newer: arm64-v8a, armeabi-v7a, x86_64 and x86 (beta)
+ - iOS later
 
 Raspberry Pi 4 with **1 GB**: 1080p videos and web pages. For **4K** (H.265, at most 30 fps) together with web pages
 use a Pi 4 with **2 GB or more**. Details in the [README of the sdl player](src/player-ui/sdl/README.md).
