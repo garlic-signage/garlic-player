@@ -280,7 +280,12 @@ if(_sdl_with_cef)
     foreach(_flags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE)
         set(${_flags} "${_saved_${_flags}}")
     endforeach()
+
+    # the wrapper is a static library everywhere; CEF's add_library has no type and would follow BUILD_SHARED_LIBS
+    set(_saved_build_shared_libs ${BUILD_SHARED_LIBS})
+    set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} ${CMAKE_CURRENT_BINARY_DIR}/libcef_dll_wrapper)
+    set(BUILD_SHARED_LIBS ${_saved_build_shared_libs})
 
     target_sources(sdl PRIVATE cef_web_view.cpp)
     target_compile_definitions(sdl PRIVATE PLAYER_SDL_WITH_CEF)
