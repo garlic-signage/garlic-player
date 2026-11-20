@@ -137,6 +137,21 @@ SMIL_INDEX        URI or path of the SMIL index; without it the one of the setti
 
 The index of the command line wins over the one in a `config.xml`.
 
+### Environment variables (sdl)
+
+For devices whose drivers need a different way; not needed normally. Details in the
+[README of the sdl player](src/player-ui/sdl/README.md).
+
+| Variable | Description |
+|-------------------------------|------------------------------------------------------------------------------|
+| `GARLIC_MPV_HWDEC` | Hardware decoding of mpv (`hwdec`), default `v4l2m2m,drm,auto-safe`; e.g. `no` (software), `auto-copy-safe` |
+| `GARLIC_MPV_FENCES=0` | mpv gets no `glFenceSync` (as before 2.0.0-dev.968); a test switch for the memory on a Raspberry Pi |
+| `GARLIC_WEB_SHARED_TEXTURE=0` | Web pages come as pixels through the CPU instead of as GPU buffers (Linux) |
+| `GARLIC_WEB_ANGLE` | Graphics backend of CEF (`use-angle`) on Linux: `gl`, `gl-egl`, `vulkan`, `swiftshader`; default `vulkan` on X11, `gl-egl` under KMSDRM, otherwise `gl` |
+
+Not of the player, but useful: `MALLOC_ARENA_MAX=2` (glibc) limits the memory arenas of the threads; it slows the
+growth of the player's memory on a desktop with NVIDIA in the first hours, but does not stop it.
+
 ## Menu
 
 Ten fast clicks or touches (less than 500 ms apart) or one held for 10 seconds, anywhere on the screen, open a menu:
