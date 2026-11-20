@@ -15,7 +15,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-// Windows - not compiled on the development machine yet, to be checked with the first Windows build
+// Windows - compiled by the Windows build of build.yml, not by the CI in Debian Trixie
 #include "system/platform.hpp"
 
 #include <winsock2.h>

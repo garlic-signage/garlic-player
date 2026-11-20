@@ -183,6 +183,5 @@ sudo apt install mesa-va-drivers         # AMD
 
 ## Not done yet
 
-- Windows and macOS: the first build and run.
 - Web pages: popups of a page (an open `<select>`), touch input (only the mouse goes to a page), the cursor shape.
 - Transitions.

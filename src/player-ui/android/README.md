@@ -99,6 +99,7 @@ Like the legacy player, with its Java classes:
   restart, installation, blankScreen, Philips.
 - Tested in the emulator (x86_64, API 31): images, video, web page, brush over web page and video, menu, debug
   dialog. On a device (Rockchip tablet, Android 7.1.2) with armeabi-v7a, without launcher: the same plus settings
-  dialog and loading overlay; web pages need a newer system WebView than the 56 of the device (119 works). Not yet
-  arm64-v8a.
+  dialog and loading overlay; web pages need a newer system WebView than the 56 of the device (119 works). On an
+  RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
+  (about 2 MB/h).
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

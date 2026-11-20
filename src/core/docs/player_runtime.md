@@ -259,7 +259,3 @@ core thread
   `none, software not installed: <path>`. With one, the counterpart of the platform did not pass it on.
 - Tests: `tests/player_runtime/test_player_runtime_api.cpp` (the whole runtime on fakes, database `:memory:`),
   `test_reboot_schedule.cpp`, `test_threaded_runtime.cpp` (real clock, also run under ThreadSanitizer).
-
-## Not yet
-
-- Windows and macOS: `platform_windows.cpp` and `platform_apple.cpp` are not compiled yet.

@@ -15,7 +15,7 @@
  You should have received a copy of the GNU Affero General Public License
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-// macOS and iOS - not compiled on the development machine yet, to be checked with the first Apple build
+// macOS and iOS - compiled by the macOS build of build.yml, not by the CI in Debian Trixie
 #include "system/platform.hpp"
 
 #include "system/ifaddrs_network.hpp"

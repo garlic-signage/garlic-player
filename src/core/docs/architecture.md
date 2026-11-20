@@ -206,5 +206,5 @@ Why the core is built the way it is. The decisions of single modules are in thei
   successful CI run on `master` and builds the tested commit (`GARLIC_SHA`).
 - **Trixie is older than a developer machine:** it has libxml2 2.9 (hence the version switch in `smil/expr.cpp`),
   CMake 3.31 and SDL3 3.2.
-- **Never compiled yet:** `system/platform_windows.cpp`, `system/platform_apple.cpp` and the Windows branches of
-  `StdFileSystem`. Errors there show up only with the first Windows or Apple build.
+- **Windows and Apple only on the own runners:** `system/platform_windows.cpp`, `system/platform_apple.cpp` and the
+  Windows branches of `StdFileSystem` are not compiled by the CI in Trixie; errors there show up only in `build.yml`.
