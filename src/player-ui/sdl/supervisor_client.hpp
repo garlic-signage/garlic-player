@@ -58,9 +58,8 @@ namespace player
     };
 
     /**
-     * The player side of the supervisor protocol (src/core/docs/supervisor_protocol.md) without Qt: JSON-RPC 2.0, one
-     * message per line, over a Unix domain socket. The same behavior as the client of the Qt players
-     * (src/player-ui/supervisor/supervisor_client.hpp); the main loop calls poll() at least every 100 ms.
+     * The player side of the supervisor protocol (src/core/docs/supervisor_protocol.md): JSON-RPC 2.0, one message
+     * per line, over a Unix domain socket; the main loop calls poll() at least every 100 ms.
      *
      * Windows (named pipe) is not done yet: there start() reports that no supervisor answered.
      */

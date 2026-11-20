@@ -58,8 +58,7 @@ libxml2, SDL3 and libmpv. On Debian Trixie (x86_64 and aarch64):
 apt install cmake ninja-build g++ pkg-config libcurl4-openssl-dev libmicrohttpd-dev libsqlite3-dev libxml2-dev \
     nlohmann-json3-dev libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libmpv-dev libwebp-dev
 
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
-    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build
 build/src/player-ui/sdl/garlic-player -m fullscreen https://example.com/index.smil
 ```
@@ -70,8 +69,7 @@ CMake downloads CEF (the minimal binary distribution of Spotify's CEF builds) an
 downloads CEF and libmpv (Windows: the official libmpv of mpv, macOS: the build of media_kit):
 
 ```
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
-    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON \
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_SDL_WITH_CEF=ON \
     -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_DIR=src/core
 ```
 

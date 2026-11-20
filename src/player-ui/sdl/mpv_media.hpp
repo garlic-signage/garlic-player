@@ -41,7 +41,7 @@ namespace player
     void setVideoQuality(VideoQuality quality);
 
     /**
-     * <video> and <audio> with libmpv, one player per medium like the AvMedia of the qwidget player. Video renders
+     * <video> and <audio> with libmpv, one player per medium. Video renders
      * with the render API (OpenGL, in a context of its own that shares the texture) into a texture of the SDL renderer, which the window draws like an image, so it
      * lies in its region under everything with a higher z-index. Decoding in hardware where mpv finds a way
      * (hwdec=auto-safe).

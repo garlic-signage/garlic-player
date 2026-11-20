@@ -59,7 +59,7 @@ namespace
   -v, --version                 the version
 )";
 
-    /// The options of the qwidget player: "-m windowed", "--windows-mode windowed", "--windows-mode=windowed"
+    /// The options of the legacy player: "-m windowed", "--windows-mode windowed", "--windows-mode=windowed"
     struct Options
     {
             std::map<std::string, std::string> values;

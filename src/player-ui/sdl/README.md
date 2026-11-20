@@ -27,8 +27,7 @@ and web pages stack exactly by z-index; native video and web windows would alway
 ## Build
 
 ```
-cmake -S . -B build-sdl -G Ninja -DCMAKE_BUILD_TYPE=Release -DGARLIC_PLAYER_QWIDGET=OFF -DGARLIC_PLAYER_QML=OFF \
-    -DGARLIC_PLAYER_SDL=ON -DPLAYER_SDL_WITH_CEF=ON
+cmake -S . -B build-sdl -G Ninja -DCMAKE_BUILD_TYPE=Release -DPLAYER_SDL_WITH_CEF=ON
 cmake --build build-sdl --target sdl
 build-sdl/src/player-ui/sdl/garlic-player [-m fullscreen] [SMIL_INDEX]
 ```

@@ -47,7 +47,7 @@ namespace player
     };
 
     /**
-     * The window of the player (MainWindow of the qwidget player): takes the events of the core, keeps the regions of
+     * The window of the player: takes the events of the core, keeps the regions of
      * a NewLayout and draws the media in them with one SDL renderer, z-index from bottom to top. What the frontend
      * learns (end of a video, a click, a key) goes back to the core by post().
      *

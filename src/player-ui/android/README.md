@@ -20,7 +20,7 @@ the system, images with `BitmapFactory`; all are views of one hierarchy, so they
 | `app/…/java/Dialogs.java`    | menu, settings dialog, debug dialog (with the running downloads)                 |
 | `app/…/java/Paths.java`      | ini, cache and logs at the places of the earlier players, the CA bundle for libcurl |
 | `app/…/java/BlankScreen.java` | adapi:blankScreen with the standby_mode, like `../supervisor/blank_screen.cpp` |
-| `app/…/java/LauncherInterface.java`, `GarlicLauncher.java`, `PhilipsLauncher.java`, `SICPDef.java`, `SocketClient.java` | launcher 1.x and the Philips firmware, from the qml player |
+| `app/…/java/LauncherInterface.java`, `GarlicLauncher.java`, `PhilipsLauncher.java`, `SICPDef.java`, `SocketClient.java` | launcher 1.x and the Philips firmware, from the legacy player |
 | `app/…/java/ConfigReceiver.java`, `SmilIndexReceiver.java` | configuration and index the launcher sends |
 
 ## Build
@@ -52,7 +52,7 @@ What the native build needs on Android, also for a CI:
   on a device with an earlier player): an update keeps the uuid and the player stays the same device in the CMS.
 - **cache and logs**: `/sdcard/garlic-player/{cache,logs}` with the permission for the shared storage (launcher 1.x
   installs updates from there), otherwise inside the app. `requestLegacyExternalStorage` and targetSdk 29 keep that on
-  Android 11+, like the qml player.
+  Android 11+, like the legacy player.
 - **CA certificates**: Android has no OpenSSL store; the certificates of the system (`/apex/com.android.conscrypt/cacerts`
   or `/system/etc/security/cacerts`) are joined into `files/ca-bundle.pem` for libcurl.
 
@@ -79,7 +79,7 @@ What the native build needs on Android, also for a CI:
 
 ## Launcher
 
-Like the qml player (`../qml/android_launcher.cpp`), with its Java classes:
+Like the legacy player, with its Java classes:
 - **Found** at the start: the garlic-launcher 1.x (`com.sagiadinos.garlic.launcher`), else the Philips firmware
   (`com.tpv.app.tpvlauncher`), else none. Its device information is asked for up to 5 s in a thread (Philips answers
   over the SICP socket on 127.0.0.1:5000).

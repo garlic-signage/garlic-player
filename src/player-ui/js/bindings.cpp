@@ -66,7 +66,7 @@ namespace player
             return text;
         }
 
-        /// soundLevel "50%" → 0.5, else 1 (like the qwidget player)
+        /// soundLevel "50%" → 0.5, else 1 (like the legacy player)
         double volumeOf(const std::string &sound_level)
         {
             if (sound_level.size() < 2 || sound_level.back() != '%')

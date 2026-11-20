@@ -20,7 +20,7 @@
  * texture of the SDL renderer, so a web page lies in its region by z-index like an image. CEF runs in the main
  * thread with an external message pump: OnScheduleMessagePumpWork wakes the main loop, which calls pumpWebViews().
  *
- * Like the qwidget player (QtWebEngine): local files may read remote data and other files, media play without a
+ * Like the legacy player (QtWebEngine): local files may read remote data and other files, media play without a
  * click, permissions (camera, microphone …) are granted, and after loading the page gets no scroll bars.
  */
 #include "web_view.hpp"
@@ -86,7 +86,7 @@ namespace player
             return 0; // once
         }
 
-        /// The browser process: the switches of the qwidget player and the work scheduling of the external pump
+        /// The browser process: the switches of the legacy player and the work scheduling of the external pump
         class App final : public CefApp, public CefBrowserProcessHandler
         {
             public:
@@ -541,7 +541,7 @@ namespace player
                 void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirty,
                                         const CefAcceleratedPaintInfo &info) override;
 
-                /// garlic-lib, the qwidget player: no scroll bars once the page is there
+                /// garlic-lib, the legacy player: no scroll bars once the page is there
                 void OnLoadEnd(CefRefPtr<CefBrowser> /*browser*/, CefRefPtr<CefFrame> frame, int /*status*/) override
                 {
                     if (frame->IsMain())
@@ -560,7 +560,7 @@ namespace player
                     return true;
                 }
 
-                // camera, microphone and the rest granted, like the qwidget player
+                // camera, microphone and the rest granted, like the legacy player
                 bool OnRequestMediaAccessPermission(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, const CefString &,
                                                     uint32_t requested, CefRefPtr<CefMediaAccessCallback> callback) override
                 {

@@ -224,9 +224,8 @@ The player tries in this order:
 | 3     | Android, package `com.tpv.app.tpvlauncher` installed        | Philips                                      |
 | 4     | –                                                           | none: `Supervisor` is `nullptr`, the core only logs, the screen stays on |
 
-Launcher 1.x and Philips belong to the Java frontend for Android: an activity finds them before the player starts.
-The first implementation (`src/player-ui/qml`: `android_launcher.hpp/.cpp` and the Java classes in `android/`) is the
-model for it.
+Launcher 1.x and Philips belong to the Java frontend for Android (`src/player-ui/android`): the activity finds them
+before the player starts.
 
 - **Launcher 1.x** (frozen): `reboot`, `install`, `screen`, `deep_standby`. uuid, content URL and version from the
   ContentProvider `com.sagiadinos.garlic.launcher.SettingsProvider` (`uuid`, `smil_content_url`, `launcher_version`);

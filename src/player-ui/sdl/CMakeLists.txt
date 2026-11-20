@@ -85,7 +85,7 @@ if(NOT MSVC AND NOT APPLE) # Release without symbol table (strip)
     target_link_options(sdl PRIVATE $<$<CONFIG:Release>:-s>)
 endif()
 
-# Windows: no console window (SDL_main.h gives WinMain), like the qwidget player; the manifest declares Windows 10/11,
+# Windows: no console window (SDL_main.h gives WinMain), like the legacy player; the manifest declares Windows 10/11,
 # which CEF needs to see the real version. windows.h without the macros min and max.
 if(WIN32)
     set_target_properties(sdl PROPERTIES WIN32_EXECUTABLE ON)
@@ -93,7 +93,7 @@ if(WIN32)
     target_compile_definitions(sdl PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
-# macOS: an app bundle with icon and bundle id, like the qwidget player. SDL_GetBasePath() is Contents/Resources there:
+# macOS: an app bundle with icon and bundle id, like the legacy player. SDL_GetBasePath() is Contents/Resources there:
 # the files main.cpp looks for go there, next to the program everywhere else.
 if(APPLE)
     set(_garlic_icon ${CMAKE_CURRENT_SOURCE_DIR}/../../../deployment/macx/garlic-player.icns)

@@ -10,7 +10,7 @@
 	<body>
 		<!--
 
-			Videos align like images (SMIL standard). The qwidget player and the legacy players always centered them,
+			Videos align like images (SMIL standard). The legacy players always centered them,
 			the SDL and the JS player follow mediaAlign.
 
 			sequence should be: yellow background, the video small in its original size (560 × 320), 2 s each:

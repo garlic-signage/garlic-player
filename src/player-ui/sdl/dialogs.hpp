@@ -41,7 +41,7 @@ namespace player
     }
 
     /**
-     * A dialog drawn over the playing content, modal like the dialogs of the qwidget player: while it is open, the
+     * A dialog drawn over the playing content, modal: while it is open, the
      * pointer and the keyboard go to it. The window lays it out in points, centered.
      */
     class Dialog
@@ -78,7 +78,7 @@ namespace player
             static void     drawPanel(ui::Canvas &canvas, const ui::Rect &area, const std::string &title);
     };
 
-    /// Player name, content URL and the HTTP server, like the SettingsDialog of the qwidget player (garlic-lib).
+    /// Player name, content URL and the HTTP server, like the settings dialog of garlic-lib.
     class SettingsDialog final : public Dialog
     {
         public:
@@ -109,7 +109,7 @@ namespace player
             void                         accept();
     };
 
-    /// What the player does now, like the DebugDialog of the qwidget player: refreshed every second.
+    /// What the player does now, refreshed every second.
     class DebugDialog final : public Dialog
     {
         public:

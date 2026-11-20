@@ -1,13 +1,6 @@
 {
-	"_comment": "Third party components of the garlic-player 2.0 (core and qwidget/qml frontends). scripts/sbom/create-sbom.py reads the versions from the build directory: CMake packages (<name>_DIR in CMakeCache.txt), FetchContent (_deps/<name>-src with the GIT_TAG of the CMakeLists), else pkg-config. 'option': only when this CMake option is ON. A component that is not found is left out, unless it is 'required'.",
+	"_comment": "Third party components of the garlic-player 2.0 (the core). scripts/sbom/create-sbom.py reads the versions from the build directory: CMake packages (<name>_DIR in CMakeCache.txt), FetchContent (_deps/<name>-src with the GIT_TAG of the CMakeLists), else pkg-config. 'option': only when this CMake option is ON. A component that is not found is left out, unless it is 'required'.",
 	"components": [
-		{"name": "Qt",                  "license": "LGPL-3.0-only", "purl": "pkg:generic/qt@{version}",              "required": true, "sources": [{"cmake_package": "Qt6"}, {"pkgconfig": "Qt6Core"}]},
-		{"name": "Qt WebEngine",        "license": "LGPL-3.0-only", "purl": "pkg:generic/qtwebengine@{version}",     "option": "GARLIC_PLAYER_QWIDGET", "sources": [{"cmake_package": "Qt6WebEngineWidgets"}, {"pkgconfig": "Qt6WebEngineWidgets"}]},
-		{"name": "Qt WebView",          "license": "LGPL-3.0-only", "purl": "pkg:generic/qtwebview@{version}",       "option": "GARLIC_PLAYER_QML", "sources": [{"cmake_package": "Qt6WebView"}, {"pkgconfig": "Qt6WebView"}]},
-		{"name": "Qt Multimedia",       "license": "LGPL-3.0-only", "purl": "pkg:generic/qtmultimedia@{version}",    "sources": [{"cmake_package": "Qt6Multimedia"}, {"pkgconfig": "Qt6Multimedia"}]},
-		{"name": "QtAVPlayer",          "license": "MIT",           "purl": "pkg:github/valbok/QtAVPlayer@{version}", "option": "PLAYER_WITH_QTAVPLAYER", "sources": [{"fetchcontent": "qtavplayer_source", "file": "src/player-ui/qwidget/qtavplayer/CMakeLists.txt"}]},
-		{"name": "FFmpeg libavcodec",   "license": "LGPL-2.1-or-later", "purl": "pkg:generic/ffmpeg-libavcodec@{version}", "option": "PLAYER_WITH_QTAVPLAYER", "sources": [{"pkgconfig": "libavcodec"}]},
-		{"name": "libvlc",              "license": "LGPL-2.1-or-later", "purl": "pkg:generic/libvlc@{version}",      "option": "PLAYER_WITH_VLC", "sources": [{"pkgconfig": "libvlc"}]},
 		{"name": "libcurl",             "license": "curl",          "purl": "pkg:generic/curl@{version}",            "option": "GARLIC_CORE_WITH_CURL", "sources": [{"pkgconfig": "libcurl"}]},
 		{"name": "OpenSSL",             "license": "Apache-2.0",    "purl": "pkg:generic/openssl@{version}",         "option": "GARLIC_CORE_WITH_CURL", "sources": [{"pkgconfig": "openssl"}]},
 		{"name": "libmicrohttpd",       "license": "LGPL-2.1-or-later", "purl": "pkg:generic/libmicrohttpd@{version}", "option": "GARLIC_CORE_WITH_HTTPD", "sources": [{"pkgconfig": "libmicrohttpd"}]},

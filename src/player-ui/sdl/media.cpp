@@ -99,7 +99,7 @@ namespace player
                 int           texture_height = 0;
 
                 /**
-                 * The texture in the size it is drawn, like the qwidget player (Qt::SmoothTransformation at every size).
+                 * The texture in the size it is drawn, like the legacy player (Qt::SmoothTransformation at every size).
                  * The GPU scales linearly from the 4 nearest pixels only: shrunk to a third or less, edges fray. So the
                  * image is halved step by step, which averages all pixels like a mipmap, and scaled to the exact size
                  * last. Enlarged it stays the original; the GPU scales it up.

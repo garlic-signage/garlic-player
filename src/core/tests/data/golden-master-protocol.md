@@ -3,7 +3,7 @@
 Manual check of the golden master scenarios: every `smil/<path>.smil` is played in the player and compared with
 `golden/<path>.expected`. A scenario is validated when the playback on screen matches the expected timeline.
 
-Checked in player-ui: legacy qwidget 1.0 , qwidget 2.0, QML 2.0, and SDL
+Checked with the legacy player 1.0 and the SDL player 2.0.
 
 Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes).
 
@@ -24,7 +24,7 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 |------------------------------|--------|-------|
 | `1_simple`                   | ok     |       |
 | `2_backgrounds`              | ok     |       |
-| `3_overlapping`              | bug    | qwidget: video is not overlapped by image 0003 (z-index 5 over 2); QML and SDL correct |
+| `3_overlapping`              | ok     | SDL correct (image 0003 with z-index 5 over the video with 2) |
 | `4_with_dur`                 | ok     | stays in sync; the old player drifted apart |
 | `5_wallclock`                | ok   |       |
 | `6_endsync`                  | ok   |       |
@@ -69,7 +69,7 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 |------------|--------|-------|
 | `align`    | ok   |       |
 | `simple`   | ok   |       |
-| `video_align`   | ok (SDL)  | QWidget and QML not support      |
+| `video_align`   | ok (SDL)  | the legacy player always centered videos |
 
 ## head
 
@@ -85,7 +85,7 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 | `7`      | ok   |       |
 | `9`      | ok   |       |
 | `12`     | ok   |       |
-| `14`     | bug   | qwidget video hide the overay, QML SDL are korrekt      |
+| `14`     | ok    | SDL correct (the overlay over the video)                |
 | `31`     | ok   |       |
 | `33`     | ok   |       |
 
@@ -93,5 +93,3 @@ Status: `ok` validated, `open` not checked yet, `bug` deviation found (see notes
 
 - [ ] Take care of the 100 ms delay with `dur="media"`.
 - [ ] _(second point, still to be added)_
-- [ ] Next time build Qt completely with Qt WebView: the desktop kit 6.8.5 lacks
-  `plugins/webview/libqtwebview_webengine.so`, so the QML player shows no web pages.

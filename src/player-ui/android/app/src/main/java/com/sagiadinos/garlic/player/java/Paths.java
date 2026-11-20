@@ -29,7 +29,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 
 /**
- * Where the player keeps its files, the places of the qml player (and the legacy player), so an update keeps the ini
+ * Where the player keeps its files, the places of the legacy player, so an update keeps the ini
  * with the uuid, the cache and the logs:
  * - ini: QSettings (IniFormat, UserScope) of Qt on Android, files/.config/SmilControl/garlic-player.ini of the app
  *   (found so on a device with an earlier player)

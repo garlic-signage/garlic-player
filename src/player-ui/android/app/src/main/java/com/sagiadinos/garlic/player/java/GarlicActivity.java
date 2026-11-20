@@ -63,7 +63,7 @@ import java.io.IOException;
  * hierarchy, so they stack by z-index (TextureView, not SurfaceView). Operated like every player: ten fast touches or
  * one held for 10 s open the menu, Ctrl+S, Ctrl+D, Ctrl+Q with a keyboard, other keys are access keys.
  *
- * Launcher 1.x or the Philips firmware like the qml player: uuid and content URL at the start, restarts and
+ * Launcher 1.x or the Philips firmware like the legacy player: uuid and content URL at the start, restarts and
  * installations of the core, the screen at adapi:blankScreen, the configuration and index the launcher sends, and
  * that the player ended on purpose.
  */
@@ -164,7 +164,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     /**
      * Without permission for the shared storage cache and logs stay inside the app (the launcher cannot update).
      * With a launcher its device information first, in a thread: Philips answers over the SICP socket, which may not be
-     * connected yet; asked again for up to 5 s like the qml and the legacy player.
+     * connected yet; asked again for up to 5 s like the legacy player.
      */
     private void startCore(boolean storage)
     {

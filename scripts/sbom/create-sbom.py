@@ -5,7 +5,7 @@
 #
 # C++ has no package manager, so the third party components are listed in scripts/sbom/components.json and their
 # versions are read from the build directory, as they were really used:
-#   cmake_package  <name>_DIR in CMakeCache.txt -> <name>ConfigVersion.cmake (Qt, vcpkg packages)
+#   cmake_package  <name>_DIR in CMakeCache.txt -> <name>ConfigVersion.cmake (vcpkg packages)
 #   fetchcontent   _deps/<name>-src exists -> GIT_TAG of FetchContent_Declare(<name> in the CMakeLists
 #   pkgconfig      pkg-config --modversion, with lib/pkgconfig of vcpkg first when the build used vcpkg
 # A component behind a CMake option that is OFF is left out, as is an optional one that is not found; a required
@@ -35,8 +35,7 @@ def from_cmake_package(name: str, cache: dict[str, str]) -> str | None:
     directory = cache.get(name + "_DIR", "")
     if not directory or "pkgRedirects" in directory:  # FetchContent, not a real package
         return None
-    # Qt keeps the version in <name>ConfigVersionImpl.cmake
-    for file in (f"{name}ConfigVersionImpl.cmake", f"{name}ConfigVersion.cmake", f"{name.lower()}-config-version.cmake"):
+    for file in (f"{name}ConfigVersion.cmake", f"{name.lower()}-config-version.cmake"):
         path = Path(directory) / file
         if path.is_file():
             match = re.search(r'set\(PACKAGE_VERSION\s+"?([0-9][^")\s]*)"?\)', path.read_text(errors="replace"))

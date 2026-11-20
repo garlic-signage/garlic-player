@@ -183,7 +183,7 @@ namespace player
         }
         switch (event.type)
         {
-            case SDL_EVENT_QUIT: running = false; break; // the window was closed: like the qwidget player, no closing()
+            case SDL_EVENT_QUIT: running = false; break; // the window was closed: no closing()
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             case SDL_EVENT_WINDOW_EXPOSED:

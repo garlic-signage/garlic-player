@@ -47,8 +47,7 @@ namespace player
     };
 
     /**
-     * adapi:blankScreen with the standby_mode of the configuration, the same as in the Qt players
-     * (src/player-ui/supervisor/blank_screen.hpp, without Qt):
+     * adapi:blankScreen with the standby_mode of the configuration:
      *   partially   the screen goes off until the element ends
      *   deep        the supervisor sleeps until the planned end of the element and wakes the device; without a
      *               planned end the screen goes off instead

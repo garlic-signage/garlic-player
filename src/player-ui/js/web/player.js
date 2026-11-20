@@ -1,6 +1,6 @@
 // garlic-player in the browser. The core runs as WebAssembly (garlic-core.js, bindings.cpp); the page only shows:
 // it polls the core, hands the events to the stage and reports what only it knows (end of a video, a file that cannot
-// be played, a click, a key). The same behaviour as the qwidget and qml players: menu with ten fast clicks or holding
+// be played, a click, a key). The same behaviour as the SDL and Android players: menu with ten fast clicks or holding
 // 10 s, settings, debug infos, shortcuts.
 //
 // URL parameters: index=<SMIL index> (like SMIL_INDEX on the command line), storage=memory (no IndexedDB: the cache

@@ -48,7 +48,7 @@ namespace player
     };
 
     /**
-     * One medium in one region, from StartMedia to StopMedia (like the Media of the qwidget player). The timing is the
+     * One medium in one region, from StartMedia to StopMedia. The timing is the
      * business of the core: a medium only shows itself and reports what only the frontend knows.
      *
      * smil and region point into the document of the current NewLayout, which the window keeps.
