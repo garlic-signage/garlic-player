@@ -322,12 +322,15 @@ namespace player
         {
             canvas.text({area.x + margin, y}, label, ui::look::text_dim);
             canvas.textElided({x, y}, value, ui::look::text, width);
-            if (label == "Temperature" && throttling) // a red or green circle after the text, in the middle of the line
+            if (label == "Temperature" && throttling) // a red or green circle after the text
             {
-                float     size   = line * 0.5F;
+                // centered on the letters, not on the line: the text sits at the top of the line, and its height
+                // holds the descenders below the letters
+                float     size   = canvas.textHeight() * 0.5F;
                 float     left   = x + std::min(canvas.textWidth(value) + size * 0.5F, width - size);
+                float     top    = y + canvas.textHeight() * 0.45F - size / 2;
                 ui::Color color  = *throttling ? ui::look::error : ui::look::check;
-                canvas.fillRoundedRect({left, y + (line - size) / 2, size, size}, size / 2, color, color);
+                canvas.fillRoundedRect({left, top, size, size}, size / 2, color, color);
             }
             y += line;
         }
