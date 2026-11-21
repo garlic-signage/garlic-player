@@ -17,7 +17,8 @@ public class SICPDef
         SICP_COMMAND_GET_FIRMWARE_BUILD,
         SICP_COMMAND_GET_SERIAL_CODE,
         SICP_COMMAND_SET_BACKLIGHT_ENABLE,
-        SICP_COMMAND_SET_BACKLIGHT_DISABLE
+        SICP_COMMAND_SET_BACKLIGHT_DISABLE,
+        SICP_COMMAND_GET_TEMPERATURE
     }
 
     final private static byte EMPTY_CHECKSUM = 0x00;
@@ -28,6 +29,7 @@ public class SICPDef
     final private static byte[] COMMAND_GET_SERIAL_CODE = { 0x05, 0x01, 0x00, 0x15, EMPTY_CHECKSUM };
     final private static byte[] COMMAND_SET_BACKLIGHT_ENABLE = { 0x06, 0x01, 0x00, 0x72, 0x00, EMPTY_CHECKSUM };
     final private static byte[] COMMAND_SET_BACKLIGHT_DISABLE = { 0x06, 0x01, 0x00, 0x72, 0x01, EMPTY_CHECKSUM };
+    final private static byte[] COMMAND_GET_TEMPERATURE = { 0x05, 0x01, 0x00, 0x2F, EMPTY_CHECKSUM };
 
     public static byte[] getSICPCommand(SICPCommand cmd)
     {
@@ -54,6 +56,9 @@ public class SICPDef
                 break;
             case SICP_COMMAND_SET_BACKLIGHT_DISABLE:
                 sicpCmd = COMMAND_SET_BACKLIGHT_DISABLE;
+                break;
+            case SICP_COMMAND_GET_TEMPERATURE:
+                sicpCmd = COMMAND_GET_TEMPERATURE;
                 break;
             default:
                 return null;

@@ -30,6 +30,9 @@ import android.util.Log;
  *
  * Unlike the legacy player the broadcasts name the package of the launcher: its CommandReceiver and
  * InstallAppReceiver are declared in its manifest, and Android 8+ does not deliver implicit broadcasts to them.
+ *
+ * Temperature and throttling from the keys temperature_cpu ("47") and throttling ("true"/"false") of the
+ * ContentProvider, when the launcher has them; it can read them as device owner (HardwarePropertiesManager).
  */
 public class GarlicLauncher implements LauncherInterface
 {
@@ -43,6 +46,10 @@ public class GarlicLauncher implements LauncherInterface
     private String content_url      = "";
     private String uuid             = "";
     private String launcher_version = "";
+    private volatile Integer temperature;
+    private volatile Boolean throttling;
+    private volatile boolean thermal_unknown; // the launcher has neither key: not asked again
+    private volatile boolean thermal_asking;
 
     public GarlicLauncher(Context c)
     {
@@ -79,6 +86,42 @@ public class GarlicLauncher implements LauncherInterface
     public String getLauncherVersion()
     {
         return launcher_version;
+    }
+
+    /// In a thread: the dialog asks every second from the UI thread
+    @Override
+    public void fetchThermal()
+    {
+        if (thermal_unknown || thermal_asking)
+            return;
+        thermal_asking = true;
+        new Thread(() -> {
+            String cpu      = askProvider("temperature_cpu");
+            String throttle = askProvider("throttling");
+            try
+            {
+                temperature = cpu.isEmpty() ? null : Integer.valueOf(cpu.trim());
+            }
+            catch (NumberFormatException e)
+            {
+                temperature = null;
+            }
+            throttling      = throttle.isEmpty() ? null : Boolean.valueOf(throttle.trim());
+            thermal_unknown = cpu.isEmpty() && throttle.isEmpty();
+            thermal_asking  = false;
+        }, "launcher thermal").start();
+    }
+
+    @Override
+    public Integer getTemperatureCpu()
+    {
+        return temperature;
+    }
+
+    @Override
+    public Boolean getThrottling()
+    {
+        return throttling;
     }
 
     @Override

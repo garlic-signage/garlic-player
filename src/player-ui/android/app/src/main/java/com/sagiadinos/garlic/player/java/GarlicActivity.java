@@ -25,6 +25,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Build;
@@ -36,7 +37,8 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.TextureView;
+import android.view.PixelCopy;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -56,11 +58,13 @@ import org.json.JSONObject;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The Android player: Java on the core, like the sdl and the JS player. The core runs in its thread (NativeCore); its
- * events change the stage. Video and audio with Media3, web pages with the WebView of the system, all as views of one
- * hierarchy, so they stack by z-index (TextureView, not SurfaceView). Operated like every player: ten fast touches or
+ * events change the stage. Video and audio with the MediaPlayer of the system, web pages with the WebView of the
+ * system, all as views of one hierarchy, so they stack by z-index (video in a SurfaceView behind the window, which is transparent there). Operated like every player: ten fast touches or
  * one held for 10 s open the menu, Ctrl+S, Ctrl+D, Ctrl+Q with a keyboard, other keys are access keys.
  *
  * Launcher 1.x or the Philips firmware like the legacy player: uuid and content URL at the start, restarts and
@@ -497,44 +501,78 @@ public class GarlicActivity extends Activity implements Media.Reports
         core.cachesCleared();
     }
 
-    /** The screen as JPEG with quality 60 (garlic-lib); videos come from their TextureViews */
+    /**
+     * The screen as JPEG with quality 60 (garlic-lib). The videos lie in SurfaceViews behind the window: their frames
+     * (PixelCopy, asynchronous) go first, the drawn window over them; it is transparent where a video shows, so what
+     * lies over a video stays over it.
+     */
     private void screenshot(String path)
     {
         View   root   = stage.getRootView();
-        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, root.getWidth()), Math.max(1, root.getHeight()), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        root.draw(canvas);
-        drawTextures(stage, canvas);
-        try (FileOutputStream out = new FileOutputStream(path))
-        {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, out);
-        }
-        catch (IOException error)
-        {
-            Log.w(TAG, "screenshot: " + error.getMessage());
-        }
-        bitmap.recycle();
-        core.screenshotTaken(path);
+        int    width  = Math.max(1, root.getWidth());
+        int    height = Math.max(1, root.getHeight());
+        Bitmap window = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        root.draw(new Canvas(window));
+
+        Bitmap screen = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(screen);
+        canvas.drawColor(Color.BLACK);
+        List<SurfaceView> videos = new ArrayList<>();
+        collectVideos(stage, videos);
+        copyVideos(videos, 0, canvas, () -> {
+            canvas.drawBitmap(window, 0, 0, new Paint());
+            window.recycle();
+            try (FileOutputStream out = new FileOutputStream(path))
+            {
+                screen.compress(Bitmap.CompressFormat.JPEG, 60, out);
+            }
+            catch (IOException error)
+            {
+                Log.w(TAG, "screenshot: " + error.getMessage());
+            }
+            screen.recycle();
+            if (core != null)
+                core.screenshotTaken(path);
+        });
     }
 
-    private void drawTextures(View view, Canvas canvas)
+    private void collectVideos(View view, List<SurfaceView> videos)
     {
-        if (view instanceof TextureView && view.isShown())
-        {
-            Bitmap frame = ((TextureView) view).getBitmap();
-            if (frame != null)
-            {
-                Rect place = new Rect();
-                view.getGlobalVisibleRect(place);
-                int[] at = new int[2];
-                view.getLocationInWindow(at);
-                canvas.drawBitmap(frame, null, new Rect(at[0], at[1], at[0] + view.getWidth(), at[1] + view.getHeight()), null);
-                frame.recycle();
-            }
-        }
+        if (view instanceof SurfaceView && view.isShown() && view.getWidth() > 0 && view.getHeight() > 0)
+            videos.add((SurfaceView) view);
         else if (view instanceof ViewGroup)
             for (int i = 0; i < ((ViewGroup) view).getChildCount(); ++i)
-                drawTextures(((ViewGroup) view).getChildAt(i), canvas);
+                collectVideos(((ViewGroup) view).getChildAt(i), videos);
+    }
+
+    /** One video after the other into the canvas at its place in the window, then done */
+    private void copyVideos(List<SurfaceView> videos, int index, Canvas canvas, Runnable done)
+    {
+        if (index >= videos.size())
+        {
+            done.run();
+            return;
+        }
+        SurfaceView video = videos.get(index);
+        Bitmap      frame = Bitmap.createBitmap(video.getWidth(), video.getHeight(), Bitmap.Config.ARGB_8888);
+        try
+        {
+            PixelCopy.request(video, frame, result -> {
+                if (result == PixelCopy.SUCCESS)
+                {
+                    int[] at = new int[2];
+                    video.getLocationInWindow(at);
+                    canvas.drawBitmap(frame, at[0], at[1], null);
+                }
+                frame.recycle();
+                copyVideos(videos, index + 1, canvas, done);
+            }, ui);
+        }
+        catch (IllegalArgumentException error) // the surface is gone (the video just ended)
+        {
+            frame.recycle();
+            copyVideos(videos, index + 1, canvas, done);
+        }
     }
 
     // ------------------------------------------------------------------ loading
@@ -681,6 +719,6 @@ public class GarlicActivity extends Activity implements Media.Reports
     private void openDebug()
     {
         if (core != null)
-            Dialogs.debug(this, core, stage::playing);
+            Dialogs.debug(this, core, stage::playing, launcher);
     }
 }

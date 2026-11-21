@@ -191,9 +191,10 @@ final class Dialogs
 
     /**
      * Resources and identity, the running downloads and what plays; refreshed every second. One row of 30 points per
-     * entry like the sdl dialog: the label left, the value cut with "…", the amount of a download right.
+     * entry like the sdl dialog: the label left, the value cut with "…", the amount of a download right. CPU temperature
+     * and throttling from the launcher (null: none) where it tells them, otherwise from the core.
      */
-    static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing)
+    static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing, LauncherInterface launcher)
     {
         Context      ui      = scaled(activity);
         LinearLayout content = column(ui);
@@ -204,7 +205,11 @@ final class Dialogs
         Runnable[] tick  = new Runnable[1];
         tick[0] = () -> {
             content.removeAllViews();
-            for (String[] row : debugRows(core.debugInfo(), playing.get()))
+            if (launcher != null)
+                launcher.fetchThermal(); // the answer comes for the next second
+            Integer cpu        = launcher != null ? launcher.getTemperatureCpu() : null;
+            Boolean throttling = launcher != null ? launcher.getThrottling() : null;
+            for (String[] row : debugRows(core.debugInfo(), playing.get(), cpu, throttling))
                 content.addView(debugRow(ui, row));
             timer.postDelayed(tick[0], 1000);
         };
@@ -228,8 +233,11 @@ final class Dialogs
         finish(dialog, ui, 760);
     }
 
-    /** label (empty: continues the one above), value, amount (empty or "42 %  136.0 / 323.0 MiB") */
-    static List<String[]> debugRows(String json, List<String> playing)
+    /**
+     * label (empty: continues the one above), value, amount (empty or "42 %  136.0 / 323.0 MiB"); launcher_cpu and
+     * launcher_throttling replace the values of the core, null: the core's
+     */
+    static List<String[]> debugRows(String json, List<String> playing, Integer launcher_cpu, Boolean launcher_throttling)
     {
         List<String[]> rows = new ArrayList<>();
         try
@@ -250,11 +258,14 @@ final class Dialogs
                 : info.optInt("cpu") + " %" + (info.isNull("cpuMax") ? ""
                     : ", max " + info.optInt("cpuMax") + " % at " + info.optString("cpuMaxTime") + " (5 min)"))
                 + " · System " + (info.isNull("cpuSystem") ? "-" : info.optInt("cpuSystem") + " %")));
-            // a red or green circle after the text, "-" where Android does not tell it (before 11)
-            String temperatures = "CPU " + celsius(info, "temperatureCpu") + " · RAM " + celsius(info, "temperatureRam")
+            // a red or green circle after the text, "-" where neither launcher nor Android tell it (core: before 11)
+            String cpu = launcher_cpu != null ? launcher_cpu + " °C" : celsius(info, "temperatureCpu");
+            Boolean throttling = launcher_throttling != null ? launcher_throttling
+                : info.isNull("throttling") ? null : info.optBoolean("throttling");
+            String temperatures = "CPU " + cpu + " · RAM " + celsius(info, "temperatureRam")
                 + " · SSD " + celsius(info, "temperatureSsd") + " · Throttling ";
-            rows.add(info.isNull("throttling") ? row("Temperature", temperatures + "-")
-                : new String[]{"Temperature", temperatures + "●", "", info.optBoolean("throttling") ? "red" : "green"});
+            rows.add(throttling == null ? row("Temperature", temperatures + "-")
+                : new String[]{"Temperature", temperatures + "●", "", throttling ? "red" : "green"});
             JSONArray downloads = info.optJSONArray("downloads");
             boolean   first     = true;
             for (int i = 0; downloads != null && i < downloads.length(); ++i)

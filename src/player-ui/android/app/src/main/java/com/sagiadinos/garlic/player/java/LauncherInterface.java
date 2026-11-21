@@ -35,6 +35,15 @@ public interface LauncherInterface
 
     String getLauncherVersion();
 
+    /// Asks for CPU temperature and throttling; the answers may come later (Philips: over the SICP socket).
+    void fetchThermal();
+
+    /// °C; null: the launcher does not tell it, the player shows what the core reads itself
+    Integer getTemperatureCpu();
+
+    /// null: the launcher does not tell it, the player shows what the core reads itself
+    Boolean getThrottling();
+
     void setScreenOff();
 
     void setScreenOn();

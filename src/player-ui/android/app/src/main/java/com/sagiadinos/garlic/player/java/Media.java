@@ -22,9 +22,11 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.util.DisplayMetrics;
-import android.view.TextureView;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -33,15 +35,9 @@ import android.webkit.WebViewClient;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.OptIn;
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
-import androidx.media3.common.VideoSize;
-import androidx.media3.common.util.UnstableApi;
-import androidx.media3.exoplayer.ExoPlayer;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
  * One medium in one region, like the Media of the sdl and the JS player. Only the first region of an instance reports
@@ -168,16 +164,21 @@ abstract class Media
 
     // ------------------------------------------------------------------ video and audio
 
-    /** Media3 (ExoPlayer) with the decoders of the device; video into a TextureView, which keeps the z-order */
-    @OptIn(markerClass = UnstableApi.class)
-    static final class AudioVideo extends Media implements Player.Listener
+    /**
+     * android.media.MediaPlayer of the system (the decoders of the device), like the Qt player before. Video into a
+     * SurfaceView: SurfaceFlinger shows each frame at its time (a TextureView takes it at the next draw of the app and
+     * judders). The SurfaceView lies behind the window and punches a hole into it, so regions of a higher z-index lie
+     * over the video, those of a lower one under it. The surface comes and goes with the view (SurfaceHolder).
+     */
+    static final class AudioVideo extends Media implements SurfaceHolder.Callback
     {
         private final Context     context;
         private final FitFrame    frame; // null for audio
-        private final TextureView texture;
+        private final SurfaceView surface;
         private final String      source;
         private final float       volume;
-        private ExoPlayer         player;
+        private MediaPlayer       player;
+        private boolean           prepared;
 
         AudioVideo(Context context, long id, String kind, String label, boolean primary, Reports reports, String source,
                    String fit, String align, double volume)
@@ -189,13 +190,14 @@ abstract class Media
             if (kind.equals("video"))
             {
                 frame   = new FitFrame(context, fit, align);
-                texture = new TextureView(context);
-                frame.addView(texture);
+                surface = new SurfaceView(context);
+                surface.getHolder().addCallback(this);
+                frame.addView(surface);
             }
             else
             {
                 frame   = null;
-                texture = null;
+                surface = null;
             }
         }
 
@@ -204,14 +206,35 @@ abstract class Media
         @Override
         void start()
         {
-            player = new ExoPlayer.Builder(context).build();
-            player.addListener(this);
-            if (texture != null)
-                player.setVideoTextureView(texture);
-            player.setVolume(volume);
-            player.setMediaItem(MediaItem.fromUri(uri(source)));
-            player.prepare();
-            player.setPlayWhenReady(!paused);
+            player   = new MediaPlayer();
+            prepared = false;
+            player.setOnPreparedListener(mp -> {
+                prepared = true;
+                if (!paused)
+                    mp.start();
+            });
+            player.setOnCompletionListener(mp -> finished());
+            player.setOnErrorListener((mp, what, extra) -> {
+                failed("MediaPlayer error " + what + " " + extra);
+                return true; // no completion afterwards
+            });
+            player.setOnVideoSizeChangedListener((mp, width, height) -> {
+                if (frame != null && width > 0 && height > 0)
+                    frame.setContentSize(width, height);
+            });
+            if (surface != null && surface.getHolder().getSurface().isValid())
+                player.setDisplay(surface.getHolder());
+            player.setVolume(volume, volume);
+            try
+            {
+                player.setDataSource(context, uri(source));
+            }
+            catch (IOException | RuntimeException error)
+            {
+                failed("cannot open: " + error.getMessage());
+                return;
+            }
+            player.prepareAsync();
         }
 
         @Override
@@ -219,55 +242,52 @@ abstract class Media
         {
             if (player == null)
                 return;
-            player.removeListener(this);
             player.release();
-            player = null;
+            player   = null;
+            prepared = false;
         }
 
         @Override
         void pause()
         {
             super.pause();
-            if (player != null)
-                player.setPlayWhenReady(false);
+            if (player != null && prepared && player.isPlaying())
+                player.pause();
         }
 
         @Override
         void resume()
         {
             super.resume();
-            if (player != null)
-                player.setPlayWhenReady(true);
+            if (player != null && prepared)
+                player.start();
         }
 
         @Override
         void replay()
         {
-            if (player == null)
+            if (player == null || !prepared)
                 return;
             player.seekTo(0);
-            player.setPlayWhenReady(!paused);
+            if (!paused)
+                player.start();
         }
 
         @Override
-        public void onPlaybackStateChanged(int state)
+        public void surfaceCreated(@NonNull SurfaceHolder holder)
         {
-            if (state == Player.STATE_ENDED)
-                finished();
+            if (player != null)
+                player.setDisplay(holder);
         }
 
         @Override
-        public void onPlayerError(@NonNull PlaybackException error)
+        public void surfaceDestroyed(@NonNull SurfaceHolder holder)
         {
-            failed(error.getErrorCodeName() + " " + error.getMessage());
+            if (player != null)
+                player.setDisplay(null);
         }
 
-        @Override
-        public void onVideoSizeChanged(@NonNull VideoSize size)
-        {
-            if (frame != null && size.width > 0 && size.height > 0)
-                frame.setContentSize(Math.round(size.width * size.pixelWidthHeightRatio), size.height);
-        }
+        @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {}
     }
 
     // ------------------------------------------------------------------ web page
@@ -370,7 +390,7 @@ abstract class Media
         @Override void stop() {}
     }
 
-    /** A file that is no medium: ExoPlayer and BitmapFactory read local paths, so the cache file must be there */
+    /** A file that is no medium: MediaPlayer and BitmapFactory read local paths, so the cache file must be there */
     static boolean missing(String source)
     {
         return !source.contains("://") && !source.startsWith("data:") && !new File(source.split("[?#]")[0]).exists();

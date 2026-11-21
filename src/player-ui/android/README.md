@@ -1,9 +1,11 @@
 # android
 
 The Android frontend of the garlic-player: Java on the core (`PlayerRuntimeApi` in a `ThreadedRuntime`), like the sdl
-and the JS player. Video and audio with Media3 (ExoPlayer, the decoders of the device), web pages with the WebView of
-the system, images with `BitmapFactory`; all are views of one hierarchy, so they stack by z-index (video in a
-`TextureView`, not a `SurfaceView`, which would lie over or under everything). Android 7.1.1 (API 25) or newer.
+and the JS player. Video and audio with `android.media.MediaPlayer` (the player of the system, as in the Qt player), web
+pages with the WebView of the system, images with `BitmapFactory`; all are views of one hierarchy, so they stack by
+z-index. Video in a `SurfaceView`: SurfaceFlinger shows each frame at its time (a `TextureView` judders); it lies behind
+the window, which is transparent there, so regions of a higher z-index lie over the video. Overlapping videos have no
+reliable order among each other. Android 7.1.1 (API 25) or newer.
 
 | File                         | Content                                                                          |
 |------------------------------|----------------------------------------------------------------------------------|
@@ -15,7 +17,7 @@ the system, images with `BitmapFactory`; all are views of one hierarchy, so they
 | `app/…/NativeCore.java`      | the native methods; the wake of the core thread runs in the UI thread            |
 | `app/…/java/GarlicActivity.java` | events of the core, media per region, menu, keys, loading, screenshot, clear_webcache |
 | `app/…/java/Stage.java`      | regions by z-index with background color and image, media stacked, the topmost with a picture visible |
-| `app/…/java/Media.java`      | image, video/audio (Media3), web page (WebView), brush                           |
+| `app/…/java/Media.java`      | image, video/audio (MediaPlayer), web page (WebView), brush                           |
 | `app/…/java/FitFrame.java`   | fit and mediaAlign like `place()` of the sdl player                             |
 | `app/…/java/Dialogs.java`    | menu, settings dialog, debug dialog (with the running downloads)                 |
 | `app/…/java/Paths.java`      | ini, cache and logs at the places of the earlier players, the CA bundle for libcurl |
