@@ -231,7 +231,8 @@ namespace garlic::core::configuration
 
     std::string Configuration::userAgent() const
     {
-        return "GAPI/1.0 (UUID:" + uuid() + "; NAME:" + playerName() + ") garlic-" + std::string(os()) + "/" + app_version +
+        std::string version = launcher.empty() ? app_version : app_version + "L" + launcher;
+        return "GAPI/1.0 (UUID:" + uuid() + "; NAME:" + playerName() + ") garlic-" + std::string(os()) + "/" + version +
                " (MODEL:Garlic)";
     }
 

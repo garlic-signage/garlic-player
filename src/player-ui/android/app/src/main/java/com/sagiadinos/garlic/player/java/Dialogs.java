@@ -65,6 +65,12 @@ final class Dialogs
     private static final int PANEL_ALPHA = 217;
 
     /**
+     * Dark Material dialogs everywhere: the theme of the activity leaves the dialog to the device, Philips makes it
+     * light grey, and the information dialog writes in fixed light colors
+     */
+    private static final int DIALOG_THEME = android.R.style.Theme_Material_Dialog_Alert;
+
+    /**
      * The activity with the density of the sdl player: max(density, screen height / 900), so menu and dialogs have the
      * same size at the same resolution on every platform, also on a 1080p screen that reports only 160 dpi.
      */
@@ -105,7 +111,7 @@ final class Dialogs
     /** Settings, Information, Exit */
     static void menu(Activity activity, Runnable settings, Runnable debug, Runnable exit)
     {
-        new AlertDialog.Builder(scaled(activity))
+        new AlertDialog.Builder(scaled(activity), DIALOG_THEME)
             .setItems(new CharSequence[]{"Settings", "Information", "Exit"}, (dialog, which) -> {
                 if (which == 0)
                     settings.run();
@@ -148,7 +154,7 @@ final class Dialogs
         error.setVisibility(View.GONE);
         form.addView(error);
 
-        AlertDialog dialog = new AlertDialog.Builder(ui)
+        AlertDialog dialog = new AlertDialog.Builder(ui, DIALOG_THEME)
             .setTitle("Settings")
             .setView(form)
             .setPositiveButton("OK", null)
@@ -211,7 +217,7 @@ final class Dialogs
         {
             // the title without the version
         }
-        AlertDialog dialog = new AlertDialog.Builder(ui)
+        AlertDialog dialog = new AlertDialog.Builder(ui, DIALOG_THEME)
             .setTitle(version.isEmpty() ? "Information" : "Information · " + version)
             .setView(scroll)
             .setPositiveButton("Close", null) // the only button, centered; quitting is in the menu

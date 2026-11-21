@@ -202,12 +202,14 @@ public class GarlicActivity extends Activity implements Media.Reports
         if (!storage)
             Log.w(TAG, "no permission for the shared storage: cache and logs inside the app");
         Paths  paths = new Paths(this, storage);
-        String index = "", uuid = "", fallback_index = "";
+        String index = "", uuid = "", fallback_index = "", launcher_agent = "";
         NativeCore.Supervisor supervisor = null;
         if (launcher != null)
         {
             LauncherInterface l = launcher;
             uuid       = l.getUUIDFromLauncher(); // only for a new player: a stored uuid stays
+            // in the user agent behind the version, as the legacy player: garlic-android/2.0.0.997Lphilips-FB01.09
+            launcher_agent = l.getLauncherName() + "-" + l.getLauncherVersion();
             supervisor = new NativeCore.Supervisor()
             {
                 @Override
@@ -229,8 +231,8 @@ public class GarlicActivity extends Activity implements Media.Reports
             else
                 fallback_index = l.getContentUrlFromLauncher(); // Philips: only a default
         }
-        core = new NativeCore(paths.ini, paths.cache, paths.logs, index, uuid, Paths.caBundle(this), this::drain,
-                              supervisor);
+        core = new NativeCore(paths.ini, paths.cache, paths.logs, index, uuid, launcher_agent, Paths.caBundle(this),
+                              this::drain, supervisor);
         String error = core.start();
         if (error != null)
         {

@@ -2,15 +2,16 @@ plugins {
     id 'com.android.application'
 }
 
-// the version of all players (src/player-ui/VERSION): in the repository 2.0.0 or 2.0.0-dev, the CD appends the build
-// number, 2.0.0.997 or 2.0.0-dev.996. Android updates by the versionCode only, so a release needs that number: without
-// it the versionCode would lie below the dev builds and Android would refuse the release as an update.
+// the version of all players (src/player-ui/VERSION): in the repository v2.0.0 or v2.0.0-dev (the v is optional), the CD
+// appends the build number, v2.0.0.997 or v2.0.0-dev.996. Android updates by the versionCode only, so a release needs
+// that number: without it the versionCode would lie below the dev builds and Android would refuse the release as an
+// update.
 def playerVersion = file('../../VERSION').readLines().first().trim()
-def stamped       = playerVersion =~ /^\d+\.\d+\.\d+(-[0-9A-Za-z]+)?\.(\d+)$/
+def stamped       = playerVersion =~ /^v?\d+\.\d+\.\d+(-[0-9A-Za-z]+)?\.(\d+)$/
 def build         = stamped.matches() ? stamped.group(2).toInteger() : 1 // 1: a local build without the CD
 gradle.taskGraph.whenReady { graph ->
     if (!stamped.matches() && graph.allTasks.any { it.name.toLowerCase().contains('release') })
-        throw new GradleException("VERSION '$playerVersion' has no build number (2.0.0.997, 2.0.0-dev.996): " +
+        throw new GradleException("VERSION '$playerVersion' has no build number (v2.0.0.997, v2.0.0-dev.996): " +
                                   'a release would get a versionCode below the dev builds')
 }
 

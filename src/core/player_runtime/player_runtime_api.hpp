@@ -137,6 +137,7 @@ namespace garlic::core
         std::string database_path; // SQLite file of the inventory; empty: <log_dir>/garlic.db like garlic-lib
         std::string configuration_file; // -c config.xml, e.g. of the launcher: applied at every start; empty: none
         std::string uuid; // of the supervisor (launcher, display): taken only if the ini has none yet; empty: a new one
+        std::string launcher; // "philips-FB01.09": name and version of the launcher, only in the user agent; empty: none
 
         content::MediaManager::Supports     supports;    // what the frontend can show; empty: everything
         reports::Reporter::SystemInfoSource system_info; // empty: system::collectSystemInfo where it exists

@@ -225,6 +225,12 @@ TEST_CASE("user agent")
 
     CHECK(f.config.userAgent() == "GAPI/1.0 (UUID:u-1; NAME:Lobby) garlic-" + std::string(Configuration::os()) +
                                       "/0.9.1 (MODEL:Garlic)");
+
+    // the launcher only in the user agent, garlic-hub reads the build number before the L
+    f.config.setLauncher("philips-FB01.09");
+    CHECK(f.config.userAgent() == "GAPI/1.0 (UUID:u-1; NAME:Lobby) garlic-" + std::string(Configuration::os()) +
+                                      "/0.9.1Lphilips-FB01.09 (MODEL:Garlic)");
+    CHECK(f.config.version() == "0.9.1");
 }
 
 TEST_CASE("paths given by the frontend")

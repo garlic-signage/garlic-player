@@ -339,11 +339,12 @@ extern "C"
     }
 
     /// paths: ini, cache, logs; index may be empty (the one of the ini), the content URL of the garlic-launcher wins;
-    /// uuid of the launcher, taken only if the ini has none; caBundle: PEM file of the system CAs; supervised: with a
-    /// launcher, which restarts and installs
+    /// uuid of the launcher, taken only if the ini has none; launcher: "philips-FB01.09" for the user agent, empty
+    /// without one; caBundle: PEM file of the system CAs; supervised: with a launcher, which restarts and installs
     JNIEXPORT jlong JNICALL Java_com_sagiadinos_garlic_player_NativeCore_create(JNIEnv *env, jobject self,
                                                                                jstring ini, jstring cache, jstring logs,
                                                                                jstring index, jstring uuid,
+                                                                               jstring launcher,
                                                                                jstring ca_bundle, jint seed,
                                                                                jboolean supervised)
     {
@@ -354,6 +355,7 @@ extern "C"
         config.version     = PLAYER_VERSION;
         config.index_uri   = text(env, index);
         config.uuid        = text(env, uuid);
+        config.launcher    = text(env, launcher);
         config.random_seed = static_cast<std::uint32_t>(seed);
         downloader::CurlTransportConfig transport;
         transport.ca_bundle = text(env, ca_bundle);

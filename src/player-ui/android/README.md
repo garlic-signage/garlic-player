@@ -91,6 +91,9 @@ Like the legacy player, with its Java classes:
   also without a found launcher, like the legacy player.
 - **Ending on purpose** (menu, Ctrl+Q): `PlayerClosedReceiver` of the garlic-launcher, which then does
   not start the player again. Cancel of the settings dialog at the start does not tell it.
+- **User agent**: name and version of the launcher behind the version, `garlic-android/2.0.0.997Lphilips-FB01.09` or
+  `…Lgarlic-<version>`, as the legacy player; garlic-hub reads the build number before the `L`. Only in the user agent,
+  not in the version of the player (firmware update, REST API).
 - Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
 
 ## Not done yet

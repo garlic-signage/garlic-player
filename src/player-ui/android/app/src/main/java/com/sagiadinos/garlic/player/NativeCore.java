@@ -49,14 +49,16 @@ public final class NativeCore
 
     /**
      * wake runs in the UI thread when the core has new events. index: empty for the one of the ini; uuid: of the
-     * launcher, taken only if the ini has none; supervisor: null without launcher
+     * launcher, taken only if the ini has none; launcher: "philips-FB01.09" behind the version in the user agent, empty
+     * without one; supervisor: null without launcher
      */
-    public NativeCore(String ini, String cache, String logs, String index, String uuid, String ca_bundle, Runnable wake,
-                      Supervisor supervisor)
+    public NativeCore(String ini, String cache, String logs, String index, String uuid, String launcher,
+                      String ca_bundle, Runnable wake, Supervisor supervisor)
     {
         this.wake       = wake;
         this.supervisor = supervisor;
-        handle          = create(ini, cache, logs, index, uuid, ca_bundle, (int) System.nanoTime(), supervisor != null);
+        handle          = create(ini, cache, logs, index, uuid, launcher, ca_bundle, (int) System.nanoTime(),
+                                 supervisor != null);
     }
 
     /** null, or the error text of the start */
@@ -121,8 +123,8 @@ public final class NativeCore
             ui.post(() -> supervisor.installSoftware(path));
     }
 
-    private native long create(String ini, String cache, String logs, String index, String uuid, String ca_bundle,
-                               int seed, boolean supervised);
+    private native long create(String ini, String cache, String logs, String index, String uuid, String launcher,
+                               String ca_bundle, int seed, boolean supervised);
     private static native String start(long handle);
     private static native String takeEvents(long handle);
     private static native void destroy(long handle);

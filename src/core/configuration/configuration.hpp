@@ -94,6 +94,8 @@ namespace garlic::core::configuration
             // --- given by the frontend, not stored
             void               setVersion(std::string v) { app_version = std::move(v); }
             const std::string &version() const noexcept { return app_version; }
+            /// "philips-FB01.09": the launcher behind the version in the user agent only, like garlic-lib
+            void               setLauncher(std::string l) { launcher = std::move(l); }
             void               setCacheDir(std::string dir) { cache_dir = std::move(dir); }
             void               setLogDir(std::string dir) { log_dir = std::move(dir); }
             const std::string &cacheDir() const noexcept { return cache_dir; }
@@ -105,7 +107,8 @@ namespace garlic::core::configuration
             /// A new random UUID (version 4), e.g. for unique upload names of the reports.
             static std::string createUuid();
 
-            /// "GAPI/1.0 (UUID:…; NAME:…) garlic-linux/1.2.3 (MODEL:Garlic)"
+            /// "GAPI/1.0 (UUID:…; NAME:…) garlic-linux/1.2.3 (MODEL:Garlic)", with a launcher
+            /// "garlic-android/1.2.3Lphilips-FB01.09": garlic-hub takes the build number before the L
             std::string userAgent() const;
 
             const std::string &lastError() const noexcept { return last_error; }
@@ -118,6 +121,7 @@ namespace garlic::core::configuration
             std::string          ini_path;
             IniFile              ini;
             std::string          app_version;
+            std::string          launcher;
             std::string          cache_dir;
             std::string          log_dir;
             std::string          last_error;

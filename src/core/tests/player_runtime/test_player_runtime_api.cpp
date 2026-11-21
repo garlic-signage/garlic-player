@@ -1128,6 +1128,18 @@ TEST_CASE("uuid of the supervisor: taken at the first start, a stored uuid stays
     CHECK(f.runtime->configuration().uuid() == "11111111-2222-4333-8444-555555555555");
 }
 
+TEST_CASE("launcher of the frontend: behind the version in the user agent, not in the version")
+{
+    Fixture f;
+    auto config     = f.base();
+    config.version  = "2.0.0.997";
+    config.launcher = "philips-FB01.09";
+    f.runtime       = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    CHECK(f.runtime->configuration().version() == "2.0.0.997");
+    CHECK(f.runtime->configuration().userAgent().find("/2.0.0.997Lphilips-FB01.09 (MODEL:Garlic)") != std::string::npos);
+}
+
 TEST_CASE("DeviceSettings: master volume and brightness at the start and when a configuration changes them")
 {
     Fixture f("[httpd]\nenabled=false\n\n[audio]\nvolume=80%\n\n[display]\nbrightness=50\n");

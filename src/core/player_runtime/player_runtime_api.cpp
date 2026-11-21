@@ -80,6 +80,7 @@ namespace garlic::core
         if (auto loaded = config.load(settings.uuid); !loaded)
             return std::unexpected("configuration: " + loaded.error());
         config.setVersion(settings.version);
+        config.setLauncher(settings.launcher);
         config.setCacheDir(settings.cache_dir);
         config.setLogDir(settings.log_dir);
         config.determineIndexUri(settings.index_uri);
