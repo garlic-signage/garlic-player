@@ -32,7 +32,7 @@ namespace garlic::core::content
         /// Used as it is: adapi commands, data: URIs, absolute local paths.
         bool isDirect(std::string_view src)
         {
-            return src.starts_with("adapi:") || src.starts_with("data:") || src.starts_with('/') ||
+            return src.starts_with("adapi:") || src.starts_with("data:") || src.starts_with("rtsp:") || src.starts_with('/') ||
                    (src.size() > 2 && src[1] == ':'); // Windows drive
         }
 
