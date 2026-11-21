@@ -163,7 +163,7 @@ sudo apt install mesa-va-drivers         # AMD
   keys while it has the focus; the Ctrl shortcuts of the player stay); a click elsewhere takes the keyboard back.
 - **Reports** of the media (end, error) are handed to the core after the event that caused them, only from the
   first region of an instance, like the players before.
-- **Input**: ten fast clicks (< 500 ms apart) or holding 10 s open the menu (Settings, Debug infos, Exit), like every
+- **Input**: ten fast clicks (< 500 ms apart) or holding 10 s open the menu (Settings, Information, Exit), like every
   frontend. Keys: Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S, Ctrl+D, Ctrl+Q; other keys without modifier
   are access keys. A click on a region activates its top medium. Locked by the supervisor: no menu, no dialogs, no
   shortcuts.

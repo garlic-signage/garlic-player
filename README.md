@@ -80,7 +80,7 @@ the [README of the sdl player](src/player-ui/sdl/README.md).
 
 The version of all players (sdl, Android, JS) is in one file, [src/player-ui/VERSION](src/player-ui/VERSION):
 `2.0.0-dev` during development, `2.0.0` for a release. It goes into the user agent, into `--version` and into the
-title of the debug infos. The build server always appends its build number with a dot before building, for a release
+title of the information dialog. The build server always appends its build number with a dot before building, for a release
 as for a dev build:
 
 ```
@@ -156,7 +156,7 @@ growth of the player's memory on a desktop with NVIDIA in the first hours, but d
 
 Ten fast clicks or touches (less than 500 ms apart) or one held for 10 seconds, anywhere on the screen, open a menu:
  - **Settings**: player name, content URL, HTTP server on/off and port
- - **Debug infos**: the version in the title; playlist, user agent, disk, memory of the system and of the player,
+ - **Information**: the version in the title; playlist, user agent, disk, memory of the system and of the player,
    threads, CPU load of the player and of the system, temperatures of CPU, RAM and SSD with the throttling (a red or
    green circle), the running downloads and the media playing in each region
  - **Exit**
@@ -167,7 +167,7 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
  - toggle fullscreen with Ctrl-F
  - bigscreen with Ctrl-B
  - open settings dialog with Ctrl-S
- - open debug infos with Ctrl-D
+ - open the information with Ctrl-D
  - quit app with Ctrl-Q
  - every other key is an accesskey for the SMIL
 

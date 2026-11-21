@@ -1,4 +1,4 @@
-// The menu of all players (Settings, Debug infos, Exit) with its gesture, and the two dialogs. Reading, checking and
+// The menu of all players (Settings, Information, Exit) with its gesture, and the two dialogs. Reading, checking and
 // storing the settings is done by the core; the dialogs only show.
 
 const MENU_CLICKS = 10;

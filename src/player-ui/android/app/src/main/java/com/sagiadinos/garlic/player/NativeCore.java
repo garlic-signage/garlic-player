@@ -23,7 +23,7 @@ import android.os.Looper;
 /**
  * The core (libgarlic-player.so, native/jni.cpp) in a thread of its own. Its events come as a JSON array from
  * takeEvents(), after the wake runnable ran in the UI thread. Calls into the core are posted to its thread; the
- * dialogs ask for settings and debug infos and wait for the answer. With a launcher the core is supervised: its
+ * dialogs ask for settings and information and wait for the answer. With a launcher the core is supervised: its
  * restarts and installations come to the Supervisor in the UI thread.
  */
 public final class NativeCore

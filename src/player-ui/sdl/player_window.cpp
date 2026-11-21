@@ -71,7 +71,7 @@ namespace player
 
     PlayerWindow::PlayerWindow(ThreadedRuntime &r, std::uint32_t wake) : runtime(r), wake_event(wake)
     {
-        menu.setItems({{menu_settings, "Settings", "Ctrl+S"}, {menu_debug, "Debug infos", "Ctrl+D"},
+        menu.setItems({{menu_settings, "Settings", "Ctrl+S"}, {menu_debug, "Information", "Ctrl+D"},
                        {menu_exit, "Exit", "Ctrl+Q"}});
     }
 
@@ -239,7 +239,7 @@ namespace player
         }
     }
 
-    /// Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D debug infos, Ctrl+Q quit (garlic-lib);
+    /// Ctrl+F full screen, Ctrl+B over all screens, Ctrl+S settings, Ctrl+D information, Ctrl+Q quit (garlic-lib);
     /// other keys are accessKeys. While a dialog is open, the keys go to it.
     void PlayerWindow::key(const SDL_KeyboardEvent &event)
     {
@@ -382,7 +382,7 @@ namespace player
 
     /**
      * Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s anywhere in the window open the menu
-     * with settings, debug infos and exit; the same in every frontend.
+     * with settings, information and exit; the same in every frontend.
      */
     void PlayerWindow::menuGesture(bool press, ui::Point position)
     {

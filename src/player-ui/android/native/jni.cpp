@@ -119,7 +119,7 @@ namespace
         return value ? json(*value) : json(nullptr);
     }
 
-    /// Calls the core in its thread and waits for the answer (the dialogs ask for settings and debug infos)
+    /// Calls the core in its thread and waits for the answer (the dialogs ask for settings and information)
     template <typename T> T ask(ThreadedRuntime &runtime, std::function<T(PlayerRuntimeApi &)> call)
     {
         auto promise = std::make_shared<std::promise<T>>();

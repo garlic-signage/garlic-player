@@ -1,7 +1,7 @@
 // garlic-player in the browser. The core runs as WebAssembly (garlic-core.js, bindings.cpp); the page only shows:
 // it polls the core, hands the events to the stage and reports what only it knows (end of a video, a file that cannot
 // be played, a click, a key). The same behaviour as the SDL and Android players: menu with ten fast clicks or holding
-// 10 s, settings, debug infos, shortcuts.
+// 10 s, settings, information, shortcuts.
 //
 // URL parameters: index=<SMIL index> (like SMIL_INDEX on the command line), storage=memory (no IndexedDB: the cache
 // is gone with the page), uuid=<uuid>&name=<player name> (preview of a player in garlic-hub: the player plays as
@@ -16,7 +16,7 @@ const ROOT = '/garlic'; // configuration, cache and logs in the file system of t
 
 class GarlicPlayer {
     #params = new URLSearchParams(location.search);
-    #preview = this.#params.has('uuid'); // preview of a player in garlic-hub: no menu, of the keys only the debug infos
+    #preview = this.#params.has('uuid'); // preview of a player in garlic-hub: no menu, of the keys only the information
     #storage = null;
     #player = null; // Player of bindings.cpp
     #stage = null;

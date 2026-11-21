@@ -65,10 +65,10 @@ What the native build needs on Android, also for a CI:
 - Only the first region of an instance reports end and errors; a missing file fails once.
 - Web pages: local files may read remote data and other files, media play without a gesture, no new windows, no
   scroll bars after loading; white background.
-- Ten fast touches (< 500 ms) or one held for 10 s open the menu (Settings, Debug infos, Exit); with a keyboard
+- Ten fast touches (< 500 ms) or one held for 10 s open the menu (Settings, Information, Exit); with a keyboard
   Ctrl+S, Ctrl+D, Ctrl+Q, other keys are access keys; a touch on a region activates its top medium.
 - Dialogs and the loading overlay scaled like the sdl player, by max(density, screen height / 900); dialogs slightly
-  transparent. Debug infos: one row per value, cut with "…", only a centered Close. CPU is the player process only
+  transparent. Information: one row per value, cut with "…", only a centered Close. CPU is the player process only
   (MediaCodec and the WebView renderer run in processes of the system), the system load stays `-` (Android 8+ does
   not let an app read `/proc/stat`); temperatures where the thermal zones are readable, throttling from Android 11 on.
 - "Loading 1 / X" with the bar of the first download until the first medium of a layout, centered.

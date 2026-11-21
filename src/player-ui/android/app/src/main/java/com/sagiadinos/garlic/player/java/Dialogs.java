@@ -102,11 +102,11 @@ final class Dialogs
                 translucent(((ViewGroup) view).getChildAt(i));
     }
 
-    /** Settings, Debug infos, Exit */
+    /** Settings, Information, Exit */
     static void menu(Activity activity, Runnable settings, Runnable debug, Runnable exit)
     {
         new AlertDialog.Builder(scaled(activity))
-            .setItems(new CharSequence[]{"Settings", "Debug infos", "Exit"}, (dialog, which) -> {
+            .setItems(new CharSequence[]{"Settings", "Information", "Exit"}, (dialog, which) -> {
                 if (which == 0)
                     settings.run();
                 else if (which == 1)

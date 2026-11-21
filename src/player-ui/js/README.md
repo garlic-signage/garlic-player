@@ -41,7 +41,7 @@ local network) the player runs, but shows no widgets and no web pages from the c
 - `storage=memory`: the cache only in memory, gone with the page (e.g. for a preview). Default: kept in IndexedDB.
 - `uuid=<uuid>&name=<player name>`: preview of a player. They are written into the configuration before the start, so
   the player asks the hub as this player and gets its playlist. In the preview there is no menu (neither ten clicks nor
-  holding) and of the shortcuts only Ctrl+D (debug infos); accesskeys and clicks on media work as in the player.
+  holding) and of the shortcuts only Ctrl+D (information); accesskeys and clicks on media work as in the player.
 
 ## Preview in garlic-hub
 
@@ -52,9 +52,9 @@ plays no part; the agent goes in `X-Signage-Agent`, which the hub reads for `/sm
 is a static file, the headers of the hub (CSP without `wasm-unsafe-eval`) do not apply to it. The hub counts the
 preview as the player itself (last access, reports).
 
-Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s open the menu with Settings, Debug infos and
+Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s open the menu with Settings, Information and
 Exit. Keys: Ctrl+F full screen, Ctrl+B full screen too (over all screens is not possible in a browser), Ctrl+S
-settings, Ctrl+D debug infos, Ctrl+Q quit; every other key is an accesskey for the SMIL. Without an index the settings
+settings, Ctrl+D information, Ctrl+Q quit; every other key is an accesskey for the SMIL. Without an index the settings
 dialog opens at the start; cancelled, the player ends.
 
 ## Files
