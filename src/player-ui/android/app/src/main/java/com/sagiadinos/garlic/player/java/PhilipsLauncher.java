@@ -27,7 +27,8 @@ import com.sagiadinos.garlic.player.java.SocketClient.SocketResponse;
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
- * As in the legacy player; no deep standby. The temperature of the display over SICP (sensor 1), no throttling.
+ * As in the legacy player; no deep standby. The temperature of the display over SICP (the higher of its two sensors,
+ * 0: none), no throttling.
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -59,8 +60,11 @@ public class PhilipsLauncher implements LauncherInterface
                 launcher_version = SICPDef.convertBytesToString(ret);
             else if (ret[3] == (byte) 0xA1 && ret[0] == 15) // model number: 10 bytes + 5
                 model_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == 0x2F && ret.length >= 6) // temperature: sensor 1, sensor 2 (0 without one)
-                temperature = (ret[4] & 0xff) > 0 ? ret[4] & 0xff : null;
+            else if (ret[3] == 0x2F && ret.length >= 6) // temperature: sensor 1, sensor 2 if there are two
+            {
+                int highest = Math.max(ret[4] & 0xff, ret.length >= 7 ? ret[5] & 0xff : 0);
+                temperature = highest > 0 ? highest : null;
+            }
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }

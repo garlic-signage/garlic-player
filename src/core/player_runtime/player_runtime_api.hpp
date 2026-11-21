@@ -312,6 +312,11 @@ namespace garlic::core
                 std::uint64_t                         system_busy  = 0; // of all cores, total 0: unknown
                 std::uint64_t                         system_total = 0;
                 std::optional<std::uint64_t>          throttle_events{}; // Intel
+                std::chrono::steady_clock::time_point thermal_at{};     // the sensors read; epoch: never
+                std::optional<int>                    temperature_cpu{}; // what they told then
+                std::optional<int>                    temperature_ram{};
+                std::optional<int>                    temperature_ssd{};
+                std::optional<bool>                   throttling{};
             };
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log

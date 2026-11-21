@@ -192,7 +192,8 @@ final class Dialogs
     /**
      * Resources and identity, the running downloads and what plays; refreshed every second. One row of 30 points per
      * entry like the sdl dialog: the label left, the value cut with "…", the amount of a download right. CPU temperature
-     * and throttling from the launcher (null: none) where it tells them, otherwise from the core.
+     * and throttling from the launcher (null: none) where it tells them, asked every 5 seconds like the core reads its
+     * sensors; otherwise from the core.
      */
     static void debug(Activity activity, NativeCore core, Supplier<List<String>> playing, LauncherInterface launcher)
     {
@@ -203,9 +204,10 @@ final class Dialogs
 
         Handler  timer   = new Handler(Looper.getMainLooper());
         Runnable[] tick  = new Runnable[1];
+        int[]    seconds = {0};
         tick[0] = () -> {
             content.removeAllViews();
-            if (launcher != null)
+            if (launcher != null && seconds[0]++ % 5 == 0)
                 launcher.fetchThermal(); // the answer comes for the next second
             Integer cpu        = launcher != null ? launcher.getTemperatureCpu() : null;
             Boolean throttling = launcher != null ? launcher.getThrottling() : null;

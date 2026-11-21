@@ -587,7 +587,8 @@ namespace garlic::core
      * Memory, threads and CPU load of the player and their maxima (garlic-lib: ResourceMonitor::refresh). The load is
      * that since the sample in since, of the whole CPU: the CPU time of the player and its processes through the time
      * that passed times the cores. That of the system: its busy through its total time of all cores. Temperatures and
-     * throttling of the device as the platform tells them; the throttle counters of Intel against the sample in since.
+     * throttling of the device as the platform tells them, read at most every 5 seconds (like the launchers in the
+     * frontends); the throttle counters of Intel against the sample in since.
      */
     void PlayerRuntimeApi::trackProcess(DebugInfo &info, std::optional<CpuSample> &since)
     {
@@ -615,15 +616,34 @@ namespace garlic::core
             info.cpu_system = static_cast<int>(std::lround(std::min(100.0, busy * 100.0 / total)));
         }
 
-        system::Thermal thermal = system::thermal();
-        info.temperature_cpu    = thermal.cpu;
-        info.temperature_ram    = thermal.ram;
-        info.temperature_ssd    = thermal.ssd;
-        info.throttling         = thermal.throttling;
-        now.throttle_events     = thermal.throttle_events;
-        if (!info.throttling && thermal.throttle_events) // Intel: throttled since the previous sample
-            info.throttling = since && since->throttle_events && *thermal.throttle_events > *since->throttle_events;
-        since = now;
+        constexpr auto thermal_interval = std::chrono::seconds(5);
+        if (since && since->thermal_at != std::chrono::steady_clock::time_point{} &&
+            now.at - since->thermal_at < thermal_interval) // what the sensors told the last time
+        {
+            now.thermal_at      = since->thermal_at;
+            now.throttle_events = since->throttle_events;
+            now.temperature_cpu = since->temperature_cpu;
+            now.temperature_ram = since->temperature_ram;
+            now.temperature_ssd = since->temperature_ssd;
+            now.throttling      = since->throttling;
+        }
+        else
+        {
+            system::Thermal thermal = system::thermal();
+            now.thermal_at          = now.at;
+            now.throttle_events     = thermal.throttle_events;
+            now.temperature_cpu     = thermal.cpu;
+            now.temperature_ram     = thermal.ram;
+            now.temperature_ssd     = thermal.ssd;
+            now.throttling          = thermal.throttling;
+            if (!now.throttling && thermal.throttle_events) // Intel: throttled since the previous read
+                now.throttling = since && since->throttle_events && *thermal.throttle_events > *since->throttle_events;
+        }
+        info.temperature_cpu = now.temperature_cpu;
+        info.temperature_ram = now.temperature_ram;
+        info.temperature_ssd = now.temperature_ssd;
+        info.throttling      = now.throttling;
+        since                = now;
 #else
         (void)since;
 #endif

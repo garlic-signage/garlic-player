@@ -109,7 +109,7 @@ namespace player
             void                         accept();
     };
 
-    /// What the player does now, refreshed every second.
+    /// What the player does now, refreshed every second; the core reads temperatures and throttling every 5 seconds.
     class DebugDialog final : public Dialog
     {
         public:
