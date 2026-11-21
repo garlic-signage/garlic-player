@@ -127,7 +127,7 @@ namespace garlic::core::system
     ThermalPart thermalPart(std::string_view sensor)
     {
         if (sensor == "k10temp" || sensor == "coretemp" || sensor == "zenpower" || sensor == "x86_pkg_temp" ||
-            sensor.starts_with("cpu") || sensor.starts_with("soc"))
+            sensor.starts_with("cpu") || sensor.starts_with("soc") || sensor == "mstar-thermal")
             return ThermalPart::cpu;
         if (sensor == "spd5118" || sensor == "jc42")
             return ThermalPart::ram;

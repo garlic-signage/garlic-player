@@ -104,7 +104,8 @@ namespace garlic::core::system
     std::optional<SystemCpu> parseStatCpu(std::string_view text);
 
     /// Which part a sensor of the kernel measures, by the name of its hwmon device or the type of its thermal zone:
-    /// k10temp, coretemp, zenpower, x86_pkg_temp and cpu…/soc… (cpu_thermal, soc-thermal) the CPU, spd5118 and jc42
+    /// k10temp, coretemp, zenpower, x86_pkg_temp, cpu…/soc… (cpu_thermal, soc-thermal) and mstar-thermal (the SoC of
+    /// Philips displays) the CPU, spd5118 and jc42
     /// the RAM, nvme and drivetemp the SSD; everything else (GPU, network card, ACPI) counts not.
     enum class ThermalPart
     {

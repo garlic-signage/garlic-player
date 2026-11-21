@@ -27,8 +27,7 @@ import com.sagiadinos.garlic.player.java.SocketClient.SocketResponse;
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
- * As in the legacy player; no deep standby. The temperature of the display over SICP (the higher of its two sensors,
- * 0: none), no throttling.
+ * As in the legacy player; no deep standby. No temperature: the one of SICP is the board, the core reads the SoC.
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -42,7 +41,6 @@ public class PhilipsLauncher implements LauncherInterface
     private volatile String serial_number    = "";
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
-    private volatile Integer temperature;
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -60,11 +58,6 @@ public class PhilipsLauncher implements LauncherInterface
                 launcher_version = SICPDef.convertBytesToString(ret);
             else if (ret[3] == (byte) 0xA1 && ret[0] == 15) // model number: 10 bytes + 5
                 model_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == 0x2F && ret.length >= 6) // temperature: sensor 1, sensor 2 if there are two
-            {
-                int highest = Math.max(ret[4] & 0xff, ret.length >= 7 ? ret[5] & 0xff : 0);
-                temperature = highest > 0 ? highest : null;
-            }
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }
@@ -113,21 +106,18 @@ public class PhilipsLauncher implements LauncherInterface
     }
 
     @Override
-    public void fetchThermal()
-    {
-        send(SICPCommand.SICP_COMMAND_GET_TEMPERATURE);
-    }
+    public void fetchThermal() {}
 
     @Override
     public Integer getTemperatureCpu()
     {
-        return temperature;
+        return null;
     }
 
     @Override
     public Boolean getThrottling()
     {
-        return null; // SICP does not tell it
+        return null;
     }
 
     @Override

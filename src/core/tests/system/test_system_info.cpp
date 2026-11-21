@@ -79,7 +79,7 @@ TEST_CASE("/proc/stat: busy and total of all cores, idle and iowait are idle")
 TEST_CASE("thermal sensors: CPU, RAM and SSD by the name of the kernel, the rest counts not")
 {
     for (const char *cpu : {"k10temp", "coretemp", "zenpower", "x86_pkg_temp", "cpu_thermal", "cpu-thermal",
-                            "cpu0-thermal", "soc-thermal", "soc_thermal"})
+                            "cpu0-thermal", "soc-thermal", "soc_thermal", "mstar-thermal"})
         CHECK(thermalPart(cpu) == ThermalPart::cpu);
     CHECK(thermalPart("spd5118") == ThermalPart::ram);
     CHECK(thermalPart("jc42") == ThermalPart::ram);
