@@ -739,6 +739,38 @@ TEST_CASE("nextDeadline: fast while a report is uploaded (curl needs poll())")
     CHECK(f.transport.activeCount() == 0);
 }
 
+TEST_CASE("preview: only index and media are loaded, no report is sent and no task is fetched")
+{
+    Fixture f;
+    PlayerRuntimeConfig config = f.base();
+    config.preview             = true;
+    f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="indefinite"/>)x", 3600,
+                                          R"x(<metadata><subscription><type>SystemReport</type>
+            <action>http://hub/system.xml</action><refreshInterval>20</refreshInterval></subscription>
+            <subscription><type>TaskSchedule</type><action>http://hub/tasks.xml</action></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/a.jpg", "a", "image/jpeg");
+    f.serve("http://hub/tasks.xml", R"x(<s><timedTaskList><applyCommand id="c1"><command>clear_cache</command></applyCommand>
+                                        </timedTaskList></s>)x",
+            "application/xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(60s);
+
+    CHECK(f.seen() == "layout No Title | start a");
+    for (const auto &request : f.transport.requests)
+    {
+        INFO(request.url);
+        CHECK(request.method != downloader::HttpMethod::Put);
+        CHECK((request.url == "http://hub/index.smil" || request.url == "http://hub/a.jpg"));
+    }
+}
+
+TEST_CASE("a player is no preview unless it says so")
+{
+    CHECK_FALSE(PlayerRuntimeConfig{}.preview);
+}
+
 // ------------------------------------------------------------------ input of the frontend, the engine
 
 TEST_CASE("input of the frontend: a failed medium is skipped, a touch and a notify start their elements")

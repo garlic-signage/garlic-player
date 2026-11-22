@@ -4,8 +4,8 @@
 // 10 s, settings, information, shortcuts.
 //
 // URL parameters: index=<SMIL index> (like SMIL_INDEX on the command line), storage=memory (no IndexedDB: the cache
-// is gone with the page), uuid=<uuid>&name=<player name> (preview of a player in garlic-hub: the player plays as
-// that one and gets its playlist).
+// is gone with the page), uuid=<uuid>&name=<player name> (the player plays as that one and gets its playlist),
+// preview=1 (preview in garlic-hub: the core sends nothing, no menu, of the keys only the information).
 
 import createGarlicCore from './garlic-core.js';
 import { DebugDialog, Menu, SettingsDialog } from './dialogs.js';
@@ -16,7 +16,7 @@ const ROOT = '/garlic'; // configuration, cache and logs in the file system of t
 
 class GarlicPlayer {
     #params = new URLSearchParams(location.search);
-    #preview = this.#params.has('uuid'); // preview of a player in garlic-hub: no menu, of the keys only the information
+    #preview = this.#params.get('preview') === '1'; // preview in garlic-hub: no menu, of the keys only the information
     #storage = null;
     #player = null; // Player of bindings.cpp
     #stage = null;
@@ -41,6 +41,7 @@ class GarlicPlayer {
             root: ROOT,
             index: this.#params.get('index') ?? '',
             seed: crypto.getRandomValues(new Uint32Array(1))[0],
+            preview: this.#preview, // the core sends no reports and fetches no tasks
         });
         const error = this.#player.start();
         this.#stage = new Stage(document.getElementById('stage'), this.#storage, {

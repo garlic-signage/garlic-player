@@ -92,7 +92,8 @@ namespace player
     class Player
     {
         public:
-            /// options: {root, index, seed}; root is the directory for configuration, cache and logs
+            /// options: {root, index, seed, preview}; root is the directory for configuration, cache and logs;
+            /// preview: true only for the preview in garlic-hub, it plays but sends nothing
             explicit Player(val options)
             {
                 root                 = options["root"].as<std::string>();
@@ -102,6 +103,7 @@ namespace player
                 config.version       = PLAYER_VERSION;
                 config.index_uri     = options["index"].as<std::string>();
                 config.random_seed   = options["seed"].as<std::uint32_t>();
+                config.preview       = options["preview"].isTrue();
             }
 
             /// Empty, or the error text.

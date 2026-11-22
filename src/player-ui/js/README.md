@@ -39,18 +39,20 @@ local network) the player runs, but shows no widgets and no web pages from the c
 
 - `index=<URI>`: the SMIL index, like `SMIL_INDEX` on the command line; empty: the one in the settings.
 - `storage=memory`: the cache only in memory, gone with the page (e.g. for a preview). Default: kept in IndexedDB.
-- `uuid=<uuid>&name=<player name>`: preview of a player. They are written into the configuration before the start, so
-  the player asks the hub as this player and gets its playlist. In the preview there is no menu (neither ten clicks nor
-  holding) and of the shortcuts only Ctrl+D (information); accesskeys and clicks on media work as in the player.
+- `uuid=<uuid>&name=<player name>`: they are written into the configuration before the start, so the player asks the
+  hub as this player and gets its playlist.
+- `preview=1`: preview in garlic-hub. The core loads only index and media: it sends no reports and fetches no tasks.
+  There is no menu (neither ten clicks nor holding) and of the shortcuts only Ctrl+D (information); accesskeys and
+  clicks on media work as in the player.
 
 ## Preview in garlic-hub
 
 garlic-hub opens the preview from the context menu of its player list ("Preview", only for a player with a playlist)
-in a new tab: `/js/player/preview/index.html?index=<hub>/smil-index&uuid=…&name=…&storage=memory`. The files of
+in an overlay: `/js/player/preview/index.html?index=<hub>/async/player/preview-index/<id>&uuid=…&name=…&storage=memory&preview=1`. The files of
 `build/wasm-release` go to `public/js/player/preview/` of the hub. Index and media come from the same origin, so CORS
 plays no part; the agent goes in `X-Signage-Agent`, which the hub reads for `/smil-index` and `delivery.php`. The page
-is a static file, the headers of the hub (CSP without `wasm-unsafe-eval`) do not apply to it. The hub counts the
-preview as the player itself (last access, reports).
+is a static file, the headers of the hub (CSP without `wasm-unsafe-eval`) do not apply to it. The preview index of
+the hub needs the login and leaves no trace: the player is not shown as online, and the preview sends no reports.
 
 Ten fast clicks or touches (less than 500 ms apart) or one held for 10 s open the menu with Settings, Information and
 Exit. Keys: Ctrl+F full screen, Ctrl+B full screen too (over all screens is not possible in a browser), Ctrl+S

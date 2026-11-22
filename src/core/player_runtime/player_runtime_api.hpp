@@ -148,6 +148,8 @@ namespace garlic::core
 
         std::uint32_t random_seed        = 0; // for <seq> with pickNumber; pass a random value
         std::size_t   parallel_downloads = 2;
+        bool          preview            = false; // preview in garlic-hub: only index and media are loaded, nothing
+                                                  // is sent (no reports) and no tasks are fetched
     };
 
     /// What the settings dialog of a frontend shows (garlic-lib: ConfigDialog); standby and restarts come from the CMS.

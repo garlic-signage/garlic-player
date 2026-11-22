@@ -381,8 +381,12 @@ namespace garlic::core
         document = std::make_shared<smil::Document>(std::move(next));
 
         media->load(*document, base);
-        reporter->subscribe(document->head.subscriptions);
-        tasks->subscribe(document->head.subscriptions);
+        // the preview in garlic-hub only plays: no reports to the hub, no tasks from it
+        if (!settings.preview)
+        {
+            reporter->subscribe(document->head.subscriptions);
+            tasks->subscribe(document->head.subscriptions);
+        }
 
         missing_backgrounds.clear();
         for (const smil::Region &region : document->head.regions)
