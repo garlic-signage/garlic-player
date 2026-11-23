@@ -142,10 +142,18 @@ namespace garlic::core::smil
             earlyEnd(*node);
     }
 
-    void Engine::mediaFailed(InstanceId id)
+    void Engine::mediaFailed(InstanceId id, MediaError error, std::string_view reason)
     {
         if (auto node = findInstance(id))
         {
+            const Media *media = nodes[*node].media;
+            std::string_view name = error == MediaError::NotAvailable ? "MEDIA_NOT_AVAILABLE"
+                                    : error == MediaError::Playback   ? "MEDIA_PLAYBACK_ERROR"
+                                                                      : "MEDIA_OPEN_ERROR";
+            if (media && failed_media.insert(std::string(name) + " " + media->src).second)
+                logger.event(logger::Severity::Error, "MediaPlayer", name,
+                             {{"contentId", media->log_content_id}, {"resourceURI", media->src},
+                              {"errorMessage", std::string(reason)}});
             nodes[*node].failed = true;
             earlyEnd(*node);
         }

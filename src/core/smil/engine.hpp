@@ -28,6 +28,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -106,6 +107,15 @@ namespace garlic::core::smil
         std::chrono::milliseconds catch_up_limit{500};
     };
 
+    /// Why a medium could not be played, as only the frontend knows it; the events of IAdea (source MediaPlayer). The
+    /// numbers cross the borders to Java and JavaScript.
+    enum class MediaError
+    {
+        NotAvailable = 0, // MEDIA_NOT_AVAILABLE: the file is not there
+        Open         = 1, // MEDIA_OPEN_ERROR: it does not start (format, decoder, unknown command)
+        Playback     = 2  // MEDIA_PLAYBACK_ERROR: it stops while playing
+    };
+
     /**
      * Plays a SMIL Document: events in, commands out. No timers and no threads: the host calls poll() and collects
      * the commands. All callbacks of the player (mediaFinished …) only change the state; their commands come with the
@@ -129,8 +139,13 @@ namespace garlic::core::smil
             /// The medium ended by itself (video, audio). Ignored if a dur decides the end.
             void mediaFinished(InstanceId id);
 
-            /// The medium could not be played. Like an early end: a dur still decides the end, no play log.
-            void mediaFailed(InstanceId id);
+            /**
+             * The medium could not be played. Like an early end: a dur still decides the end, no play log. An event of
+             * the error (MEDIA_NOT_AVAILABLE, MEDIA_OPEN_ERROR, MEDIA_PLAYBACK_ERROR) with the reason of the frontend,
+             * once per medium and error while this engine plays, so a medium that fails at every loop does not flood
+             * the event log.
+             */
+            void mediaFailed(InstanceId id, MediaError error = MediaError::Open, std::string_view reason = {});
 
             /// A key was pressed: accesskey(…) triggers.
             void accessKey(char key);
@@ -260,6 +275,7 @@ namespace garlic::core::smil
             const common::Clock   &clock;
             MediaSource           &media_source;
             logger::Logger        &logger;
+            std::set<std::string, std::less<>> failed_media; // event name and src already reported
             EngineConfig           config;
 
             std::vector<Runtime>   nodes; // [0] is the body

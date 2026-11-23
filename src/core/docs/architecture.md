@@ -196,7 +196,7 @@ Why the core is built the way it is. The decisions of single modules are in thei
 ## When something goes wrong
 
 - **Where to look:** `debug.log` (texts of the modules), `event_log.xml` (events like `SMIL_OPEN_ERROR`,
-  `MEDIA_UNSUPPORTED`, `FAILED_FREEING_SPACE`, `DISK_FULL`), `play_log.xml` (what played), `task_execution_log.xml`. All in the log
+  `MEDIA_UNSUPPORTED`, `MEDIA_NOT_AVAILABLE`, `MEDIA_OPEN_ERROR`, `MEDIA_PLAYBACK_ERROR`, `FETCH_FAILED`, `OBJECT_UPDATED`, `LRU_OBJECT_REMOVED`, `BROKEN_OBJECT_REMOVED`, `FAILED_FREEING_SPACE`, `DISK_FULL`), `play_log.xml` (what played), `task_execution_log.xml`. All in the log
   directory the frontend gives, the event names are in the module docs.
 - **Reproduce in a test, not in the player.** Every module has its own test program (`tests/<module>`), all with
   fakes and the `FakeClock`; a SMIL problem becomes a scenario with a time line (see [smil](smil.md)).

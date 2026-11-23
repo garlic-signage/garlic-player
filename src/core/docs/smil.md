@@ -384,7 +384,7 @@ while (running)
         std::visit(player, command);               // StartMedia, StopMedia, RepeatMedia, PauseMedia, ResumeMedia
     sleepUntil(engine.nextDeadline());             // or until the player reports something
 }
-// from the player: engine.mediaFinished(id), engine.mediaFailed(id)
+// from the player: engine.mediaFinished(id), engine.mediaFailed(id, error, reason)
 ```
 
 The `Document` must live as long as the engine; `StartMedia::media` points into it. For a new index the index
@@ -402,7 +402,7 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 | Player → engine        | When                                                                  |
 |------------------------|-----------------------------------------------------------------------|
 | `mediaFinished(id)`    | a video or audio ended by itself                                      |
-| `mediaFailed(id)`      | a medium could not be played                                          |
+| `mediaFailed(id, error, reason)` | a medium could not be played; an event of IAdea by `MediaError` (source `MediaPlayer`, type error: `contentId`, `resourceURI`, `errorMessage` = reason): `NotAvailable` `MEDIA_NOT_AVAILABLE` (the file is gone), `Open` `MEDIA_OPEN_ERROR` (it does not start; also an unknown command), `Playback` `MEDIA_PLAYBACK_ERROR` (it stops while playing). Once per event and `src` while the engine plays (one engine per index version) |
 | `elementActivated(id)` | touch or click on a medium: `id.activateEvent`, `id.click`            |
 | `accessKey(key)`       | a key was pressed: `accesskey(…)`                                     |
 | `notify(name)`         | notification from outside (REST API `/v2/task`): `notify(…)`          |

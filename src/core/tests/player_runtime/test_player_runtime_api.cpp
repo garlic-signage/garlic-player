@@ -19,6 +19,7 @@
 
 #include "common/memory_file_system.hpp"
 #include "common/version.hpp"
+#include "database/inventory_table.hpp"
 #include "fake_clock.hpp"
 #include "fake_http_transport.hpp"
 #include "httpd/mhd_server.hpp"
@@ -27,8 +28,10 @@
 #include "time_zone.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <future>
 #include <map>
+#include <random>
 
 using namespace garlic::core;
 using garlic::core::tests::FakeClock;
@@ -595,6 +598,59 @@ TEST_CASE("-c config.xml missing: an event, the player starts anyway")
     f.runtime                 = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
     REQUIRE(f.runtime->start().has_value());
     CHECK(f.fs.content("logs/event_log.xml").value_or("").find("CONFIGURATION_OPEN_ERROR") != std::string::npos);
+}
+
+TEST_CASE("start: a complete file of the inventory with the wrong size or gone is removed, BROKEN_OBJECT_REMOVED")
+{
+    std::string database = (std::filesystem::temp_directory_path() /
+                            ("garlic-broken-" + std::to_string(std::random_device{}()) + ".db")).string();
+    {
+        FakeClock                clock;
+        database::InventoryTable table(clock);
+        REQUIRE(table.open(database).has_value());
+        for (const char *name : {"good.jpg", "short.jpg", "gone.jpg"})
+        {
+            downloader::InventoryEntry entry;
+            entry.url            = std::string("http://hub/") + name;
+            entry.file_name      = name;
+            entry.content_length = 4;
+            entry.state          = downloader::InventoryState::Complete;
+            table.save(entry);
+        }
+    }
+    Fixture f;
+    f.write("cache/good.jpg", "jpeg");
+    f.write("cache/short.jpg", "jp");
+    auto config          = f.base();
+    config.database_path = database;
+    f.runtime            = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+
+    std::string events = f.fs.content("logs/event_log.xml").value_or("");
+    CHECK(events.contains(R"(<eventName>BROKEN_OBJECT_REMOVED</eventName><metadata><meta name="resourceURI" content="http://hub/short.jpg"/>)"));
+    CHECK(events.contains(R"(<meta name="contentLength" content="4"/><meta name="transferLength" content="2"/>)"));
+    CHECK(events.contains(R"(<meta name="resourceURI" content="http://hub/gone.jpg"/><meta name="contentLength" content="4"/><meta name="transferLength" content="-1"/>)"));
+    CHECK_FALSE(events.contains("http://hub/good.jpg"));
+    CHECK(f.fs.exists("cache/good.jpg"));
+    CHECK_FALSE(f.fs.exists("cache/short.jpg"));
+    f.runtime.reset();
+    std::error_code ec;
+    std::filesystem::remove(database, ec);
+}
+
+TEST_CASE("downloads: OBJECT_UPDATED for a new file, FETCH_FAILED as error without a cached copy")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil",
+            indexText(R"x(<seq><img xml:id="a" src="a.jpg" dur="10s"/><img xml:id="b" src="b.jpg" dur="10s"/></seq>)x"),
+            "application/smil+xml");
+    f.serve("http://hub/a.jpg", "jpeg", "image/jpeg"); // b.jpg: 404
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    std::string events = f.fs.content("logs/event_log.xml").value_or("");
+    CHECK(events.contains(R"(<eventName>OBJECT_UPDATED</eventName><metadata><meta name="resourceURI" content="http://hub/a.jpg"/><meta name="contentLength" content="4"/>)"));
+    CHECK(events.contains(R"(<eventType>error</eventType>)"));
+    CHECK(events.contains(R"(<eventName>FETCH_FAILED</eventName><metadata><meta name="resourceURI" content="http://hub/b.jpg"/><meta name="errorMessage" content="HTTP 404"/>)"));
 }
 
 // ------------------------------------------------------------------ start, poll and nextDeadline

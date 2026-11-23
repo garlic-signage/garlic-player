@@ -30,11 +30,14 @@
 
 namespace player
 {
-    /// What a medium reports that only the frontend knows: the end of a video, a file that cannot be played.
+    /// What a medium reports that only the frontend knows: the end of a video, a file that cannot be played and why
+    /// (smil::MediaError of the core, the events MEDIA_NOT_AVAILABLE, MEDIA_OPEN_ERROR, MEDIA_PLAYBACK_ERROR).
     enum class Outcome
     {
         Finished,
-        Failed
+        NotAvailable, // the file is not there
+        OpenFailed,   // it does not start
+        PlaybackFailed // it stops while playing
     };
 
     /// Called by a medium; the window hands it to the core after the current event (never inside start()).

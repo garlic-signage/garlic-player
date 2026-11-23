@@ -71,6 +71,7 @@ namespace player
             mpv_handle         *mpv    = nullptr;
             mpv_render_context *render = nullptr;
             bool                playing = false; // between start() and the end; an end after stop() is no end
+            bool                started = false; // played since the last loadfile: an error now is a playback error
             bool                new_frame = false;
             int                 video_width  = 0; // as shown, from mpv (dwidth, dheight); 0 until it knows
             int                 video_height = 0;

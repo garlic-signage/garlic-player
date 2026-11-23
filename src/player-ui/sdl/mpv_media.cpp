@@ -286,7 +286,7 @@ namespace player
         mpv = mpv_create();
         if (mpv == nullptr)
         {
-            report(Outcome::Failed, "libmpv cannot start for " + source);
+            report(Outcome::OpenFailed, "libmpv cannot start for " + source);
             return;
         }
         mpv_set_option_string(mpv, "vo", "libmpv");
@@ -335,7 +335,7 @@ namespace player
         mpv_set_option_string(mpv, "volume", std::to_string(std::lround(volume() * 100)).c_str());
         if (mpv_initialize(mpv) < 0)
         {
-            report(Outcome::Failed, "libmpv cannot start for " + source);
+            report(Outcome::OpenFailed, "libmpv cannot start for " + source);
             return;
         }
         fences().leaky = leaksFences(mpv); // properties only after mpv_initialize(), before it mpv-version is null
@@ -345,12 +345,12 @@ namespace player
         {
             if (context.renderer == nullptr || !isOpenGl(*context.renderer))
             {
-                report(Outcome::Failed, "video needs the OpenGL renderer: " + source);
+                report(Outcome::OpenFailed, "video needs the OpenGL renderer: " + source);
                 return;
             }
             if (!ensureMpvContext(*context.renderer))
             {
-                report(Outcome::Failed, "no OpenGL context for libmpv: " + source);
+                report(Outcome::OpenFailed, "no OpenGL context for libmpv: " + source);
                 return;
             }
             // the display connection lets mpv hand hardware decoded frames over without a copy (e.g. VA-API)
@@ -374,12 +374,13 @@ namespace player
             if (created < 0)
             {
                 render = nullptr;
-                report(Outcome::Failed, "libmpv cannot render video: " + source);
+                report(Outcome::OpenFailed, "libmpv cannot render video: " + source);
                 return;
             }
             mpv_render_context_set_update_callback(render, &MpvMedia::wake, this);
         }
         playing = true;
+        started = false;
         command({"loadfile", source.c_str()});
     }
 
@@ -408,6 +409,7 @@ namespace player
         if (mpv == nullptr)
             return;
         playing = true;
+        started = false;
         mpv_set_property_string(mpv, "pause", "no");
         command({"loadfile", source.c_str(), "replace"});
     }
@@ -435,6 +437,11 @@ namespace player
                 new_frame    = true;
                 continue;
             }
+            if (event->event_id == MPV_EVENT_PLAYBACK_RESTART) // the first frame or sound after loadfile (or a seek)
+            {
+                started = true;
+                continue;
+            }
             if (event->event_id != MPV_EVENT_END_FILE || !playing)
                 continue;
             auto *end = static_cast<mpv_event_end_file *>(event->data);
@@ -446,7 +453,7 @@ namespace player
             else if (end->reason == MPV_END_FILE_REASON_ERROR)
             {
                 playing = false;
-                report(Outcome::Failed, std::string("libmpv: ") + mpv_error_string(end->error) + " " + source);
+                report(started ? Outcome::PlaybackFailed : Outcome::OpenFailed, std::string("libmpv: ") + mpv_error_string(end->error) + " " + source);
             }
         }
     }

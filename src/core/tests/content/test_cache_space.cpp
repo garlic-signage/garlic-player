@@ -30,7 +30,7 @@ namespace
     struct SpaceFixture : ContentFixture
     {
         std::uint64_t disk = 100;
-        CacheSpace    space{failing, inventory, logger, "cache", [this] { return disk - used(); }};
+        CacheSpace    space{failing, clock, inventory, logger, "cache", [this] { return disk - used(); }};
 
         std::uint64_t used() const
         {
@@ -88,9 +88,21 @@ TEST_CASE("the longest unread files go first, with their inventory row, until th
     CHECK(f.fs.exists("cache/w.wgt"));
     CHECK_FALSE(f.inventory.find("http://hub/new.jpg").has_value());
     CHECK(f.inventory.find("http://hub/old.jpg").has_value());
-    CHECK(f.events().find("<eventName>OBJECT_REMOVED</eventName>") != std::string::npos);
-    CHECK(f.events().find("cache/new.jpg removed") != std::string::npos);
+    // read a few minutes ago: a warning, the disk is too small for what plays
+    CHECK(f.events().contains("<eventType>warning</eventType><eventTime>"));
+    CHECK(f.events().contains(R"(<eventName>LRU_OBJECT_REMOVED</eventName><metadata><meta name="resourceURI" content="cache/new.jpg"/><meta name="lastAccessTime" content=")"));
     CHECK(f.events().find("<eventName>OBJECTS_REMOVED</eventName>") != std::string::npos);
+}
+
+TEST_CASE("LRU_OBJECT_REMOVED is informational for a file not read for more than 30 days")
+{
+    SpaceFixture f;
+    f.cached("old.jpg", 50);
+    f.clock.advance(std::chrono::days(31));
+    REQUIRE(f.space.makeSpace(60));
+    CHECK(f.events().contains("<eventType>informational</eventType>"));
+    CHECK(f.events().contains("<eventName>LRU_OBJECT_REMOVED</eventName>"));
+    CHECK_FALSE(f.events().contains("<eventType>warning</eventType>"));
 }
 
 TEST_CASE("a widget goes with its directory, a file with its waiting update")
@@ -147,7 +159,7 @@ TEST_CASE("kept as well: the temporary index")
 TEST_CASE("the files of the current index are kept, also when the space is not enough")
 {
     SpaceFixture f;
-    CacheSpace   space{f.failing, f.inventory, f.logger, "cache", [&] { return f.disk - f.used(); },
+    CacheSpace   space{f.failing, f.clock, f.inventory, f.logger, "cache", [&] { return f.disk - f.used(); },
                      [] { return std::set<std::string>{"old.jpg", "w.wgt"}; }};
     f.cached("old.jpg", 20); // the longest unread, but in the index
     f.cached("w.wgt", 10);
@@ -211,7 +223,7 @@ TEST_CASE("without a function for the free space: always enough, nothing is remo
 {
     ContentFixture f;
     writeFile(f.fs, "cache/old.jpg", "x");
-    CacheSpace space{f.fs, f.inventory, f.logger, "cache", nullptr};
+    CacheSpace space{f.fs, f.clock, f.inventory, f.logger, "cache", nullptr};
     CHECK(space.needed(1'000'000) == 0);
     CHECK(space.makeSpace(1'000'000));
     CHECK(f.fs.exists("cache/old.jpg"));

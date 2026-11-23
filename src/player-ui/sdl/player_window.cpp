@@ -663,7 +663,12 @@ namespace player
             else
             {
                 std::cerr << "media failed: " << each.message << "\n";
-                runtime.post([id](PlayerRuntimeApi &r) { r.mediaFailed(id); });
+                garlic::core::smil::MediaError error = each.outcome == Outcome::NotAvailable
+                                                           ? garlic::core::smil::MediaError::NotAvailable
+                                                       : each.outcome == Outcome::PlaybackFailed
+                                                           ? garlic::core::smil::MediaError::Playback
+                                                           : garlic::core::smil::MediaError::Open;
+                runtime.post([id, error, why = each.message](PlayerRuntimeApi &r) { r.mediaFailed(id, error, why); });
             }
         }
     }

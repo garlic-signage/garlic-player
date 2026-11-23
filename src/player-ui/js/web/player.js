@@ -46,7 +46,7 @@ class GarlicPlayer {
         const error = this.#player.start();
         this.#stage = new Stage(document.getElementById('stage'), this.#storage, {
             finished: (id) => this.#call(() => this.#player.mediaFinished(id)),
-            failed: (id) => this.#call(() => this.#player.mediaFailed(id)),
+            failed: (id, error, reason) => this.#call(() => this.#player.mediaFailed(id, error, reason ?? '')),
             activated: (id) => this.#call(() => this.#player.activated(id)),
         });
         if (error !== '') {

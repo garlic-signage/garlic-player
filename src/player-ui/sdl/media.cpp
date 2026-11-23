@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <filesystem>
 #include <cmath>
 
 namespace player
@@ -68,13 +69,13 @@ namespace player
                     SDL_Surface *loaded = IMG_Load(source.c_str());
                     if (loaded == nullptr)
                     {
-                        report(Outcome::Failed, "cannot load image " + source + ": " + SDL_GetError());
+                        report(Outcome::OpenFailed, "cannot load image " + source + ": " + SDL_GetError());
                         return;
                     }
                     image = SDL_ConvertSurface(loaded, SDL_PIXELFORMAT_ARGB8888); // linear scaling needs 32 bit
                     SDL_DestroySurface(loaded);
                     if (image == nullptr)
-                        report(Outcome::Failed, "cannot convert image " + source + ": " + SDL_GetError());
+                        report(Outcome::OpenFailed, "cannot convert image " + source + ": " + SDL_GetError());
                 }
 
                 void draw(SDL_Renderer &target, const SDL_FRect &area) override
@@ -193,17 +194,18 @@ namespace player
         {
             public:
                 NotPlayable(const garlic::core::smil::Media &s, const garlic::core::smil::Region &r, std::string src,
-                            Report rep, std::string why)
-                    : Media(s, r, std::move(src), std::move(rep)), reason(std::move(why))
+                            Report rep, std::string why, Outcome how = Outcome::OpenFailed)
+                    : Media(s, r, std::move(src), std::move(rep)), reason(std::move(why)), outcome(how)
                 {
                 }
 
                 [[nodiscard]] bool visible() const override { return false; }
-                void               start() override { report(Outcome::Failed, reason + " " + source); }
+                void               start() override { report(outcome, reason + " " + source); }
                 void               draw(SDL_Renderer & /*target*/, const SDL_FRect & /*area*/) override {}
 
             private:
                 std::string reason;
+                Outcome     outcome;
         };
     }
 
@@ -237,6 +239,15 @@ namespace player
     std::unique_ptr<Media> createMedia(const garlic::core::smil::Media &smil, const garlic::core::smil::Region &region,
                                        const std::string &source, Report report, const MediaContext &context)
     {
+        // a file of the cache that is gone (removed meanwhile): MEDIA_NOT_AVAILABLE, like the Android player
+        bool file = smil.kind == MediaKind::Image || smil.kind == MediaKind::Video || smil.kind == MediaKind::Audio;
+        if (file && source.find("://") == std::string::npos && !source.starts_with("data:"))
+        {
+            std::error_code ec;
+            if (!std::filesystem::exists(source.substr(0, source.find_first_of("?#")), ec))
+                return std::make_unique<NotPlayable>(smil, region, source, std::move(report), "missing in the cache:",
+                                                     Outcome::NotAvailable);
+        }
         switch (smil.kind)
         {
             case MediaKind::Image:

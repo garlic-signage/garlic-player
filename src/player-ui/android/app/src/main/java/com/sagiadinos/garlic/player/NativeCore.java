@@ -71,7 +71,7 @@ public final class NativeCore
     public String takeEvents() { return takeEvents(handle); }
 
     public void mediaFinished(long id) { mediaFinished(handle, id); }
-    public void mediaFailed(long id) { mediaFailed(handle, id); }
+    public void mediaFailed(long id, int error, String reason) { mediaFailed(handle, id, error, reason); }
     public void activated(long id) { activated(handle, id); }
     public void accessKey(char key) { accessKey(handle, key); }
     public void screenshotTaken(String path) { screenshotTaken(handle, path); }
@@ -131,7 +131,7 @@ public final class NativeCore
     private static native String takeEvents(long handle);
     private static native void destroy(long handle);
     private static native void mediaFinished(long handle, long id);
-    private static native void mediaFailed(long handle, long id);
+    private static native void mediaFailed(long handle, long id, int error, String reason);
     private static native void activated(long handle, long id);
     private static native void accessKey(long handle, char key);
     private static native void screenshotTaken(long handle, String path);

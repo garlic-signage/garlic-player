@@ -236,7 +236,8 @@ namespace garlic::core
 
             // from the frontend
             void mediaFinished(smil::InstanceId id);
-            void mediaFailed(smil::InstanceId id);
+            void mediaFailed(smil::InstanceId id, smil::MediaError error = smil::MediaError::Open,
+                             std::string_view reason = {});
             void elementActivated(smil::InstanceId id);
             void accessKey(char key);
             void notify(std::string_view name);
@@ -337,6 +338,8 @@ namespace garlic::core
             std::optional<std::chrono::seconds>   started_at_boot; // uptime of the device at the start
 
             void dispatch(const downloader::DownloadResult &result);
+            void logDownload(const downloader::DownloadResult &result);
+            void removeBrokenObjects();
             void newIndex(smil::Document document, std::string base);
             void onTask(tasks::TaskAction action);
             void collectEngine();

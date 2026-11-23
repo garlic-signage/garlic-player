@@ -28,7 +28,7 @@ while (running)
         std::visit(frontend, event);
     wait until runtime.nextDeadline() or input
 }
-// input: runtime.mediaFinished(id), mediaFailed(id), elementActivated(id), accessKey('a')
+// input: runtime.mediaFinished(id), mediaFailed(id, error, reason), elementActivated(id), accessKey('a')
 ```
 
 ## Interface
@@ -39,7 +39,7 @@ while (running)
 | `poll()`                   | work off what is due, return the events                           |
 | `nextDeadline()`           | when `poll()` is needed next                                      |
 | `mediaFinished(id)`        | a video or audio ended by itself                                  |
-| `mediaFailed(id)`          | a medium could not be played                                      |
+| `mediaFailed(id, error, reason)` | a medium could not be played; error and reason for the event ([smil](smil.md)) |
 | `elementActivated(id)`     | touch or click on a medium                                        |
 | `accessKey(key)`           | a key was pressed                                                 |
 | `notify(name)`             | a notification for `notify(…)` triggers                           |

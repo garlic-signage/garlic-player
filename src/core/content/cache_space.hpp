@@ -18,6 +18,7 @@
 #ifndef GARLIC_CORE_CONTENT_CACHE_SPACE_HPP
 #define GARLIC_CORE_CONTENT_CACHE_SPACE_HPP
 
+#include "common/clock.hpp"
 #include "common/file_system.hpp"
 #include "downloader/inventory.hpp"
 #include "logger/logger.hpp"
@@ -38,6 +39,10 @@ namespace garlic::core::content
      * too. Kept are the index (index.smil, temporary.smil), the files of the current index (current_files), files
      * that are being downloaded (".part") and uploads of the REST API (".tmp"). So a playlist that is too big for the
      * disk does not push its own files out again and again: what does not fit is not downloaded (DISK_FULL).
+     *
+     * Every removed entry is an event LRU_OBJECT_REMOVED of IAdea (garlic-lib wrote OBJECT_REMOVED) with its last
+     * access: informational if that was more than 30 days ago, a warning if something used more recently had to go
+     * (the disk is too small for the playlists).
      */
     class CacheSpace
     {
@@ -48,8 +53,9 @@ namespace garlic::core::content
             /// The cache file names of the current index (MediaManager::currentFiles); not set: none.
             using CurrentFiles = std::function<std::set<std::string>()>;
 
-            CacheSpace(common::FileSystem &fs, downloader::Inventory &inventory, logger::Logger &logger,
-                       std::string cache_dir, FreeSpace free_space, CurrentFiles current_files = {});
+            CacheSpace(common::FileSystem &fs, const common::Clock &clock, downloader::Inventory &inventory,
+                       logger::Logger &logger, std::string cache_dir, FreeSpace free_space,
+                       CurrentFiles current_files = {});
 
             /// Bytes to remove so that `bytes` fit, 0 if they fit (garlic-lib: calculateNeededDiscSpaceToFree).
             std::uint64_t needed(std::uint64_t bytes) const;
@@ -59,6 +65,7 @@ namespace garlic::core::content
 
         private:
             common::FileSystem    &fs;
+            const common::Clock   &clock;
             downloader::Inventory &inventory;
             logger::Logger        &logger;
             std::string            cache_dir;

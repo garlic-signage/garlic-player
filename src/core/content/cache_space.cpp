@@ -17,6 +17,8 @@
 */
 #include "content/cache_space.hpp"
 
+#include "common/time_format.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <map>
@@ -61,9 +63,9 @@ namespace garlic::core::content
         }
     }
 
-    CacheSpace::CacheSpace(common::FileSystem &f, downloader::Inventory &inv, logger::Logger &log, std::string cache,
-                           FreeSpace free, CurrentFiles current)
-        : fs(f), inventory(inv), logger(log), cache_dir(std::move(cache)), free_space(std::move(free)),
+    CacheSpace::CacheSpace(common::FileSystem &f, const common::Clock &c, downloader::Inventory &inv,
+                           logger::Logger &log, std::string cache, FreeSpace free, CurrentFiles current)
+        : fs(f), clock(c), inventory(inv), logger(log), cache_dir(std::move(cache)), free_space(std::move(free)),
           current_files(std::move(current))
     {
     }
@@ -117,8 +119,11 @@ namespace garlic::core::content
                     logger.warning("ContentManager", path + " cannot be removed: " + gone.error().message);
             }
             inventory.deleteByCacheName(name);
-            logger.event(logger::Severity::Informational, "ContentManager", "OBJECT_REMOVED",
-                         {{"resourceURI", cache_dir + "/" + name + " removed"}});
+            bool old = entry.last_access < clock.now() - std::chrono::days(30);
+            logger.event(old ? logger::Severity::Informational : logger::Severity::Warning, "ContentManager",
+                         "LRU_OBJECT_REMOVED",
+                         {{"resourceURI", cache_dir + "/" + name},
+                          {"lastAccessTime", common::isoLocalTime(entry.last_access)}});
         }
 
         if (removed < to_free)

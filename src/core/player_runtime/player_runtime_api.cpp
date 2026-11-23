@@ -93,6 +93,7 @@ namespace garlic::core
         std::string database = settings.database_path.empty() ? settings.log_dir + "/garlic.db" : settings.database_path;
         if (auto opened = inventory->open(database); !opened)
             return std::unexpected("database: " + opened.error());
+        removeBrokenObjects();
 
         auto free_space = settings.free_space;
 #if GARLIC_CORE_WITH_SYSTEM
@@ -107,7 +108,7 @@ namespace garlic::core
         if (free_space)
         {
             auto current = [this] { return media ? media->currentFiles() : std::set<std::string>{}; };
-            cache_space  = std::make_unique<content::CacheSpace>(fs, *inventory, *logger, settings.cache_dir, free_space,
+            cache_space  = std::make_unique<content::CacheSpace>(fs, clock, *inventory, *logger, settings.cache_dir, free_space,
                                                                  current);
             make_space   = [this](std::uint64_t bytes) { return cache_space->makeSpace(bytes); };
         }
@@ -250,10 +251,10 @@ namespace garlic::core
             engine->mediaFinished(id);
     }
 
-    void PlayerRuntimeApi::mediaFailed(smil::InstanceId id)
+    void PlayerRuntimeApi::mediaFailed(smil::InstanceId id, smil::MediaError error, std::string_view reason)
     {
         if (engine)
-            engine->mediaFailed(id);
+            engine->mediaFailed(id, error, reason);
     }
 
     void PlayerRuntimeApi::elementActivated(smil::InstanceId id)
@@ -359,6 +360,7 @@ namespace garlic::core
     /// poll() after start(), so all of them are there.
     void PlayerRuntimeApi::dispatch(const downloader::DownloadResult &result)
     {
+        logDownload(result);
         if (media->isMedia(result.url))
             ++downloads_done;
         if (result.url == index->url())
@@ -369,6 +371,75 @@ namespace garlic::core
         {
             media->downloaded(result);
             findBackgrounds(nullptr);
+        }
+    }
+
+    /**
+     * At the start (IAdea: BROKEN_OBJECT_REMOVED): a complete file of the inventory whose size is not the one the
+     * server told, or that is gone (a crash while writing, a cleaned card), is removed with its inventory row, so it
+     * is downloaded again instead of played broken or asked for as not modified. An update waiting as ".ready" is the
+     * one checked. Without a known size (content_length 0) nothing can be checked.
+     */
+    void PlayerRuntimeApi::removeBrokenObjects()
+    {
+        for (const database::InventoryRow &row : inventory->findAll())
+        {
+            if (row.state != downloader::InventoryState::Complete || row.content_length == 0 || row.file_name.empty())
+                continue;
+            std::string file  = settings.cache_dir + "/" + row.file_name;
+            std::string ready = file + ".ready";
+            std::string path  = fs.exists(ready) ? ready : file;
+            auto        size  = fs.fileSize(path);
+            if (size && *size == row.content_length)
+                continue;
+            logger::Metadata data{{"resourceURI", row.url}};
+            if (auto modified = fs.lastModified(path))
+                data.emplace_back("lastModifiedTime", common::isoLocalTime(*modified));
+            data.emplace_back("contentLength", std::to_string(row.content_length));
+            data.emplace_back("transferLength", size ? std::to_string(*size) : "-1");
+            (void)fs.remove(path);
+            inventory->deleteByCacheName(row.file_name);
+            logger->event(logger::Severity::Warning, "ContentManager", "BROKEN_OBJECT_REMOVED", data);
+        }
+    }
+
+    /**
+     * Events of every download, index, media, task files and firmware alike, as garlic-lib (Downloader) and IAdea:
+     * OBJECT_UPDATED for a new file, FETCH_FAILED for a failure, a warning if a cached copy plays on, an error if
+     * there is none. Without space it is DISK_FULL of the MediaManager instead (garlic-lib: FETCH_ERROR). Not modified
+     * and not cacheable: nothing. transferLength of garlic-lib is missing: the downloader does not tell it.
+     */
+    void PlayerRuntimeApi::logDownload(const downloader::DownloadResult &result)
+    {
+        using downloader::DownloadStatus;
+        auto file = [this](const std::string &path, std::string_view size_key, std::string_view time_key)
+        {
+            logger::Metadata data;
+            if (auto size = fs.fileSize(path))
+                data.emplace_back(size_key, std::to_string(*size));
+            if (auto modified = fs.lastModified(path))
+                data.emplace_back(time_key, common::isoLocalTime(*modified));
+            return data;
+        };
+        if (result.status == DownloadStatus::Downloaded && !result.local_path.empty())
+        {
+            // an update of a cached file waits next to it until it is taken
+            std::string ready = result.local_path + ".ready";
+            std::string path  = fs.exists(ready) ? ready : result.local_path;
+            logger::Metadata data{{"resourceURI", result.url}};
+            for (auto &entry : file(path, "contentLength", "lastModifiedTime"))
+                data.push_back(std::move(entry));
+            logger->event(logger::Severity::Informational, "ContentManager", "OBJECT_UPDATED", data);
+        }
+        else if (result.status == DownloadStatus::Failed && !result.no_space)
+        {
+            logger::Metadata data{{"resourceURI", result.url}, {"errorMessage", result.error}};
+            bool cached = !result.local_path.empty();
+            if (cached)
+                for (auto &entry : file(result.local_path, "lastCachedLength", "lastCachedModifiedTime"))
+                    data.push_back(std::move(entry));
+            logger->event(cached ? logger::Severity::Warning : logger::Severity::Error, "ContentManager",
+                          "FETCH_FAILED", data);
         }
     }
 

@@ -179,6 +179,37 @@ TEST_CASE("play log: a pass that failed and is repeated is logged when the repea
     CHECK(runner.playLog().contains("<contentId>c</contentId>"));
 }
 
+TEST_CASE("a failed medium: MEDIA_OPEN_ERROR with the reason, once per medium while the engine plays")
+{
+    auto runner = EngineRunner::body(R"(<video xml:id="v" src="v.ts" repeatCount="3"><param name="logContentId" value="c"/></video>)");
+    CHECK(runner.run(1s) == "0s start v");
+    runner.engine->mediaFailed(runner.starts.at(0).id, MediaError::Open, "MediaPlayer error 1 -5003");
+    runner.runFor(2s); // the next pass starts and fails again
+    runner.engine->mediaFailed(runner.starts.back().id, MediaError::Open, "MediaPlayer error 1 -5003");
+    runner.collect();
+    std::string events = runner.fs.content(runner.logger.path(garlic::core::logger::LogFile::Event)).value_or("");
+    CHECK(events.contains("<eventSource>MediaPlayer</eventSource><eventName>MEDIA_OPEN_ERROR</eventName>"));
+    CHECK(events.contains(R"(<meta name="contentId" content="c"/>)"));
+    CHECK(events.contains(R"(<meta name="resourceURI" content="v.ts"/>)"));
+    CHECK(events.contains(R"(<meta name="errorMessage" content="MediaPlayer error 1 -5003"/>)"));
+    auto first = events.find("MEDIA_OPEN_ERROR");
+    CHECK(events.find("MEDIA_OPEN_ERROR", first + 1) == std::string::npos);
+}
+
+TEST_CASE("the error of the frontend decides the event: not available, playback")
+{
+    auto runner = EngineRunner::body(R"(<seq><video xml:id="a" src="a.mp4"/><video xml:id="b" src="b.mp4"/></seq>)");
+    CHECK(runner.run(1s) == "0s start a");
+    runner.engine->mediaFailed(runner.starts.at(0).id, MediaError::NotAvailable, "missing in the cache");
+    runner.runFor(2s);
+    runner.engine->mediaFailed(runner.starts.back().id, MediaError::Playback, "decoder stopped");
+    runner.collect();
+    std::string events = runner.fs.content(runner.logger.path(garlic::core::logger::LogFile::Event)).value_or("");
+    CHECK(events.contains(R"(<eventName>MEDIA_NOT_AVAILABLE</eventName><metadata><meta name="contentId" content=""/><meta name="resourceURI" content="a.mp4"/>)"));
+    CHECK(events.contains(R"(<eventName>MEDIA_PLAYBACK_ERROR</eventName><metadata><meta name="contentId" content=""/><meta name="resourceURI" content="b.mp4"/>)"));
+    CHECK_FALSE(events.contains("MEDIA_OPEN_ERROR"));
+}
+
 TEST_CASE("source: cache path, widget with query, brush without")
 {
     auto runner = EngineRunner::body(R"(

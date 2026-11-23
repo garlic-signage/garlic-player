@@ -149,7 +149,12 @@ namespace player
             std::string indexUri() const { return runtime->configuration().indexUri(); }
 
             void mediaFinished(int instance) { runtime->mediaFinished(static_cast<smil::InstanceId>(instance)); }
-            void mediaFailed(int instance) { runtime->mediaFailed(static_cast<smil::InstanceId>(instance)); }
+            /// error: smil::MediaError (0 not available, 1 open, 2 playback), MEDIA_ERROR of stage.js
+            void mediaFailed(int instance, int error, const std::string &reason)
+            {
+                runtime->mediaFailed(static_cast<smil::InstanceId>(instance), static_cast<smil::MediaError>(error),
+                                     reason);
+            }
             void activated(int instance) { runtime->elementActivated(static_cast<smil::InstanceId>(instance)); }
 
             void accessKey(const std::string &text)

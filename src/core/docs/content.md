@@ -145,7 +145,7 @@ makeSpace(bytes)
 │         groups with a ".part" file (download), ".tmp" files (upload)
 ├── sort by the last read (lastAccess, the newest file of the group), the longest unread first
 ├── remove group by group until the removed bytes reach needed:
-│     files and directories, the inventory row of the cache file, event OBJECT_REMOVED
+│     files and directories, the inventory row of the cache file, event LRU_OBJECT_REMOVED
 └── enough: OBJECTS_REMOVED, true      not enough: FAILED_FREEING_SPACE, false
 ```
 
@@ -203,8 +203,17 @@ makeSpace(bytes)
 ## When something goes wrong
 
 - **Events** (source `ContentManager`): `SMIL_LOADED`, `SMIL_OPEN_ERROR` (with `errorMessage` and `errorLine`),
-  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECT_REMOVED`, `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`,
-  `DISK_FULL` (with `resourceURI` and `errorMessage`: the file that did not fit and its size).
+  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`,
+  `LRU_OBJECT_REMOVED` (IAdea; garlic-lib called it `OBJECT_REMOVED`: an entry the cleanup removed, `resourceURI`
+  and `lastAccessTime`; informational if not read for more than 30 days, else a warning: the disk is too small),
+  `BROKEN_OBJECT_REMOVED` (IAdea, at the start: a complete file of the inventory whose size is not the one of the
+  server, or that is gone, is removed with its row and downloaded again; `resourceURI`, `lastModifiedTime`,
+  `contentLength` as the server told, `transferLength` as found, `-1` if gone),
+  `DISK_FULL` (with `resourceURI` and `errorMessage`: the file that did not fit and its size). For every download
+  (index, media, task files, firmware; written by `PlayerRuntimeApi`, as garlic-lib and IAdea): `OBJECT_UPDATED`
+  (`resourceURI`, `contentLength`, `lastModifiedTime`) for a new file, `FETCH_FAILED` (`resourceURI`,
+  `errorMessage`, e.g. `HTTP 404`) for a failure, a warning with `lastCachedLength` and `lastCachedModifiedTime` if
+  a cached copy plays on, an error without. Not for a download without space: that is `DISK_FULL`.
 - **debug.log**: `index download failed: …`, `cannot replace index: …`, a widget that cannot be extracted
   (`<path>: <reason>`), a cache file that cannot be removed.
 - **The new playlist does not come**: is there an `index.smil.ready` (an update waiting, deleted if broken), a

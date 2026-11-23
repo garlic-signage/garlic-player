@@ -49,8 +49,13 @@ abstract class Media
     interface Reports
     {
         void finished(long id);
-        void failed(long id);
+        void failed(long id, int error, String reason);
     }
+
+    /// Why a medium failed, smil::MediaError of the core: the events MEDIA_NOT_AVAILABLE, _OPEN_ERROR, _PLAYBACK_ERROR
+    static final int NOT_AVAILABLE = 0;
+    static final int OPEN          = 1;
+    static final int PLAYBACK      = 2;
 
     final long    id;
     final String  kind;
@@ -87,13 +92,13 @@ abstract class Media
         }
     }
 
-    void failed(String why)
+    void failed(int error, String why)
     {
         android.util.Log.w("garlic-player", "media failed: " + label + ": " + why);
         if (primary && !done)
         {
             done = true;
-            reports.failed(id);
+            reports.failed(id, error, why);
         }
     }
 
@@ -136,7 +141,7 @@ abstract class Media
             BitmapFactory.decodeFile(path, bounds);
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0)
             {
-                failed("cannot load image");
+                failed(OPEN, "cannot load image");
                 return;
             }
             DisplayMetrics screen = frame.getResources().getDisplayMetrics();
@@ -148,7 +153,7 @@ abstract class Media
             Bitmap bitmap = BitmapFactory.decodeFile(path, options);
             if (bitmap == null)
             {
-                failed("cannot decode image");
+                failed(OPEN, "cannot decode image");
                 return;
             }
             image.setImageBitmap(bitmap);
@@ -215,7 +220,7 @@ abstract class Media
             });
             player.setOnCompletionListener(mp -> finished());
             player.setOnErrorListener((mp, what, extra) -> {
-                failed("MediaPlayer error " + what + " " + extra);
+                failed(prepared ? PLAYBACK : OPEN, "MediaPlayer error " + what + " " + extra);
                 return true; // no completion afterwards
             });
             player.setOnVideoSizeChangedListener((mp, width, height) -> {
@@ -231,7 +236,7 @@ abstract class Media
             }
             catch (IOException | RuntimeException error)
             {
-                failed("cannot open: " + error.getMessage());
+                failed(OPEN, "cannot open: " + error.getMessage());
                 return;
             }
             player.prepareAsync();

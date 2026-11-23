@@ -6,6 +6,9 @@ import { Storage } from './storage.js';
 
 const REPEAT = { repeatx: 'repeat-x', repeaty: 'repeat-y', norepeat: 'no-repeat' };
 
+/// Why a medium failed, smil::MediaError of the core: MEDIA_NOT_AVAILABLE, MEDIA_OPEN_ERROR, MEDIA_PLAYBACK_ERROR
+const MEDIA_ERROR = { notAvailable: 0, open: 1, playback: 2 };
+
 /// fit of SMIL → object-fit; meetBest is meet, but never larger than the original
 const IMAGE_FIT = { fill: 'fill', meet: 'contain', meetbest: 'scale-down', slice: 'cover' };
 
@@ -42,7 +45,7 @@ class Media {
     get ready() {
         if (this.element !== null)
             return true;
-        this.#failed('missing in the cache');
+        this.#failed(MEDIA_ERROR.notAvailable, 'missing in the cache');
         return false;
     }
 
@@ -97,7 +100,7 @@ class Media {
                 this.element.muted = true;
                 this.#play();
             } else if (error.name !== 'AbortError') {
-                this.#failed(`${error.name}: ${error.message}`);
+                this.#failed(MEDIA_ERROR.open, `${error.name}: ${error.message}`);
             }
         });
     }
@@ -109,11 +112,11 @@ class Media {
         }
     }
 
-    #failed(message) {
+    #failed(error, message) {
         console.warn('media failed:', this.label, message);
         if (this.primary && !this.#done) {
             this.#done = true;
-            this.#reports.failed(this.id);
+            this.#reports.failed(this.id, error, message);
         }
     }
 
@@ -135,7 +138,7 @@ class Media {
             element = document.createElement('img');
             element.style.objectFit = IMAGE_FIT[region.fit] ?? 'none';
             element.style.objectPosition = `${Media.#horizontal(region.align)} ${Media.#vertical(region.align)}`;
-            element.onerror = () => this.#failed('cannot load image');
+            element.onerror = () => this.#failed(MEDIA_ERROR.open, 'cannot load image');
             element.src = this.#url;
         } else if (this.#playable) {
             element = document.createElement(this.kind);
@@ -145,7 +148,9 @@ class Media {
             element.style.objectFit = IMAGE_FIT[region.fit] ?? 'none';
             element.style.objectPosition = `${Media.#horizontal(region.align)} ${Media.#vertical(region.align)}`;
             element.onended = () => this.#finished();
-            element.onerror = () => this.#failed(element.error?.message || 'invalid media');
+            // played already (currentTime runs): it broke off while playing
+            element.onerror = () => this.#failed(element.currentTime > 0 ? MEDIA_ERROR.playback : MEDIA_ERROR.open,
+                element.error?.message || 'invalid media');
             element.src = this.#url;
         } else if (this.kind === 'web') {
             element = document.createElement('iframe');
@@ -243,7 +248,7 @@ export class Stage {
     #rootImageSrc = '';
     #backgroundUrls = [];
 
-    /// reports: {finished(id), failed(id), activated(id)}, called when a medium reports to the core
+    /// reports: {finished(id), failed(id, error, reason), activated(id)}, called when a medium reports to the core
     constructor(element, storage, reports) {
         this.#element = element;
         this.#storage = storage;
@@ -349,7 +354,7 @@ export class Stage {
             if (event.source.toLowerCase() === 'adapi:blankscreen')
                 console.info('blankScreen: no launcher, the screen stays on');
             else
-                this.#reports.failed(event.id);
+                this.#reports.failed(event.id, MEDIA_ERROR.open, `unknown command ${event.source}`);
             return;
         }
 

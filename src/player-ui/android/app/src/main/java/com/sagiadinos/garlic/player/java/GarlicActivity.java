@@ -375,7 +375,7 @@ public class GarlicActivity extends Activity implements Media.Reports
             else
             {
                 Log.w(TAG, "unknown command " + source);
-                mediaFailed(id);
+                mediaFailed(id, Media.OPEN, "unknown command " + source);
             }
             return;
         }
@@ -390,7 +390,7 @@ public class GarlicActivity extends Activity implements Media.Reports
             if (!kind.equals("web") && !kind.equals("brush") && Media.missing(source))
             {
                 if (primary)
-                    mediaFailed(id); // one report per instance, also for a missing file
+                    mediaFailed(id, Media.NOT_AVAILABLE, "missing in the cache"); // one report per instance
                 primary = false;
                 continue;
             }
@@ -426,15 +426,15 @@ public class GarlicActivity extends Activity implements Media.Reports
     }
 
     @Override
-    public void failed(long id)
+    public void failed(long id, int error, String reason)
     {
-        mediaFailed(id);
+        mediaFailed(id, error, reason);
     }
 
-    private void mediaFailed(long id)
+    private void mediaFailed(long id, int error, String reason)
     {
         if (core != null)
-            core.mediaFailed(id);
+            core.mediaFailed(id, error, reason);
     }
 
     // ------------------------------------------------------------------ launcher

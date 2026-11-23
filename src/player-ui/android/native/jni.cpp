@@ -386,10 +386,11 @@ extern "C"
         post(handle, [id](PlayerRuntimeApi &api) { api.mediaFinished(static_cast<smil::InstanceId>(id)); });
     }
 
-    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_mediaFailed(JNIEnv *, jclass, jlong handle,
-                                                                                   jlong id)
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_mediaFailed(JNIEnv *env, jclass, jlong handle,
+                                                                                   jlong id, jint error, jstring reason)
     {
-        post(handle, [id](PlayerRuntimeApi &api) { api.mediaFailed(static_cast<smil::InstanceId>(id)); });
+        post(handle, [id, error, why = text(env, reason)](PlayerRuntimeApi &api)
+             { api.mediaFailed(static_cast<smil::InstanceId>(id), static_cast<smil::MediaError>(error), why); });
     }
 
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_activated(JNIEnv *, jclass, jlong handle,
