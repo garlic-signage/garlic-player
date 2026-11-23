@@ -129,7 +129,7 @@ expose `ETag` and `Last-Modified` (`Access-Control-Expose-Headers`); see
 set min values for - No HTTP server (a browser cannot accept connections), no screenshot, no launcher (reboot, software installation);
   on signage displays see below.
 
-## Signage displays (LG webOS, Samsung Tizen) - planned
+## Signage displays (LG webOS, Samsung Tizen, BrightSign, ChromeOS) - planned
 
 As a web page in the URL launcher of the display the player runs already, but it cannot be maintained: no restart,
 no screen off, no update, no master volume. So on these displays it comes as a **packaged app** (LG: IPK, Samsung:
@@ -168,3 +168,25 @@ to SICP.
   firmware versions before building the adapter.
 - The plain browser of the display has none of these APIs: the packaged app is the condition, not an option.
 - Nothing of it is built yet.
+
+### BrightSign
+
+Media players of their own, common in signage. BrightSign OS is a closed Linux: no Android, and no native programs
+of others (extensions only signed by BrightSign), so neither the Android nor the sdl player; the WASM player is the
+way. Its HTML engine is Chromium, above 85 in the newer OS versions (8.x/9.x, to be checked).
+
+- The page runs in a `roHtmlWidget`, started by a small `autorun.brs` (BrightScript) on the SD card. That is a start
+  script in the package, not a launcher app.
+- The hardware through JavaScript: Node.js modules `@brightsign/…` (system, restart, video output, …). Like on LG and
+  Samsung a third adapter for the supervisor; analogous to Philips, no separate launcher.
+- Updates over BSN.cloud, or the adapter writes the new files to the SD card and restarts.
+
+### ChromeOS
+
+Chromeboxes, or ChromeOS Flex on older PCs, in kiosk mode: always a current Chromium. ChromeOS runs Android apps
+too (ARC, Managed Google Play), but not as signage: no device owner on the Android side (so no garlic-launcher),
+Android kiosk apps have been cut back by Google, video goes through one more layer. So the WASM player as kiosk web
+app. Restarts, updates and their schedule are done by the Google Admin console, not by the player; an adapter is
+hardly needed.
+
+The details of BrightSign and ChromeOS are from memory as well; check them before building.
