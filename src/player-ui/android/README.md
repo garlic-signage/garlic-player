@@ -122,6 +122,13 @@ Like the legacy player, with its Java classes:
   only the end of a container) `remainingTime()` is unknown: the backlight goes off instead (`0x72`) and on again at
   the end of the element. A wake time more than a week away comes early: the page fires on its weekday every week.
   Tested on the BDL4550D below (2026-11-23): power off, woken by the page on the minute of the planned end.
+- **Daily restart:** the core plans it (`schedule/reboot_days`, `schedule/reboot_time` of the configuration, like
+  garlic-lib) and hands `Reboot` to the launcher; on Philips the broadcast `php.intent.action.REBOOT`. The Philips
+  firmware has a restart schedule of its own (menu Signage Display, `com.tpv.signagesettings`, receiver
+  `AutoRestartReceiver` with `tpv.intent.action.AUTO_RESTART_ENABLE_CHANGE`/`…_TIME_CHANGE`, extras not documented;
+  SICP V2.03 has only the immediate restart `0x57`). The player leaves it alone: the schedule belongs to the
+  configuration from the CMS, the same on every device. Both switched on restart the display twice; switch the one in
+  the menu off.
 - **Written for one series:** Philips D-Line `43BDL4550D/00` (SICP model number), firmware `02.30` (SICP firmware
   build), Android 8.0 (API 26), MStar platform `m7221` (`ro.product.device` `sugarcane`), build
   `TVOS-04.24.010.05.03` of 2024-10-09. The commands follow the SICP document V2.03 of June 2019. Newer series
