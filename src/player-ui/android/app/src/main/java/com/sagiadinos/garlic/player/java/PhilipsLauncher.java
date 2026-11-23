@@ -244,7 +244,7 @@ public class PhilipsLauncher implements LauncherInterface
     @Override
     public void closedCorrectly()
     {
-        // nobody restarts the player on Philips
+        // nothing to report: the Philips firmware starts the player again after a crash
     }
 
     private void send(SICPCommand command)

@@ -106,10 +106,11 @@ CMake configures again by itself when the file changes.
  - Webserver on port 8080 (default) for the REST API
 
 ## Operating Systems Supported (2.0)
- - Linux x86_64 and aarch64, e.g. Raspberry Pi 4 (beta)
- - Windows x64 and macOS arm64 (beta)
- - Android 7.1.1 and newer: arm64-v8a, armeabi-v7a, x86_64 and x86 (beta)
- - iOS later
+ - Linux x86_64 and aarch64, e.g. Raspberry Pi 4
+ - Windows x64 and macOS arm64
+ - Android 7.1.1 and newer: arm64-v8a, armeabi-v7a, x86_64 and x86 
+ - WebOS, Tizen and BrightSignOS via WASM / JS
+ - iOS via alternative store (planned)
 
 Raspberry Pi 4 with **1 GB**: 1080p videos and web pages. For **4K** (H.265, at most 30 fps) together with web pages
 use a Pi 4 with **2 GB or more**. Details in the [README of the sdl player](src/player-ui/sdl/README.md).

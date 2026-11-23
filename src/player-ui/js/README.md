@@ -164,6 +164,16 @@ to SICP.
 
   Roughly displays from 2022 on. Older ones would need a lower `MIN_CHROME_VERSION` and the JavaScript without
   private methods, `??` and `?.`; not planned.
+- **What it takes**, the same for webOS, Tizen and BrightSign:
+  1. **A supervisor in `bindings.cpp`**: today the WASM core hands restarts and installations to nobody (only
+     `debug.log`). Like `NativeCore.Supervisor` on Android, a `Supervisor` of the core that passes its calls to
+     JavaScript.
+  2. **One JS adapter per platform**, the counterpart of `GarlicLauncher`/`PhilipsLauncher` in Java: it takes the
+     calls of the supervisor and the `deviceSettings` and blank screens of the frontend and calls the API of the
+     device, which carries them out. Unlike Java no message to another process (broadcast, socket): the API is
+     called directly in the same app. Without a known platform no adapter, as today.
+  3. **One package per platform**: IPK (webOS), WGT with its `config.xml` and privileges (Tizen), the files with an
+     `autorun.brs` (BrightSign).
 - The names above are from memory, not from documents here: check them against the SDK of each platform and its
   firmware versions before building the adapter.
 - The plain browser of the display has none of these APIs: the packaged app is the condition, not an option.
