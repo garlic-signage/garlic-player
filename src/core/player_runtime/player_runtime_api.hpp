@@ -242,6 +242,9 @@ namespace garlic::core
             /// The frontend has handled a ClearCaches event (web cache cleared, if asked): now the core restarts.
             void cachesCleared();
 
+            /// A warning of the frontend into debug.log, e.g. the watchdog of the Android player; also before start().
+            void logWarning(std::string_view category, std::string_view message);
+
             configuration::Configuration &configuration() noexcept { return config; }
 
             PlayerSettings playerSettings() const;

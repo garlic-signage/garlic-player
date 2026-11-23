@@ -283,6 +283,11 @@ namespace garlic::core
             reboot(*task_id);
     }
 
+    void PlayerRuntimeApi::logWarning(std::string_view category, std::string_view message)
+    {
+        logger->warning(category, message);
+    }
+
     void PlayerRuntimeApi::stop()
     {
         if (!engine)

@@ -77,7 +77,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     private static final int    STORAGE_REQUEST = 1;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private NativeCore    core;
+    private volatile NativeCore core; // volatile: the watchdog reads it in its thread
     private Stage         stage;
     private LinearLayout  loading;
     private TextView      loading_text;
@@ -89,6 +89,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     private final BlankScreen       blank_screen    = new BlankScreen();
     private final BroadcastReceiver config_receiver = new ConfigReceiver(this::applyConfiguration);
     private final BroadcastReceiver index_receiver  = new SmilIndexReceiver(this::playIndex);
+    private final Watchdog          watchdog        = new Watchdog(this::uiHangs);
 
     // ten fast touches (< 500 ms apart) or one held for 10 s open the menu
     private long           released_at;
@@ -116,6 +117,7 @@ public class GarlicActivity extends Activity implements Media.Reports
         blank_screen.setControl(launcher);
         register(config_receiver, ConfigReceiver.ACTION);
         register(index_receiver, SmilIndexReceiver.ACTION);
+        watchdog.start();
 
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_REQUEST);
@@ -134,6 +136,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     @Override
     protected void onDestroy()
     {
+        watchdog.stop();
         unregisterReceiver(config_receiver);
         unregisterReceiver(index_receiver);
         if (stage != null)
@@ -459,6 +462,24 @@ public class GarlicActivity extends Activity implements Media.Reports
         if (launcher != null)
             launcher.closedCorrectly();
         finishAndRemoveTask();
+    }
+
+    /**
+     * In the thread of the watchdog: the UI thread has not run for 30 s. Into debug.log and logcat, then the device
+     * restarts through the launcher; a new player would only hang again in the same media server. Without a launcher
+     * only the log.
+     */
+    private void uiHangs()
+    {
+        String message = "UI thread hangs for " + Watchdog.TIMEOUT_MS / 1000 + " s, "
+                         + (launcher != null ? "restart of the device" : "no launcher, no restart") + ": "
+                         + Watchdog.uiStack();
+        Log.e(TAG, message);
+        NativeCore c = core;
+        if (c != null)
+            c.logWarning("Watchdog", message);
+        if (launcher != null)
+            launcher.rebootOS("Watchdog");
     }
 
     /** Android 13+ asks for the flag; the broadcasts of the launcher come from another app */

@@ -45,6 +45,7 @@ while (running)
 | `notify(name)`             | a notification for `notify(…)` triggers                           |
 | `screenshotTaken(path)`    | the JPEG of a `Screenshot` event is saved: the REST API answers   |
 | `cachesCleared()`          | a `ClearCaches` event is handled (web cache cleared, if asked): the core restarts |
+| `logWarning(category, text)` | a warning of the frontend into `debug.log`, also before `start()`, e.g. the watchdog of the Android player |
 | `playerSettings()`         | what the settings dialog shows: player name, index URI, HTTP server on/off and port |
 | `changePlayerSettings(s)`  | check and store them; error text of the core if not valid         |
 | `debugInfo()`              | resources and identity for the debug dialog                       |

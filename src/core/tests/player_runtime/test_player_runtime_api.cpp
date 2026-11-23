@@ -633,6 +633,15 @@ TEST_CASE("before start(): poll, nextDeadline, input, settings and debug info do
     CHECK(f.transport.requests.empty());
 }
 
+TEST_CASE("a warning of the frontend goes to debug.log, also before start()")
+{
+    Fixture f;
+    f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, f.base());
+    f.runtime->logWarning("Watchdog", "UI thread hangs");
+    CHECK(f.debugLog().contains("Watchdog"));
+    CHECK(f.debugLog().contains("UI thread hangs"));
+}
+
 TEST_CASE("a download that cannot start fails at the next poll and does not keep the player busy")
 {
     Fixture f;

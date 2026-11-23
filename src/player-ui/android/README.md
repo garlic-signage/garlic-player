@@ -22,6 +22,7 @@ reliable order among each other. Android 7.1.1 (API 25) or newer.
 | `app/…/java/Dialogs.java`    | menu, settings dialog, debug dialog (with the running downloads)                 |
 | `app/…/java/Paths.java`      | ini, cache and logs at the places of the earlier players, the CA bundle for libcurl |
 | `app/…/java/BlankScreen.java` | adapi:blankScreen with the standby_mode, like `../supervisor/blank_screen.cpp` |
+| `app/…/java/Watchdog.java`   | notices a hanging UI thread (30 s), then debug.log and a restart of the device through the launcher |
 | `app/…/java/LauncherInterface.java`, `GarlicLauncher.java`, `PhilipsLauncher.java`, `SICPDef.java`, `SocketClient.java` | launcher 1.x and the Philips firmware, from the legacy player |
 | `app/…/java/ConfigReceiver.java`, `SmilIndexReceiver.java` | configuration and index the launcher sends |
 
@@ -98,6 +99,27 @@ Like the legacy player, with its Java classes:
   not in the version of the player (firmware update, REST API).
 - Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
 
+## Watchdog
+
+The UI thread must not hang: everything on the screen, the dialogs and the keys run in it. On a Philips BDL4550D
+(Android 8) a video did not start (the decoders of the firmware failed), and its `MediaPlayer.release()` then waited
+for the media server of the firmware, which never answered. The screen stayed black, the information dialog did not
+open, Android noticed it only 50 minutes later at the next key (ANR); the players the firmware started again hung
+in the same media server. Neither launcher notices it: both only check that the player is in front.
+
+- `Watchdog.java`: a thread of its own posts a beat to the UI thread every 5 s. When none has run for 30 s
+  (`SystemClock.uptimeMillis`, deep sleep does not count), it calls `GarlicActivity.uiHangs()` once, in its thread.
+- `uiHangs()`: a warning into logcat and, through `NativeCore.logWarning` (the core writes it, waits at most 2 s),
+  into `debug.log` with category `Watchdog` and the topmost frames of the UI thread, e.g.
+  `UI thread hangs for 30 s, restart of the device: android.media.MediaPlayer._release:-2 < …`. Then the launcher
+  restarts the device (`rebootOS("Watchdog")`: garlic-launcher `CommandReceiver` `reboot`, Philips
+  `php.intent.action.REBOOT`). Without a launcher only the log.
+- A restart of the device and not of the player: the hanging part is the media server of the system, a new player
+  would hang again. The sdl player gets the same from outside: its heartbeat goes to the garlic-daemon, which
+  restarts it ([supervisor protocol](../../core/docs/supervisor_protocol.md)); there a new process helps, mpv runs
+  in it.
+- Not a `Service`: its callbacks run in the UI thread. A core thread that hangs is not noticed.
+
 ## Not done yet
 
 - Launcher tested in the emulator with the garlic-launcher only (uuid, content URL, locked settings, Exit); not
@@ -107,4 +129,5 @@ Like the legacy player, with its Java classes:
   dialog and loading overlay; web pages need a newer system WebView than the 56 of the device (119 works). On an
   RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
   (about 2 MB/h).
+- Watchdog only built, not yet tested on a device (hang and restart).
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

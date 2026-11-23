@@ -90,6 +90,8 @@ public final class NativeCore
     /** standby_mode of the configuration: partially, deep, no_standby */
     public String standbyMode() { return standbyMode(handle); }
     public void stopPlayback() { stopPlayback(handle); }
+    /** Into debug.log; from any thread, waits at most 2 s for the core thread */
+    public void logWarning(String category, String message) { logWarning(handle, category, message); }
 
     /** Ends the core thread; the object is unusable afterwards */
     public void destroy()
@@ -142,4 +144,5 @@ public final class NativeCore
     private static native long remainingTime(long handle, long id);
     private static native String standbyMode(long handle);
     private static native void stopPlayback(long handle);
+    private static native void logWarning(long handle, String category, String message);
 }

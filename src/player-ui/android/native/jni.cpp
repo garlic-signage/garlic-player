@@ -525,4 +525,22 @@ extern "C"
     {
         post(handle, [](PlayerRuntimeApi &api) { api.stop(); });
     }
+
+    /// Waits up to 2 s until it is written: the watchdog restarts the device afterwards. A hanging core thread does
+    /// not hold up the restart.
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_logWarning(JNIEnv *env, jclass, jlong handle,
+                                                                                  jstring category, jstring message)
+    {
+        if (handle == 0)
+            return;
+        auto written = std::make_shared<std::promise<void>>();
+        auto done    = written->get_future();
+        bridge(handle)->core().post(
+            [written, from = text(env, category), what = text(env, message)](PlayerRuntimeApi &api)
+            {
+                api.logWarning(from, what);
+                written->set_value();
+            });
+        done.wait_for(std::chrono::seconds(2));
+    }
 }
