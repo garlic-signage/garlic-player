@@ -110,6 +110,13 @@ Like the legacy player, with its Java classes:
   At the wake time the firmware switches on and brings the player to the front. Without a planned end (a trigger,
   only the end of a container) `remainingTime()` is unknown: the backlight goes off instead (`0x72`) and on again at
   the end of the element. A wake time more than a week away comes early: the page fires on its weekday every week.
+- **Written for one series:** Philips D-Line `43BDL4550D/00` (SICP model number), firmware `02.30` (SICP firmware
+  build), Android 8.0 (API 26), MStar platform `m7221` (`ro.product.device` `sugarcane`), build
+  `TVOS-04.24.010.05.03` of 2024-10-09. The commands follow the SICP document V2.03 of June 2019. Newer series
+  (other platforms, newer Android, newer SICP versions) may lack a command, number the scheduling pages differently or
+  answer in other lengths - this one already answers model number and firmware build with other lengths than
+  `PhilipsLauncher` expects (18 and 10 bytes instead of 15 and 12), so the uuid stays empty. Check every new series
+  against the SICP document of its firmware.
 
 ## Watchdog
 
