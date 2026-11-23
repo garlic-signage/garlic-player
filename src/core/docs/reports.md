@@ -48,8 +48,8 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 
 ## Formats
 
-The same elements as garlic-lib, so the hub reads them as before. The text is written without line breaks; values
-are escaped.
+The same elements as garlic-lib, the system report and `<systemInfo>` as the Android players of IAdea (see below).
+The text is written without line breaks; values are escaped.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -72,9 +72,26 @@ are escaped.
 </report>
 ```
 
-- `<systemInfo>`: `systemStartTime`, `systemTimeZone`, `totalCapacity`, `totalFreeSpace`, `cpuUsage` (the load of
-  the whole system in percent of all cores, the 5-minute average of the resource log; empty before its first line and
-  on Android; garlic-lib left it empty), `memoryTotal`, `memoryUsed`, `hdmiOutput` (empty).
+- `<systemInfo>` (also in the inventory): `systemStartTime`, `systemTimeZone`, `totalCapacity` and `totalFreeSpace`
+  in bytes, `cpuUsage` with `%` (the load of the whole system in percent of all cores, the 5-minute average of the
+  resource log; empty before its first line and on Android; garlic-lib left it empty), `memoryTotal` and `memoryUsed`
+  in bytes like garlic-lib (IAdea seems to give KB: an evaluation has to treat IAdea reports apart), `hdmiOutput` as the frontend tells it with `PlayerRuntimeApi::setDisplayMode` (`1920x1080p-60`, WASM without
+  the refresh rate). garlic-lib wrote the CPU without `%` and no screen.
+- System report, as the Android players of IAdea, what the player knows; proxy, wifi, adb and the like are left out:
+  - `network`: per interface `type`, `mac`, `ip` and `netmask` of the first IPv4 address, then the IPv6 addresses as
+    `ip_v6`, `netmask_v6` (garlic-lib: `ip_v4`, `netmask_v4`, `broadcast_v4`).
+  - `modelInfo`: the player is the model: `modelName` `garlic-player`, `modelDescription` its version,
+    `manufacturer` Sagiadinos; `PCB` the hardware it runs on (`system::device()`: Android `ro.product.model`, Linux the
+    device tree or the DMI, Windows the BIOS of the registry, Apple `hw.model`), `licenseModel` the operating system.
+  - `userPref`: `info.playerName`, `info.playGroup`, `info.playGroupMaster`, `system.locale`,
+    `hardware.videoOut.0.rotation` (`auto` if not set), `schedule.reboot.days` and `.time` if set,
+    `hardware.audioOut.0.masterSoundLevel` (0…1 of `audio/volume`) and `display.brightness` if set,
+    `time.timeZone`, `content.serverUrl`; then the own values: `garlic.device.manufacturer`, `garlic.uptime.player`
+    and `garlic.uptime.system` (seconds), `garlic.memory.player` and `.max` (bytes), `garlic.threads` and `.max`,
+    `garlic.cpu.player` (the load of the last resource log), `garlic.temperature.cpu`, `.ram`, `.ssd` (°C),
+    `garlic.throttling`, each only if known.
+  - `hardwareInfo`: `modelName`, `productId` (garlic-lib: `product_id`), `serialNumber`, `vendorId` of the screen,
+    empty: the player does not read the EDID.
 - Inventory `state`: `COMPLETE`, or `TRANSFER` while downloading (garlic-lib wrote `COMPLETE` for both);
   `transferLength` is the size of the file in the cache, of `<file>.part` while downloading.
 - The log lines are taken as they are: the logger writes them as escaped XML. garlic-lib parsed them; a log with one

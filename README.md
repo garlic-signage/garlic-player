@@ -264,4 +264,30 @@ Holding is meant for interactive content, where fast clicks reach the page too. 
  - remote update (task `firmwareUpdate`; installing is the job of a launcher or daemon)
  - removes the longest unused files from the cache when the disk is full
 
+## Reports and events (2.0)
+
+Details in [core/docs/reports.md](src/core/docs/reports.md) and [core/docs/content.md](src/core/docs/content.md).
+
+- **System report** like the Android players of IAdea, with our namespace `http://schemas.garlic-player.com/gapi-1.0`.
+  Disk and memory in bytes like garlic-lib (IAdea seems to give the memory in KB: an evaluation treats IAdea reports
+  apart), `cpuUsage` with `%`, `hdmiOutput` from the frontend (`1920x1080p-60`).
+  - `network`: `type`, `mac`, `ip`, `netmask` (first IPv4), IPv6 as `ip_v6`, `netmask_v6`.
+  - `modelInfo`: `modelName` garlic-player, `modelDescription` the version, `licenseModel` the operating system, `PCB`
+    the hardware. The player reads it itself, without supervisor: Android `ro.product.model`, Linux the device tree
+    (Raspberry Pi) or the DMI (PCs), Windows the BIOS in the registry, macOS `hw.model`.
+  - `userPref`: what the player knows (player name, locale, rotation, daily reboot, master volume, brightness, time
+    zone, content URL), nothing it does not know (proxy, wifi, adb). Own values as `garlic.*`: device manufacturer,
+    uptime of player and device, memory and threads of the player with their maxima, its CPU load, temperatures,
+    throttling.
+  - `hardwareInfo` (the screen): empty, the player does not read the EDID; on Philips the launcher would know model and
+    serial.
+- **Events** of IAdea: `FETCH_FAILED` (also `E_CHECKSUM_NOT_MATCHED`), `OBJECT_UPDATED`, `LRU_OBJECT_REMOVED`,
+  `BROKEN_OBJECT_REMOVED`, `MEDIA_NOT_AVAILABLE`, `MEDIA_OPEN_ERROR`, `MEDIA_PLAYBACK_ERROR`, `SMIL_LOADED`,
+  `SMIL_NOT_AVAILABLE`, `SMIL_OPEN_ERROR`; of garlic-lib: `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`, `DISK_FULL`, the
+  task scheduler and configuration events; new: `MEDIA_UNSUPPORTED`. A media error is reported once per medium and
+  index version. Not used: `STORAGE_FORMATTED`, `STORAGE_TRUNCATED` (the player never formats a storage).
+- **Digest of a download**: only if the server sends one (`Repr-Digest`, `Content-Digest`, `Digest`, `Content-MD5`;
+  SHA-256 or MD5), else nothing is checked. A wrong one is `FETCH_FAILED` with `E_CHECKSUM_NOT_MATCHED` and the
+  calculated digest (`md5` or `sha256`), the file is loaded again.
+
 Contact: [Niko Sagiadinos](mailto:garlic@sagiadinos.de)

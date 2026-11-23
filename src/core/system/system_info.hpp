@@ -67,6 +67,13 @@ namespace garlic::core::system
         std::optional<std::uint64_t> throttle_events; // Intel: counters of the kernel, the core compares two of them
     };
 
+    /// The hardware the player runs on, for the system report (PCB); empty where the platform does not tell
+    struct Device
+    {
+        std::string model;        // "Raspberry Pi 4 Model B Rev 1.4", "BDL4550D", "Mac14,2"
+        std::string manufacturer; // "Philips", "Apple"
+    };
+
     /// Everything for the reports, on the native platforms (garlic-lib: SystemInfos). start_time: ISO 8601.
     reports::SystemInfo collectSystemInfo(std::string_view cache_dir, std::string_view start_time);
 

@@ -54,6 +54,8 @@ namespace garlic::core::reports
                                     std::string_view tasks);
     std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now, const SystemInfo &system,
                                 const std::vector<InventoryObject> &objects);
+    /// As the Android players of IAdea, with our namespace; see systemInfo and configuration in report_xml.cpp, the own
+    /// values as props "garlic.*".
     std::string systemReport(std::chrono::system_clock::time_point now, const SystemInfo &system,
                              const PlayerInfo &player);
 }

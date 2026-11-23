@@ -29,6 +29,7 @@
 #include <SDL3_image/SDL_image.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <iostream>
 
@@ -118,6 +119,7 @@ namespace player
 
     int PlayerWindow::run()
     {
+        tellDisplayMode();
         while (running)
         {
             auto now     = Clock::now();
@@ -187,7 +189,11 @@ namespace player
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             case SDL_EVENT_WINDOW_EXPOSED:
-            case SDL_EVENT_WINDOW_DISPLAY_CHANGED: dirty = true; break;
+            case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+                dirty = true;
+                tellDisplayMode();
+                break;
+            case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED: tellDisplayMode(); break;
             case SDL_EVENT_KEY_DOWN: key(event.key); break;
             case SDL_EVENT_TEXT_INPUT:
                 if (dialog && dialog->wantsText())
@@ -791,6 +797,18 @@ namespace player
     }
 
     // ------------------------------------------------------------------ window
+
+    /// The mode of the screen the window is on, for hdmiOutput of the reports ("1920x1080p-60")
+    void PlayerWindow::tellDisplayMode()
+    {
+        const SDL_DisplayMode *current = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
+        if (current == nullptr)
+            return;
+        int width   = current->w;
+        int height  = current->h;
+        int refresh = static_cast<int>(std::lround(current->refresh_rate));
+        runtime.post([width, height, refresh](PlayerRuntimeApi &r) { r.setDisplayMode(width, height, refresh); });
+    }
 
     void PlayerWindow::setMode(WindowMode next, int screen)
     {

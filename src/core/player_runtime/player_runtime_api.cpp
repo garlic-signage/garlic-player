@@ -140,6 +140,9 @@ namespace garlic::core
             reports::SystemInfo info = system_info ? system_info() : reports::SystemInfo{};
             if (!info.cpu_usage)
                 info.cpu_usage = cpu_system_of_log;
+            if (info.hdmi_output.empty())
+                info.hdmi_output = display_mode;
+            info.own = ownReportValues();
             return info;
         };
         reporter = std::make_unique<reports::Reporter>(transport, fs, clock, *logger, config, *inventory,
@@ -655,6 +658,7 @@ namespace garlic::core
         DebugInfo process;
         trackProcess(process, cpu_of_log);
         cpu_system_of_log = process.cpu_system;
+        cpu_player_of_log = process.cpu;
         if (process.cpu && (!cpu_max || *process.cpu > *cpu_max)) // the average of the 5 minutes since the last log
         {
             cpu_max      = process.cpu;
@@ -753,6 +757,68 @@ namespace garlic::core
         info.cpu_max_time    = cpu_max_time;
     }
 
+    std::chrono::seconds PlayerRuntimeApi::playerUptime(const std::optional<std::chrono::seconds> &system) const
+    {
+        // the clock of the device where known: the monotonic one stops in sleep, the player would look restarted
+        if (system && started_at_boot && *system >= *started_at_boot)
+            return *system - *started_at_boot;
+        return std::chrono::duration_cast<std::chrono::seconds>(clock.monotonic() - started_at);
+    }
+
+    /**
+     * The own values of the player in the system report, props "garlic.*" next to those of IAdea: uptime of player and
+     * device (seconds), memory (bytes) and threads of the player with their maxima, its CPU load of the last resource
+     * log, temperatures (°C) and throttling. Read now, without changing the samples of the debug dialog. Unknown: left
+     * out.
+     */
+    std::vector<std::pair<std::string, std::string>> PlayerRuntimeApi::ownReportValues() const
+    {
+        std::vector<std::pair<std::string, std::string>> values;
+        std::optional<std::chrono::seconds>              system_uptime;
+#if GARLIC_CORE_WITH_SYSTEM
+        system_uptime = system::uptime();
+#endif
+        values.emplace_back("garlic.uptime.player", std::to_string(playerUptime(system_uptime).count()));
+        if (system_uptime)
+            values.emplace_back("garlic.uptime.system", std::to_string(system_uptime->count()));
+#if GARLIC_CORE_WITH_SYSTEM
+        system::ProcessInfo process = system::processInfo();
+        if (process.memory > 0)
+        {
+            values.emplace_back("garlic.memory.player", std::to_string(process.memory));
+            values.emplace_back("garlic.memory.player.max", std::to_string(std::max(memory_max, process.memory)));
+        }
+        if (process.threads > 0)
+        {
+            values.emplace_back("garlic.threads", std::to_string(process.threads));
+            values.emplace_back("garlic.threads.max", std::to_string(std::max(threads_max, process.threads)));
+        }
+        if (cpu_player_of_log)
+            values.emplace_back("garlic.cpu.player", std::to_string(*cpu_player_of_log) + "%");
+        system::Thermal thermal = system::thermal();
+        auto celsius = [&values](const char *name, const std::optional<int> &value)
+        {
+            if (value)
+                values.emplace_back(name, std::to_string(*value));
+        };
+        celsius("garlic.temperature.cpu", thermal.cpu);
+        celsius("garlic.temperature.ram", thermal.ram);
+        celsius("garlic.temperature.ssd", thermal.ssd);
+        if (thermal.throttling)
+            values.emplace_back("garlic.throttling", *thermal.throttling ? "true" : "false");
+#endif
+        return values;
+    }
+
+    void PlayerRuntimeApi::setDisplayMode(int width, int height, int refresh)
+    {
+        if (width <= 0 || height <= 0)
+            display_mode.clear();
+        else
+            display_mode = std::to_string(width) + "x" + std::to_string(height) +
+                           (refresh > 0 ? "p-" + std::to_string(refresh) : "");
+    }
+
     DebugInfo PlayerRuntimeApi::debugInfo()
     {
         DebugInfo info;
@@ -769,14 +835,10 @@ namespace garlic::core
                 info.memory_free = *system.memory_total - std::min(*system.memory_used, *system.memory_total);
         }
         trackProcess(info, cpu_of_debug_info);
-        // the clock of the device where known: the monotonic one stops in sleep, the player would look restarted
 #if GARLIC_CORE_WITH_SYSTEM
         info.uptime_system = system::uptime();
 #endif
-        if (info.uptime_system && started_at_boot && *info.uptime_system >= *started_at_boot)
-            info.uptime_player = *info.uptime_system - *started_at_boot;
-        else
-            info.uptime_player = std::chrono::duration_cast<std::chrono::seconds>(clock.monotonic() - started_at);
+        info.uptime_player = playerUptime(info.uptime_system);
         if (queue)
         {
             for (const auto &running : queue->running())

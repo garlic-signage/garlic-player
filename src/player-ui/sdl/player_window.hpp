@@ -170,6 +170,7 @@ namespace player
             void clearCaches(const garlic::core::tasks::ClearCaches &clear);
             void clear();
             void report();
+            void tellDisplayMode();
 
             void key(const SDL_KeyboardEvent &event);
             void pointer(ui::PointerEvent event, bool is_mouse);

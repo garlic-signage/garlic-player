@@ -21,7 +21,7 @@ target_include_directories(garlic_core_system PUBLIC ${PROJECT_SOURCE_DIR})
 
 target_link_libraries(garlic_core_system PUBLIC garlic::core::reports)
 if(WIN32)
-    target_link_libraries(garlic_core_system PRIVATE iphlpapi psapi ws2_32 icu powrprof)
+    target_link_libraries(garlic_core_system PRIVATE advapi32 iphlpapi psapi ws2_32 icu powrprof)
 elseif(APPLE)
     target_link_libraries(garlic_core_system PRIVATE "-framework CoreFoundation" "-framework Foundation" objc)
 endif()

@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace garlic::core::reports
@@ -61,16 +62,29 @@ namespace garlic::core::reports
         std::optional<int>            cpu_usage; // percent of all cores, the whole system (garlic-lib: always empty)
         std::vector<NetworkInterface> network;
         std::string                   locale; // e.g. "de_DE"
+        std::string                   hdmi_output;         // the screen as the frontend tells it: "1920x1080p-60"
+        std::string                   device_model;        // the hardware: "Raspberry Pi 4 Model B Rev 1.4", "BDL4550D"
+        std::string                   device_manufacturer; // "Raspberry Pi Foundation", "Philips"
+
+        /// Own values of the player (uptime, temperatures …), props "garlic.*" in the userPref of the system report
+        std::vector<std::pair<std::string, std::string>> own;
     };
 
     /// The player itself in the system report.
     struct PlayerInfo
     {
         std::string uuid;
-        std::string app_name; // PCB, e.g. "garlic-player"
-        std::string os;
+        std::string app_name; // modelName, e.g. "garlic-player"
+        std::string os;       // licenseModel: "linux", "android" …
+        std::string version;  // modelDescription
         std::string player_name;
         std::string index_uri;
+        // of the configuration (ini), empty if not set
+        std::string reboot_days;
+        std::string reboot_time;
+        std::string rotation;
+        std::string volume;     // "80" or "80%": masterSoundLevel 0.8
+        std::string brightness;
     };
 }
 

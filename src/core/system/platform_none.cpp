@@ -54,4 +54,9 @@ namespace garlic::core::system::platform
     {
         return {};
     }
+
+    Device device()
+    {
+        return {};
+    }
 }

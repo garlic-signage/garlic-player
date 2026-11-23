@@ -254,4 +254,19 @@ namespace garlic::core::system::platform
     {
         return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::milliseconds(GetTickCount64()));
     }
+
+    /// The BIOS of the registry: SystemProductName and SystemManufacturer
+    Device device()
+    {
+        auto read = [](const wchar_t *name)
+        {
+            wchar_t value[256] = {};
+            DWORD   size       = sizeof(value);
+            if (RegGetValueW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\BIOS", name, RRF_RT_REG_SZ, nullptr,
+                             value, &size) != ERROR_SUCCESS)
+                return std::string();
+            return utf8(value);
+        };
+        return {read(L"SystemProductName"), read(L"SystemManufacturer")};
+    }
 }

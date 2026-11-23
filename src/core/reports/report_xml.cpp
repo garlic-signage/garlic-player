@@ -18,6 +18,8 @@
 #include "reports/report_xml.hpp"
 #include "common/time_format.hpp"
 
+#include <algorithm>
+#include <charconv>
 #include <format>
 
 namespace garlic::core::reports
@@ -71,49 +73,84 @@ namespace garlic::core::reports
             return "</player></report>";
         }
 
-        /// garlic-lib: CreateBase::createSystemInfo; inner is placed before </systemInfo> (network, configuration).
+        /**
+         * As the Android players of IAdea (garlic-lib: CreateBase::createSystemInfo): the CPU load with "%", the screen
+         * as "1920x1080p-60". Disk and memory in bytes like garlic-lib; IAdea seems to give the memory in KB, an
+         * evaluation has to treat its reports apart. inner is placed before </systemInfo> (network, configuration).
+         */
         std::string systemInfo(const SystemInfo &system, std::string_view inner = {})
         {
             return "<systemInfo>" + tag("systemStartTime", system.start_time) + tag("systemTimeZone", system.time_zone) +
                    tag("totalCapacity", number(system.total_capacity)) + tag("totalFreeSpace", number(system.free_space)) +
-                   tag("cpuUsage", system.cpu_usage ? std::to_string(*system.cpu_usage) : "") +
-                   tag("memoryTotal", number(system.memory_total)) +
-                   tag("memoryUsed", number(system.memory_used)) + tag("hdmiOutput", "") + std::string(inner) +
-                   "</systemInfo>";
+                   tag("cpuUsage", system.cpu_usage ? std::to_string(*system.cpu_usage) + "%" : "") +
+                   tag("memoryTotal", number(system.memory_total)) + tag("memoryUsed", number(system.memory_used)) +
+                   tag("hdmiOutput", system.hdmi_output) +
+                   std::string(inner) + "</systemInfo>";
         }
 
-        /// garlic-lib: CreateSystemReport::createNetwork
+        /// As IAdea: type, mac, ip and netmask of the first IPv4 address; then the IPv6 addresses (ip_v6, netmask_v6)
         std::string network(const SystemInfo &system)
         {
             std::string text = "<network>";
             for (const NetworkInterface &interface : system.network)
             {
-                text += "<interface id=\"" + escape(interface.id) + "\">" + tag("mac", interface.mac) +
-                        tag("type", interface.type);
+                text += "<interface id=\"" + escape(interface.id) + "\">" + tag("type", interface.type) +
+                        tag("mac", interface.mac);
+                bool v4 = false;
                 for (const NetworkAddress &address : interface.addresses)
-                {
-                    if (address.family == NetworkAddress::Family::V4)
-                        text += tag("ip_v4", address.ip) + tag("netmask_v4", address.netmask) +
-                                tag("broadcast_v4", address.broadcast);
-                    else
+                    if (address.family == NetworkAddress::Family::V4 && !v4)
+                    {
+                        text += tag("ip", address.ip) + tag("netmask", address.netmask);
+                        v4 = true;
+                    }
+                for (const NetworkAddress &address : interface.addresses)
+                    if (address.family != NetworkAddress::Family::V4)
                         text += tag("ip_v6", address.ip) + tag("netmask_v6", address.netmask);
-                }
                 text += "</interface>";
             }
             return text + "</network>";
         }
 
-        /// garlic-lib: CreateSystemReport::createConfiguration with modelInfo, factoryDefault, userPref
+        /// "80", "80%" → "0.8" as hardware.audioOut.0.masterSoundLevel of IAdea; else empty
+        std::string soundLevel(std::string_view percent)
+        {
+            if (percent.ends_with('%'))
+                percent.remove_suffix(1);
+            int value = 0;
+            auto [end, error] = std::from_chars(percent.data(), percent.data() + percent.size(), value);
+            if (percent.empty() || error != std::errc() || end != percent.data() + percent.size())
+                return {};
+            return std::format("{}", std::clamp(value, 0, 100) / 100.0);
+        }
+
+        /**
+         * As the Android players of IAdea: modelInfo (the player is the model, PCB the hardware it runs on), userPref
+         * with what is known (the configuration, the system), then the own values as "garlic.*". What the player does
+         * not know (proxy, wifi, adb …) is left out.
+         */
         std::string configuration(const SystemInfo &system, const PlayerInfo &player)
         {
-            return "<configuration><modelInfo>" + prop("PCB", player.app_name) + prop("PCBRevision", "") +
-                   prop("operatingSystem", player.os) + prop("manufacturer", "Sagiadinos") +
-                   prop("manufacturerURL", "https://garlic-player.com") + prop("modelDescription", "") +
-                   prop("modelName", "") + prop("modelURL", "") + prop("option", "") + "</modelInfo>" +
-                   "<factoryDefault>" + tag("variant", "") + "</factoryDefault><userPref>" +
-                   prop("info.playerName", player.player_name) + prop("info.playGroup", "") +
-                   prop("info.playGroupMaster", "") + prop("system.locale", system.locale) +
-                   prop("content.serverUrl", player.index_uri) + "</userPref></configuration>";
+            std::string text = "<configuration><modelInfo>" + prop("PCB", system.device_model) + prop("PCBRevision", "") +
+                               prop("licenseModel", player.os) + prop("manufacturer", "Sagiadinos") +
+                               prop("manufacturerURL", "https://garlic-player.com") +
+                               prop("modelDescription", player.version) + prop("modelName", player.app_name) +
+                               prop("modelURL", "") + prop("option", "") + "</modelInfo>" + "<factoryDefault>" +
+                               tag("variant", "") + "</factoryDefault><userPref>" +
+                               prop("info.playerName", player.player_name) + prop("info.playGroup", "") +
+                               prop("info.playGroupMaster", "") + prop("system.locale", system.locale) +
+                               prop("hardware.videoOut.0.rotation", player.rotation.empty() ? "auto" : player.rotation);
+            if (!player.reboot_days.empty() || !player.reboot_time.empty())
+                text += prop("schedule.reboot.days", player.reboot_days) + prop("schedule.reboot.time", player.reboot_time);
+            if (std::string level = soundLevel(player.volume); !level.empty())
+                text += prop("hardware.audioOut.0.masterSoundLevel", level);
+            if (!player.brightness.empty())
+                text += prop("display.brightness", player.brightness);
+            text += prop("time.timeZone", system.time_zone) + prop("content.serverUrl", player.index_uri);
+            if (!system.device_manufacturer.empty())
+                text += prop("garlic.device.manufacturer", system.device_manufacturer);
+            for (const auto &[name, value] : system.own)
+                text += prop(name, value);
+            return text + "</userPref></configuration>";
         }
     }
 
@@ -150,7 +187,7 @@ namespace garlic::core::reports
                              const PlayerInfo &player)
     {
         return begin(player.uuid, now) + systemInfo(system, network(system) + configuration(system, player)) +
-               "<hardwareInfo><hardware id=\"display:0\">" + prop("modelName", "") + prop("product_id", "") +
+               "<hardwareInfo><hardware id=\"display:0\">" + prop("modelName", "") + prop("productId", "") +
                prop("serialNumber", "") + prop("vendorId", "") + "</hardware></hardwareInfo>" + end();
     }
 }

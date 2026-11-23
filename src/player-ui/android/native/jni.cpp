@@ -406,6 +406,13 @@ extern "C"
         post(handle, [lowered](PlayerRuntimeApi &api) { api.accessKey(lowered); });
     }
 
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setDisplayMode(JNIEnv *, jclass, jlong handle,
+                                                                                      jint width, jint height,
+                                                                                      jint refresh)
+    {
+        post(handle, [width, height, refresh](PlayerRuntimeApi &api) { api.setDisplayMode(width, height, refresh); });
+    }
+
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_screenshotTaken(JNIEnv *env, jclass,
                                                                                        jlong handle, jstring path)
     {

@@ -56,6 +56,8 @@ class GarlicPlayer {
         }
 
         this.#storage.sync(); // the configuration with an index from the URL, at once and not only after 10 s
+        this.#tellDisplayMode();
+        window.addEventListener('resize', () => this.#tellDisplayMode());
         this.#createDialogs();
         document.addEventListener('keydown', (event) => this.#keyPressed(event));
         document.addEventListener('fullscreenchange', () => this.#updateCursor());
@@ -64,6 +66,12 @@ class GarlicPlayer {
         if (this.#player.indexUri() === '')
             this.#settings.open(true);
         this.#tick();
+    }
+
+    /// The screen in device pixels, for hdmiOutput of the reports; the browser does not tell the refresh rate
+    #tellDisplayMode() {
+        const ratio = window.devicePixelRatio || 1;
+        this.#call(() => this.#player.setDisplayMode(Math.round(screen.width * ratio), Math.round(screen.height * ratio), 0));
     }
 
     #createDialogs() {

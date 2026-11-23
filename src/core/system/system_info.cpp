@@ -217,6 +217,9 @@ namespace garlic::core::system
             info.memory_used = *memory.total > *memory.available ? *memory.total - *memory.available : 0;
 
         info.network = platform::network();
+        Device device            = platform::device();
+        info.device_model        = device.model;
+        info.device_manufacturer = device.manufacturer;
         return info;
     }
 }

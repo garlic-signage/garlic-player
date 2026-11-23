@@ -57,12 +57,12 @@ TEST_CASE("task execution report: the tasks in one taskState")
     CHECK(taskExecutionReport("uuid-1", now, tasks) == head + "<taskState>" + tasks + "</taskState></player></report>");
 }
 
-TEST_CASE("system info: the CPU load of the system as cpuUsage, empty where unknown")
+TEST_CASE("system info: the CPU load of the system as cpuUsage with %, empty where unknown")
 {
     SystemInfo info = system();
     info.cpu_usage  = 12;
     std::string report = inventoryReport("uuid-1", now, info, {});
-    CHECK(report.find("<cpuUsage>12</cpuUsage>") != std::string::npos);
+    CHECK(report.find("<cpuUsage>12%</cpuUsage>") != std::string::npos);
     CHECK(inventoryReport("uuid-1", now, system(), {}).find("<cpuUsage></cpuUsage>") != std::string::npos);
 }
 
@@ -81,20 +81,41 @@ TEST_CASE("inventory report: system info and one object per file, values escaped
               "<transferLength>100</transferLength></object></objectInfo></contentDirectory></player></report>");
 }
 
-TEST_CASE("system report: network, configuration and hardware like garlic-lib")
+TEST_CASE("system report: as the Android players of IAdea, the own values as garlic.* props")
 {
-    PlayerInfo player{"uuid-1", "garlic-player", "linux", "Lobby", "http://hub/index.smil"};
-    std::string report = systemReport(now, system(), player);
+    PlayerInfo player;
+    player.uuid        = "uuid-1";
+    player.app_name    = "garlic-player";
+    player.os          = "linux";
+    player.version     = "2.0.0";
+    player.player_name = "Lobby";
+    player.index_uri   = "http://hub/index.smil";
+    player.reboot_days = "Sun|Mon";
+    player.reboot_time = "04:00";
+    player.volume      = "80%";
+    SystemInfo info          = system();
+    info.memory_used         = 1024;
+    info.hdmi_output         = "1920x1080p-60";
+    info.device_model        = "Raspberry Pi 4 Model B Rev 1.4";
+    info.device_manufacturer = "Raspberry Pi Foundation";
+    info.own                 = {{"garlic.uptime.player", "3600"}};
+    std::string report = systemReport(now, info, player);
 
-    CHECK(report.starts_with(head + "<systemInfo><systemStartTime>"));
-    CHECK(report.find("<hdmiOutput></hdmiOutput><network><interface id=\"eth0\"><mac>aa:bb</mac><type>ethernet</type>"
-                      "<ip_v4>10.0.0.2</ip_v4><netmask_v4>255.0.0.0</netmask_v4><broadcast_v4>10.255.255.255"
-                      "</broadcast_v4><ip_v6>fe80::1</ip_v6><netmask_v6>ffff::</netmask_v6></interface></network>"
-                      "<configuration><modelInfo><prop name=\"PCB\" value=\"garlic-player\"/>") != std::string::npos);
-    CHECK(report.find("<prop name=\"operatingSystem\" value=\"linux\"/><prop name=\"manufacturer\" value=\"Sagiadinos\"/>") !=
-          std::string::npos);
-    CHECK(report.find("<userPref><prop name=\"info.playerName\" value=\"Lobby\"/>") != std::string::npos);
-    CHECK(report.find("<prop name=\"content.serverUrl\" value=\"http://hub/index.smil\"/></userPref></configuration>"
-                      "</systemInfo><hardwareInfo><hardware id=\"display:0\">") != std::string::npos);
-    CHECK(report.ends_with("<prop name=\"vendorId\" value=\"\"/></hardware></hardwareInfo></player></report>"));
+    CHECK(report.starts_with(head + "<systemInfo>"));
+    CHECK(report.contains("<memoryTotal>2048</memoryTotal><memoryUsed>1024</memoryUsed><hdmiOutput>1920x1080p-60</hdmiOutput>"
+                          "<network><interface id=\"eth0\"><type>ethernet</type><mac>aa:bb</mac><ip>10.0.0.2</ip>"
+                          "<netmask>255.0.0.0</netmask><ip_v6>fe80::1</ip_v6><netmask_v6>ffff::</netmask_v6></interface>"
+                          "</network>"));
+    CHECK(report.contains(R"(<modelInfo><prop name="PCB" value="Raspberry Pi 4 Model B Rev 1.4"/><prop name="PCBRevision" value=""/>)"
+                          R"(<prop name="licenseModel" value="linux"/><prop name="manufacturer" value="Sagiadinos"/>)"));
+    CHECK(report.contains(R"(<prop name="modelDescription" value="2.0.0"/><prop name="modelName" value="garlic-player"/>)"));
+    CHECK(report.contains(R"(<userPref><prop name="info.playerName" value="Lobby"/>)"));
+    CHECK(report.contains(R"(<prop name="hardware.videoOut.0.rotation" value="auto"/><prop name="schedule.reboot.days" value="Sun|Mon"/>)"
+                          R"(<prop name="schedule.reboot.time" value="04:00"/><prop name="hardware.audioOut.0.masterSoundLevel" value="0.8"/>)"));
+    CHECK_FALSE(report.contains("display.brightness")); // not set
+    CHECK(report.contains(R"(<prop name="time.timeZone" value="Europe/Berlin"/><prop name="content.serverUrl" value="http://hub/index.smil"/>)"
+                          R"(<prop name="garlic.device.manufacturer" value="Raspberry Pi Foundation"/>)"
+                          R"(<prop name="garlic.uptime.player" value="3600"/></userPref></configuration></systemInfo>)"));
+    CHECK(report.ends_with(R"(<hardwareInfo><hardware id="display:0"><prop name="modelName" value=""/><prop name="productId" value=""/>)"
+                           R"(<prop name="serialNumber" value=""/><prop name="vendorId" value=""/></hardware></hardwareInfo></player></report>)"));
 }

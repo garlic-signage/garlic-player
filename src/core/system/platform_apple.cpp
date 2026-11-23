@@ -207,4 +207,14 @@ namespace garlic::core::system::platform
         gettimeofday(&now, nullptr);
         return std::chrono::seconds(now.tv_sec > boot.tv_sec ? now.tv_sec - boot.tv_sec : 0);
     }
+
+    /// hw.model, e.g. "Mac14,2"; iOS: the machine, e.g. "iPad13,1"
+    Device device()
+    {
+        char   model[128] = {};
+        size_t length     = sizeof(model);
+        if (sysctlbyname(TARGET_OS_OSX ? "hw.model" : "hw.machine", model, &length, nullptr, 0) != 0)
+            return {{}, "Apple"};
+        return {model, "Apple"};
+    }
 }

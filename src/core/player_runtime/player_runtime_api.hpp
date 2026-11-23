@@ -242,6 +242,9 @@ namespace garlic::core
             void accessKey(char key);
             void notify(std::string_view name);
 
+            /// The screen as the frontend has it, for hdmiOutput of the reports ("1920x1080p-60"); refresh 0: unknown
+            void setDisplayMode(int width, int height, int refresh);
+
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
@@ -332,6 +335,8 @@ namespace garlic::core
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log
             std::optional<int>       cpu_system_of_log; // the load of the system over the 5 minutes of the last log
+            std::optional<int>       cpu_player_of_log; // the load of the player, the same
+            std::string              display_mode;      // setDisplayMode: hdmiOutput of the reports
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
             std::chrono::steady_clock::time_point started_at;      // for the uptime of the player
@@ -340,6 +345,8 @@ namespace garlic::core
             void dispatch(const downloader::DownloadResult &result);
             void logDownload(const downloader::DownloadResult &result);
             void removeBrokenObjects();
+            std::chrono::seconds playerUptime(const std::optional<std::chrono::seconds> &system) const;
+            std::vector<std::pair<std::string, std::string>> ownReportValues() const;
             void newIndex(smil::Document document, std::string base);
             void onTask(tasks::TaskAction action);
             void collectEngine();

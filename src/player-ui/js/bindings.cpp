@@ -164,6 +164,7 @@ namespace player
             }
 
             void screenshotTaken(const std::string &path) { runtime->screenshotTaken(path); }
+            void setDisplayMode(int width, int height, int refresh) { runtime->setDisplayMode(width, height, refresh); }
             void cachesCleared() { runtime->cachesCleared(); }
             void stop() { runtime->stop(); }
 
@@ -389,6 +390,7 @@ EMSCRIPTEN_BINDINGS(garlic_player)
         .function("activated", &player::Player::activated)
         .function("accessKey", &player::Player::accessKey)
         .function("screenshotTaken", &player::Player::screenshotTaken)
+        .function("setDisplayMode", &player::Player::setDisplayMode)
         .function("cachesCleared", &player::Player::cachesCleared)
         .function("stop", &player::Player::stop)
         .function("settings", &player::Player::settings)

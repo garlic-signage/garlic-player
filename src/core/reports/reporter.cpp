@@ -19,6 +19,8 @@
 
 #include "reports/report_xml.hpp"
 
+#include "common/version.hpp"
+
 #include <algorithm>
 
 namespace garlic::core::reports
@@ -282,9 +284,21 @@ namespace garlic::core::reports
             case Kind::TaskExecution:
                 return taskExecutionReport(config.uuid(), now, taskStates());
             case Kind::System:
-                return systemReport(now, system_info ? system_info() : SystemInfo{},
-                                    {config.uuid(), "garlic-player", std::string(configuration::Configuration::os()),
-                                     config.playerName(), config.indexUri()});
+            {
+                PlayerInfo player;
+                player.uuid        = config.uuid();
+                player.app_name    = "garlic-player";
+                player.os          = std::string(configuration::Configuration::os());
+                player.version     = std::string(common::version());
+                player.player_name = config.playerName();
+                player.index_uri   = config.indexUri();
+                player.reboot_days = config.rebootDays();
+                player.reboot_time = config.rebootTime();
+                player.rotation    = config.value("display/rotation");
+                player.volume      = config.value("audio/volume");
+                player.brightness  = config.value("display/brightness");
+                return systemReport(now, system_info ? system_info() : SystemInfo{}, player);
+            }
         }
         return {};
     }

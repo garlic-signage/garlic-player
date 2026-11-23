@@ -269,4 +269,25 @@ namespace garlic::core::system::platform
             return {};
         return std::chrono::seconds(now.tv_sec);
     }
+
+    /**
+     * Android: the build properties. Linux: the device tree (Raspberry Pi and other ARM boards, "Raspberry Pi 4 Model B
+     * Rev 1.4"), else the DMI of the BIOS (PCs).
+     */
+    Device device()
+    {
+#ifdef __ANDROID__
+        return {property("ro.product.model"), property("ro.product.manufacturer")};
+#else
+        auto clean = [](std::string text)
+        {
+            while (!text.empty() && (text.back() == '\0' || text.back() == '\n' || text.back() == ' '))
+                text.pop_back();
+            return text;
+        };
+        if (std::string model = clean(readText("/sys/firmware/devicetree/base/model")); !model.empty())
+            return {model, {}};
+        return {clean(readText("/sys/class/dmi/id/product_name")), clean(readText("/sys/class/dmi/id/sys_vendor"))};
+#endif
+    }
 }

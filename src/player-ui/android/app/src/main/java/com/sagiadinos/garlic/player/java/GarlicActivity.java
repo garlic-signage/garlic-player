@@ -34,7 +34,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.content.res.Configuration;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -249,6 +252,7 @@ public class GarlicActivity extends Activity implements Media.Reports
             return;
         }
         drain();
+        tellDisplayMode();
         // without an index the settings dialog comes first, Cancel ends the player (garlic-lib); not when the
         // garlic-launcher gives the content URL: the player waits for its configuration
         boolean without_index = indexOf(core.settings()).isEmpty();
@@ -416,6 +420,24 @@ public class GarlicActivity extends Activity implements Media.Reports
             region.add(medium);
             medium.start();
         }
+    }
+
+    /// The screen, for hdmiOutput of the reports ("1920x1080p-60"): the real size, not the one without system bars
+    private void tellDisplayMode()
+    {
+        if (core == null)
+            return;
+        Display        display = getWindowManager().getDefaultDisplay();
+        DisplayMetrics metrics = new DisplayMetrics();
+        display.getRealMetrics(metrics);
+        core.setDisplayMode(metrics.widthPixels, metrics.heightPixels, Math.round(display.getRefreshRate()));
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration changed)
+    {
+        super.onConfigurationChanged(changed);
+        tellDisplayMode(); // rotation, another resolution
     }
 
     @Override
