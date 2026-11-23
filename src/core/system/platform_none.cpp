@@ -49,4 +49,9 @@ namespace garlic::core::system::platform
     {
         return "C";
     }
+
+    std::optional<std::chrono::seconds> uptime()
+    {
+        return {};
+    }
 }

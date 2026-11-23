@@ -190,6 +190,11 @@ namespace garlic::core
         std::optional<int>  temperature_ram;
         std::optional<int>  temperature_ssd;
         std::optional<bool> throttling;
+        /// Since the start of the player and since the boot of the device; a player clearly younger than the device
+        /// was started again (crash, watchdog, supervisor). The time in sleep counts in both where the device is
+        /// known; WASM: only the player, as the time of the page.
+        std::chrono::seconds                uptime_player{};
+        std::optional<std::chrono::seconds> uptime_system;
 
         struct Download
         {
@@ -328,6 +333,8 @@ namespace garlic::core
             std::optional<int>       cpu_system_of_log; // the load of the system over the 5 minutes of the last log
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
+            std::chrono::steady_clock::time_point started_at;      // for the uptime of the player
+            std::optional<std::chrono::seconds>   started_at_boot; // uptime of the device at the start
 
             void dispatch(const downloader::DownloadResult &result);
             void newIndex(smil::Document document, std::string base);

@@ -23,6 +23,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netpacket/packet.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <charconv>
@@ -258,5 +259,14 @@ namespace garlic::core::system::platform
                 return normalizeLocale(value);
         return "C";
 #endif
+    }
+
+    /// CLOCK_BOOTTIME: since the boot with the time in suspend
+    std::optional<std::chrono::seconds> uptime()
+    {
+        timespec now{};
+        if (clock_gettime(CLOCK_BOOTTIME, &now) != 0)
+            return {};
+        return std::chrono::seconds(now.tv_sec);
     }
 }

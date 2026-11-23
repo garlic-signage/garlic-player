@@ -73,6 +73,8 @@ namespace garlic::core::system
     DiskSpace   diskSpace(std::string_view cache_dir);
     ProcessInfo processInfo();
     Thermal     thermal();
+    /// Since the boot of the device, sleep included; empty where the platform cannot tell
+    std::optional<std::chrono::seconds> uptime();
 
     // ------------------------------------------------------------------ text parsing, testable on every platform
 

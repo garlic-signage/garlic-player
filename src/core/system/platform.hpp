@@ -32,6 +32,7 @@ namespace garlic::core::system::platform
     std::vector<reports::NetworkInterface> network(); // interfaces with a MAC and at least one address
     std::string                            timeZone(); // IANA name, e.g. "Europe/Berlin"
     std::string                            locale();   // e.g. "de_DE"
+    std::optional<std::chrono::seconds>    uptime();   // since the boot, sleep included; empty where unknown
 }
 
 #endif // GARLIC_CORE_SYSTEM_PLATFORM_HPP

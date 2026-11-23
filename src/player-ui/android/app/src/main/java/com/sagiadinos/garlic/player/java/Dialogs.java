@@ -268,6 +268,8 @@ final class Dialogs
                 + " · SSD " + celsius(info, "temperatureSsd") + " · Throttling ";
             rows.add(throttling == null ? row("Temperature", temperatures + "-")
                 : new String[]{"Temperature", temperatures + "●", "", throttling ? "red" : "green"});
+            rows.add(row("Uptime", "Player " + duration(info, "uptimePlayer")
+                + " · System " + duration(info, "uptimeSystem")));
             JSONArray downloads = info.optJSONArray("downloads");
             boolean   first     = true;
             for (int i = 0; downloads != null && i < downloads.length(); ++i)
@@ -295,6 +297,22 @@ final class Dialogs
         for (int i = 0; i < playing.size(); ++i)
             rows.add(row(i == 0 ? "Playing" : "", playing.get(i)));
         return rows;
+    }
+
+    /// "2d 3h 15m", "3h 15m", "15m"; "-" if the core does not know it
+    private static String duration(JSONObject info, String key)
+    {
+        if (info.isNull(key) || !info.has(key))
+            return "-";
+        long   minutes = info.optLong(key) / 60;
+        long   days    = minutes / (24 * 60);
+        long   hours   = minutes / 60 % 24;
+        String text    = minutes % 60 + "m";
+        if (days > 0 || hours > 0)
+            text = hours + "h " + text;
+        if (days > 0)
+            text = days + "d " + text;
+        return text;
     }
 
     private static String celsius(JSONObject info, String key)

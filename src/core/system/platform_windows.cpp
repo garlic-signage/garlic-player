@@ -248,4 +248,10 @@ namespace garlic::core::system::platform
             return "C";
         return normalizeLocale(utf8(name));
     }
+
+    /// GetTickCount64: since the boot with the time in sleep; after a fast startup since the last full boot
+    std::optional<std::chrono::seconds> uptime()
+    {
+        return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::milliseconds(GetTickCount64()));
+    }
 }

@@ -63,6 +63,22 @@ namespace player
             return text;
         }
 
+        /// "2d 3h 15m", "3h 15m", "15m"; "-" if the core does not know it
+        std::string duration(const std::optional<std::chrono::seconds> &value)
+        {
+            if (!value)
+                return "-";
+            long long minutes = value->count() / 60;
+            long long days    = minutes / (24 * 60);
+            long long hours   = minutes / 60 % 24;
+            std::string text  = std::to_string(minutes % 60) + "m";
+            if (days > 0 || hours > 0)
+                text = std::to_string(hours) + "h " + text;
+            if (days > 0)
+                text = std::to_string(days) + "d " + text;
+            return text;
+        }
+
         /// "58 °C", "-" if there is no sensor
         std::string celsius(const std::optional<int> &value)
         {
@@ -280,6 +296,7 @@ namespace player
             {"Temperature", "CPU " + celsius(info.temperature_cpu) + " · RAM " + celsius(info.temperature_ram) +
                                 " · SSD " + celsius(info.temperature_ssd) + " · Throttling" +
                                 (info.throttling ? "" : " -")},
+            {"Uptime", "Player " + duration(info.uptime_player) + " · System " + duration(info.uptime_system)},
         };
         throttling = info.throttling;
         version    = info.version;

@@ -35,6 +35,7 @@
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <sys/sysctl.h>
+#include <sys/time.h>
 
 #include <vector>
 
@@ -192,5 +193,18 @@ namespace garlic::core::system::platform
         std::string name    = utf8(CFLocaleGetIdentifier(current));
         CFRelease(current);
         return normalizeLocale(name);
+    }
+
+    /// kern.boottime: the wall time of the boot, so the time in sleep counts
+    std::optional<std::chrono::seconds> uptime()
+    {
+        timeval boot{};
+        size_t  size  = sizeof(boot);
+        int     mib[] = {CTL_KERN, KERN_BOOTTIME};
+        if (sysctl(mib, 2, &boot, &size, nullptr, 0) != 0 || boot.tv_sec == 0)
+            return {};
+        timeval now{};
+        gettimeofday(&now, nullptr);
+        return std::chrono::seconds(now.tv_sec > boot.tv_sec ? now.tv_sec - boot.tv_sec : 0);
     }
 }

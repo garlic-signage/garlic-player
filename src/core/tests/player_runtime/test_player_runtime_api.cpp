@@ -524,6 +524,14 @@ TEST_CASE("debug info: title, user agent, disk and memory of the system, the pla
         CHECK_FALSE(info.memory_max_time.empty());
     CHECK_FALSE(info.cpu.has_value()); // the load needs two measurements
     CHECK_FALSE(info.cpu_system.has_value());
+#if !defined(__EMSCRIPTEN__) && (defined(__linux__) || defined(__APPLE__) || defined(_WIN32))
+    REQUIRE(info.uptime_system.has_value()); // the device: the player counts on its clock, the test runs briefly
+    CHECK(info.uptime_player <= *info.uptime_system);
+    CHECK(info.uptime_player < 60s);
+#else
+    CHECK(info.uptime_player >= 5s); // the monotonic clock: the fake one ran 5 s
+    CHECK_FALSE(info.uptime_system.has_value());
+#endif
 
     f.run(1s);
     info = f.runtime->debugInfo();

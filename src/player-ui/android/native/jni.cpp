@@ -499,6 +499,8 @@ extern "C"
                     {"temperatureRam", info.temperature_ram ? json(*info.temperature_ram) : json(nullptr)},
                     {"temperatureSsd", info.temperature_ssd ? json(*info.temperature_ssd) : json(nullptr)},
                     {"throttling", info.throttling ? json(*info.throttling) : json(nullptr)},
+                    {"uptimePlayer", info.uptime_player.count()},
+                    {"uptimeSystem", info.uptime_system ? json(info.uptime_system->count()) : json(nullptr)},
                     {"downloads", downloads},
                     {"downloadsWaiting", info.downloads_waiting}};
         return javaString(env, result.dump());

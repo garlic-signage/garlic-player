@@ -196,6 +196,7 @@ export class DebugDialog {
             temperature: `CPU ${DebugDialog.#celsius(info.temperatureCpu)} · RAM ${DebugDialog.#celsius(info.temperatureRam)}`
                 + ` · SSD ${DebugDialog.#celsius(info.temperatureSsd)} · Throttling `,
             throttling: info.throttling === null || info.throttling === undefined ? '-' : '●',
+            uptime: `Player ${DebugDialog.#duration(info.uptimePlayer)} · System ${DebugDialog.#duration(info.uptimeSystem)}`,
         };
         this.#dialog.querySelector('[data-info="heading"]').textContent =
             info.version ? `Information · ${info.version}` : 'Information';
@@ -238,6 +239,21 @@ export class DebugDialog {
             ++unit;
         }
         return `${value.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+    }
+
+    /// "2d 3h 15m", "3h 15m", "15m"; "-" if the core does not know it (the system in the browser)
+    static #duration(seconds) {
+        if (seconds === null || seconds === undefined)
+            return '-';
+        const minutes = Math.floor(seconds / 60);
+        const days = Math.floor(minutes / (24 * 60));
+        const hours = Math.floor(minutes / 60) % 24;
+        let text = `${minutes % 60}m`;
+        if (days > 0 || hours > 0)
+            text = `${hours}h ${text}`;
+        if (days > 0)
+            text = `${days}d ${text}`;
+        return text;
     }
 
     static #celsius(value) {

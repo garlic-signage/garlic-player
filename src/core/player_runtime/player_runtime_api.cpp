@@ -57,8 +57,11 @@ namespace garlic::core
     PlayerRuntimeApi::PlayerRuntimeApi(common::FileSystem &f, const common::Clock &c, downloader::HttpTransport &t,
                                        PlayerRuntimeConfig cfg)
         : fs(f), clock(c), transport(t), settings(std::move(cfg)), config(f, c, settings.ini_path),
-          logger(std::make_unique<logger::Logger>(f, c, loggerConfig(settings.log_dir)))
+          logger(std::make_unique<logger::Logger>(f, c, loggerConfig(settings.log_dir))), started_at(c.monotonic())
     {
+#if GARLIC_CORE_WITH_SYSTEM
+        started_at_boot = system::uptime();
+#endif
     }
 
     PlayerRuntimeApi::~PlayerRuntimeApi()
@@ -685,6 +688,14 @@ namespace garlic::core
                 info.memory_free = *system.memory_total - std::min(*system.memory_used, *system.memory_total);
         }
         trackProcess(info, cpu_of_debug_info);
+        // the clock of the device where known: the monotonic one stops in sleep, the player would look restarted
+#if GARLIC_CORE_WITH_SYSTEM
+        info.uptime_system = system::uptime();
+#endif
+        if (info.uptime_system && started_at_boot && *info.uptime_system >= *started_at_boot)
+            info.uptime_player = *info.uptime_system - *started_at_boot;
+        else
+            info.uptime_player = std::chrono::duration_cast<std::chrono::seconds>(clock.monotonic() - started_at);
         if (queue)
         {
             for (const auto &running : queue->running())

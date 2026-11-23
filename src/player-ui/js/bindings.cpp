@@ -207,6 +207,9 @@ namespace player
                 result.set("temperatureRam", info.temperature_ram ? val(*info.temperature_ram) : val::null());
                 result.set("temperatureSsd", info.temperature_ssd ? val(*info.temperature_ssd) : val::null());
                 result.set("throttling", info.throttling ? val(*info.throttling) : val::null());
+                result.set("uptimePlayer", static_cast<double>(info.uptime_player.count()));
+                result.set("uptimeSystem", info.uptime_system ? val(static_cast<double>(info.uptime_system->count()))
+                                                              : val::null());
                 val downloads = val::array();
                 for (const auto &download : info.downloads)
                 {

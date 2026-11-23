@@ -191,6 +191,11 @@ namespace garlic::core::system
         return platform::thermal();
     }
 
+    std::optional<std::chrono::seconds> uptime()
+    {
+        return platform::uptime();
+    }
+
     reports::SystemInfo collectSystemInfo(std::string_view cache_dir, std::string_view start_time)
     {
         reports::SystemInfo info;
