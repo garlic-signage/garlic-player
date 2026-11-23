@@ -65,7 +65,8 @@ namespace garlic::core::tasks
      *   applyCommand    clear_all_caches, clear_playercache/clear_cache, clear_webcache → ClearCaches, pending
      *
      * pending becomes completed at the next start (checkPending()): the player has restarted, and after a firmware
-     * update it runs the version of the task (otherwise aborted). The states go to task_execution_log.xml.
+     * update it runs the version of the task (otherwise aborted), except with applyIf="always". The states go to
+     * task_execution_log.xml.
      */
     class TaskScheduler
     {

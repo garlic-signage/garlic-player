@@ -40,6 +40,7 @@ namespace garlic::core::tasks
         std::string id;
         std::string source_uri;
         std::string version;          // firmware
+        std::string apply_if;         // firmware: applyIf of <version>; "always" = the version is not checked
         std::string content_type;
         std::string content_checksum; // hex
         std::string checksum_method;  // MD5

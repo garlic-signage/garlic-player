@@ -41,6 +41,12 @@ The core restarts no device and installs nothing; the supervisor (launcher, daem
 - **pending**: before handing a restart or an installation over, the id (and the firmware version) is stored as
   pending. At the next start `checkPending()` writes `completed` - the player runs again - or, after a firmware update
   with another version than the task's, `aborted`. A restart that never happens stays `pending`.
+- **`applyIf`** of `<version>`: a condition for the installation. Like garlic-lib the software is always installed;
+  with `applyIf="always"` the version is not checked after the restart either, the task is `completed` when the
+  player runs again. The SmilControl CMS sends `<version applyIf="always">1.0.0</version>`, a placeholder; comparing
+  it gave `aborted` for every update that worked. Without `applyIf` or with another value the version is still
+  compared. Other values (e.g. only a higher version) are not read yet; when they come, the player checks the version
+  for them.
 - The states go to `task_execution_log.xml` with the values of the standard: `pending`, `completed`, `aborted`
   (garlic-lib: `completed`, sending commented out). The subscription `TaskExecutionReport` sends them to the hub
   ([reports](reports.md)).
@@ -90,6 +96,8 @@ So for a launcher, daemon or Windows service: master volume, brightness, screen 
 - Only the last id per kind was stored: of two tasks of the same kind the first ran again with every index.
 - `applyCommand` reported the id of `shutdownPlayer`.
 - Checksums were read but not checked.
+- garlic-lib read `<version>` and used it for nothing; the core checks it after the restart, but not with
+  `applyIf="always"`.
 
 ## Decisions
 

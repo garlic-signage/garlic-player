@@ -19,15 +19,19 @@ package com.sagiadinos.garlic.player.java;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.sagiadinos.garlic.player.java.SICPDef.SICPCommand;
 import com.sagiadinos.garlic.player.java.SocketClient.SocketResponse;
 
+import java.util.Calendar;
+
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
- * As in the legacy player; no deep standby. No temperature: the one of SICP is the board, the core reads the SoC.
+ * As in the legacy player. Deep standby (not in the legacy player): the wake time into scheduling page 7, then power
+ * off, see activateDeepStandBy(). No temperature: the one of SICP is the board, the core reads the SoC.
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -35,6 +39,10 @@ public class PhilipsLauncher implements LauncherInterface
 
     private static final String TAG = "PhilipsLauncher";
     private static final int    FLAG_RECEIVER_INCLUDE_BACKGROUND = 0x1000000;
+
+    private static final byte SCHEDULE_PAGE   = 7;    // of 1…7; overwritten at every deep standby
+    private static final byte SOURCE_CUSTOM   = 0x18; // the custom app: the player
+    private static final long MIN_SLEEP_S     = 120;  // shorter: the page would come before the power off
 
     private final Context      context;
     private final SocketClient socket;
@@ -133,9 +141,52 @@ public class PhilipsLauncher implements LauncherInterface
     }
 
     @Override
+    /**
+     * The display wakes itself: the player sleeps with it and cannot send anything until then. So first the wake time
+     * goes into scheduling page 7 (SICP 0x5A: on at that time with the source Custom, no off time), on its weekday and
+     * every week, then power off (SICP 0x18 0x01: backlight off, CPU clock low). The time is the local one of the
+     * display, rounded up to the minute, at least 2 minutes away. The page stays; the next deep standby overwrites it.
+     * Untested which waits the firmware needs between the two commands: 1 s.
+     */
     public void activateDeepStandBy(String seconds_to_wakeup)
     {
-        Log.w(TAG, "no deep standby on Philips");
+        long seconds;
+        try
+        {
+            seconds = Long.parseLong(seconds_to_wakeup.trim());
+        }
+        catch (NumberFormatException e)
+        {
+            Log.w(TAG, "deep standby without a wake time, the screen goes off instead: " + seconds_to_wakeup);
+            setScreenOff();
+            return;
+        }
+        Calendar wake = Calendar.getInstance();
+        wake.add(Calendar.SECOND, (int) Math.max(seconds, MIN_SLEEP_S));
+        if (wake.get(Calendar.SECOND) > 0 || wake.get(Calendar.MILLISECOND) > 0)
+            wake.add(Calendar.MINUTE, 1); // not before the end of the element
+        wake.set(Calendar.SECOND, 0);
+        wake.set(Calendar.MILLISECOND, 0);
+
+        byte[] page = SICPDef.command((byte) 0x5A, (byte) (SCHEDULE_PAGE << 4 | 0x01),
+                                      (byte) wake.get(Calendar.HOUR_OF_DAY), (byte) wake.get(Calendar.MINUTE),
+                                      (byte) 24, (byte) 60, // no off time
+                                      SOURCE_CUSTOM, weekdays(wake));
+        byte[] off  = SICPDef.command((byte) 0x18, (byte) 0x01);
+        Log.i(TAG, String.format("deep standby until %tF %<tR", wake));
+        new Thread(() -> {
+            socket.sendSICPCommand(page);
+            SystemClock.sleep(1000);
+            socket.sendSICPCommand(off);
+        }, "deep standby").start();
+    }
+
+    /// SICP working days: bit 0 every week, bit 1 Monday … bit 7 Sunday
+    static byte weekdays(Calendar day)
+    {
+        int weekday = day.get(Calendar.DAY_OF_WEEK); // Sunday 1 … Saturday 7
+        int bit     = weekday == Calendar.SUNDAY ? 7 : weekday - 1;
+        return (byte) (0x01 | 1 << bit);
     }
 
     @Override

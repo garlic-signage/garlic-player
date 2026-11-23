@@ -147,7 +147,10 @@ namespace garlic::core::tasks
                 if (field == "sourceURI")
                     task.source_uri = text(child);
                 else if (field == "version")
-                    task.version = text(child);
+                {
+                    task.version  = text(child);
+                    task.apply_if = attribute(child, "applyIf");
+                }
                 else if (field == "contentType")
                     task.content_type = text(child);
                 else if (field == "contentChecksum")

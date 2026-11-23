@@ -242,6 +242,22 @@ TEST_CASE("firmwareUpdate: still the old version after the restart is aborted")
     CHECK(f.taskLog().find("<state>aborted</state>") != std::string::npos);
 }
 
+TEST_CASE("firmwareUpdate with applyIf=\"always\": the version is not checked after the restart")
+{
+    Fixture f;
+    f.serve("http://hub/fw", "binary", "v1", "application/octet-stream");
+    f.serveList(R"(<firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI>
+                   <version applyIf="always">1.0.0</version></firmwareUpdate>)");
+    f.newIndex();
+    REQUIRE(f.actions.size() == 1);
+    CHECK(f.config.value("tasks/pending_version").empty());
+
+    f.config.setVersion("2.0.0-dev.1012"); // not the placeholder of the CMS
+    f.tasks.checkPending();
+    CHECK(f.taskLog().contains("<state>completed</state>"));
+    CHECK_FALSE(f.taskLog().contains("<state>aborted</state>"));
+}
+
 TEST_CASE("shutdownPlayer: Reboot once, completed after the restart")
 {
     Fixture f;

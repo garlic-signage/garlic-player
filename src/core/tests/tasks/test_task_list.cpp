@@ -27,7 +27,7 @@ TEST_CASE("task list: the four kinds with their fields, unknown ones ignored")
         <schedule xmlns="http://schemas.adfotain.org/adapi-1.1"><timedTaskList>
             <updateSettings id="s1"><sourceURI> http://hub/config.xml </sourceURI><contentType>application/xml</contentType>
                 <contentChecksum>ABC</contentChecksum><checksumMethod>MD5</checksumMethod></updateSettings>
-            <firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI><version>2.0</version></firmwareUpdate>
+            <firmwareUpdate id="f1"><sourceURI>http://hub/fw</sourceURI><version applyIf="always">2.0</version></firmwareUpdate>
             <somethingNew id="x"/>
             <shutdownPlayer id="r1"/>
             <applyCommand id="c1"><command>clear_cache</command></applyCommand>
@@ -43,6 +43,7 @@ TEST_CASE("task list: the four kinds with their fields, unknown ones ignored")
     CHECK((*tasks)[0].checksum_method == "MD5");
     CHECK((*tasks)[1].kind == Task::Kind::FirmwareUpdate);
     CHECK((*tasks)[1].version == "2.0");
+    CHECK((*tasks)[1].apply_if == "always");
     CHECK((*tasks)[2].kind == Task::Kind::ShutdownPlayer);
     CHECK((*tasks)[3].kind == Task::Kind::ApplyCommand);
     CHECK((*tasks)[3].command == "clear_cache");

@@ -66,6 +66,18 @@ public class SICPDef
         return sicpCmd;
     }
 
+    /// A command to display address 1 (group 0) with its checksum: size, control, group, data…, checksum
+    public static byte[] command(byte... data)
+    {
+        byte[] sicp = new byte[data.length + 4];
+        sicp[0] = (byte) sicp.length;
+        sicp[1] = 0x01;
+        sicp[2] = 0x00;
+        System.arraycopy(data, 0, sicp, 3, data.length);
+        sicp[sicp.length - 1] = getDataCheckSum(sicp);
+        return sicp;
+    }
+
     public static byte getDataCheckSum(byte[] data)
     {
         int nCheckSum = 0;

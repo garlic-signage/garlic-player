@@ -69,7 +69,8 @@ namespace garlic::core::tasks
 
     /**
      * A task that handed a restart or an installation to the host left its id as pending. The player runs again, so
-     * the restart worked; after a firmware update the running version tells whether the installation worked.
+     * the restart worked; after a firmware update the running version tells whether the installation worked, unless
+     * the task said applyIf="always" (then no version was stored).
      */
     void TaskScheduler::checkPending()
     {
@@ -86,7 +87,10 @@ namespace garlic::core::tasks
     void TaskScheduler::waitForRestart(const Task &task)
     {
         config.setValue("tasks/pending_id", task.id);
-        config.setValue("tasks/pending_version", task.kind == Task::Kind::FirmwareUpdate ? task.version : "");
+        // applyIf="always": installed whatever the version is, so it is not checked afterwards either; the CMS
+        // sends a placeholder there (1.0.0)
+        bool check = task.kind == Task::Kind::FirmwareUpdate && task.apply_if != "always";
+        config.setValue("tasks/pending_version", check ? task.version : "");
         logger.taskState(task.id, "pending");
     }
 

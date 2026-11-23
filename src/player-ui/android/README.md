@@ -98,6 +98,18 @@ Like the legacy player, with its Java classes:
   `…Lgarlic-<version>`, as the legacy player; garlic-hub reads the build number before the `L`. Only in the user agent,
   not in the version of the player (firmware update, REST API).
 - Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
+- **Deep standby on Philips** (`standby_mode` `deep`, the legacy player did nothing): the display is really off, not
+  only dark, and the player sleeps with it; it cannot send anything until the display wakes itself. So
+  `PhilipsLauncher.activateDeepStandBy()` first programs the wake time, then switches off (SICP document V2.03):
+  1. **Scheduling page 7** (`0x5A`, chapter 8): on at the planned end of the `blankScreen` element
+     (`remainingTime()`, the earlier of its `dur` and `end`), no off time, source Custom (`0x18`, the custom app,
+     which is the player), its weekday and every week. Local time of the display (`persist.sys.timezone`, the same
+     the core plans with), rounded up to the minute, at least 2 minutes away. Page 7 is overwritten at every deep
+     standby and stays enabled afterwards; schedules set up in the menu of the display belong on pages 1 to 6.
+  2. **Power off** (`0x18 0x01`, chapter 4.1: backlight off, CPU clock low), 1 s later.
+  At the wake time the firmware switches on and brings the player to the front. Without a planned end (a trigger,
+  only the end of a container) `remainingTime()` is unknown: the backlight goes off instead (`0x72`) and on again at
+  the end of the element. A wake time more than a week away comes early: the page fires on its weekday every week.
 
 ## Watchdog
 
@@ -130,4 +142,6 @@ in the same media server. Neither launcher notices it: both only check that the 
   RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
   (about 2 MB/h).
 - Watchdog only built, not yet tested on a device (hang and restart).
+- Deep standby on Philips only built: not tested whether the scheduling page wakes the display from power off,
+  whether 1 s between the two commands is enough, and whether the player runs on after waking.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).
