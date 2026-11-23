@@ -119,3 +119,16 @@ TEST_CASE("system report: as the Android players of IAdea, the own values as gar
     CHECK(report.ends_with(R"(<hardwareInfo><hardware id="display:0"><prop name="modelName" value=""/><prop name="productId" value=""/>)"
                            R"(<prop name="serialNumber" value=""/><prop name="vendorId" value=""/></hardware></hardwareInfo></player></report>)"));
 }
+
+TEST_CASE("system report: the screen of a supervisor in hardwareInfo (Philips over SICP)")
+{
+    PlayerInfo player;
+    SystemInfo info         = system();
+    info.display_model      = "43BDL4550D/00";
+    info.display_serial     = "AU0A2123004336";
+    info.display_vendor     = "Philips";
+    CHECK(systemReport(now, info, player)
+              .ends_with(R"(<hardwareInfo><hardware id="display:0"><prop name="modelName" value="43BDL4550D/00"/>)"
+                         R"(<prop name="productId" value=""/><prop name="serialNumber" value="AU0A2123004336"/>)"
+                         R"(<prop name="vendorId" value="Philips"/></hardware></hardwareInfo></player></report>)"));
+}

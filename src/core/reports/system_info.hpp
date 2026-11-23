@@ -66,6 +66,12 @@ namespace garlic::core::reports
         std::string                   device_model;        // the hardware: "Raspberry Pi 4 Model B Rev 1.4", "BDL4550D"
         std::string                   device_manufacturer; // "Raspberry Pi Foundation", "Philips"
 
+        /// The screen as a supervisor knows it (Philips over SICP), hardwareInfo of the system report; empty: unknown
+        std::string display_model;
+        std::string display_product_id;
+        std::string display_serial;
+        std::string display_vendor;
+
         /// Own values of the player (uptime, temperatures …), props "garlic.*" in the userPref of the system report
         std::vector<std::pair<std::string, std::string>> own;
     };

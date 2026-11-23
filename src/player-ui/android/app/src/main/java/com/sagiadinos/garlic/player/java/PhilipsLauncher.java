@@ -50,6 +50,7 @@ public class PhilipsLauncher implements LauncherInterface
     private volatile String serial_number    = "";
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
+    private volatile String display_model    = ""; // for the report: by content, the lengths differ per series
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -63,10 +64,19 @@ public class PhilipsLauncher implements LauncherInterface
             }
             if (ret[3] == 0x15) // serial
                 serial_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == (byte) 0xA1 && ret[0] == 12) // firmware: 7 bytes + 5
-                launcher_version = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == (byte) 0xA1 && ret[0] == 15) // model number: 10 bytes + 5
-                model_number = SICPDef.convertBytesToString(ret);
+            else if (ret[3] == (byte) 0xA1)
+            {
+                // uuid and version by the lengths of the legacy player (BDL4550D: 18 and 10 bytes, both not taken)
+                if (ret[0] == 12) // firmware: 7 bytes + 5
+                    launcher_version = SICPDef.convertBytesToString(ret);
+                else if (ret[0] == 15) // model number: 10 bytes + 5
+                    model_number = SICPDef.convertBytesToString(ret);
+                // the model for the report by its content: a firmware is digits and dots ("02.30"), a build date
+                // "2024/10/09", a model has letters ("43BDL4550D/00")
+                String text = SICPDef.convertBytesToString(ret).trim();
+                if (!text.matches("[0-9.]+") && !text.matches("\\d{4}/\\d{2}/\\d{2}"))
+                    display_model = text;
+            }
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }
@@ -112,6 +122,13 @@ public class PhilipsLauncher implements LauncherInterface
     public String getLauncherVersion()
     {
         return launcher_version;
+    }
+
+    /// Model and serial over SICP (0xA1 0x00, 0x15); the BDL4550D: "43BDL4550D/00", "AU0A2123004336"
+    @Override
+    public String[] getDisplayHardware()
+    {
+        return new String[]{display_model, "", serial_number.trim(), "Philips"};
     }
 
     @Override

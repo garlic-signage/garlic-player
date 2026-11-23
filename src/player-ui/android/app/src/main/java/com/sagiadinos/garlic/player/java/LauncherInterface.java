@@ -35,6 +35,10 @@ public interface LauncherInterface
 
     String getLauncherVersion();
 
+    /// The screen for hardwareInfo of the system report: model, product id, serial, vendor; null if the launcher does
+    /// not know it (garlic-launcher)
+    String[] getDisplayHardware();
+
     /// Asks for CPU temperature and throttling; the answers may come later (Philips: over the SICP socket).
     void fetchThermal();
 

@@ -88,6 +88,12 @@ public class GarlicLauncher implements LauncherInterface
         return launcher_version;
     }
 
+    @Override
+    public String[] getDisplayHardware()
+    {
+        return null; // the box does not know the screen
+    }
+
     /// In a thread: the dialog asks every second from the UI thread
     @Override
     public void fetchThermal()

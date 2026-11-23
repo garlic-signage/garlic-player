@@ -76,6 +76,10 @@ public final class NativeCore
     public void accessKey(char key) { accessKey(handle, key); }
     public void screenshotTaken(String path) { screenshotTaken(handle, path); }
     public void setDisplayMode(int width, int height, int refresh) { setDisplayMode(handle, width, height, refresh); }
+    public void setDisplayHardware(String model, String productId, String serial, String vendor)
+    {
+        setDisplayHardware(handle, model, productId, serial, vendor);
+    }
     public void cachesCleared() { cachesCleared(handle); }
     public void playIndex(String uri) { playIndex(handle, uri); }
     public boolean applyConfiguration(String path) { return applyConfiguration(handle, path); }
@@ -137,6 +141,8 @@ public final class NativeCore
     private static native void accessKey(long handle, char key);
     private static native void screenshotTaken(long handle, String path);
     private static native void setDisplayMode(long handle, int width, int height, int refresh);
+    private static native void setDisplayHardware(long handle, String model, String productId, String serial,
+                                                  String vendor);
     private static native void cachesCleared(long handle);
     private static native void playIndex(long handle, String uri);
     private static native boolean applyConfiguration(long handle, String path);

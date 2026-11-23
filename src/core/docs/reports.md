@@ -91,7 +91,8 @@ The text is written without line breaks; values are escaped.
     `garlic.cpu.player` (the load of the last resource log), `garlic.temperature.cpu`, `.ram`, `.ssd` (°C),
     `garlic.throttling`, each only if known.
   - `hardwareInfo`: `modelName`, `productId` (garlic-lib: `product_id`), `serialNumber`, `vendorId` of the screen,
-    empty: the player does not read the EDID.
+    as a supervisor tells it with `PlayerRuntimeApi::setDisplayHardware` (Android on Philips: model and serial over
+    SICP); else empty, the player does not read the EDID.
 - Inventory `state`: `COMPLETE`, or `TRANSFER` while downloading (garlic-lib wrote `COMPLETE` for both);
   `transferLength` is the size of the file in the cache, of `<file>.part` while downloading.
 - The log lines are taken as they are: the logger writes them as escaped XML. garlic-lib parsed them; a log with one

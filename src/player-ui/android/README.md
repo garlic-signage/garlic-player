@@ -139,6 +139,11 @@ Like the legacy player, with its Java classes:
   answer in other lengths - this one already answers model number and firmware build with other lengths than
   `PhilipsLauncher` expects (18 and 10 bytes instead of 15 and 12), so the uuid stays empty. Check every new series
   against the SICP document of its firmware.
+- **The screen in the system report** (`hardwareInfo`, `getDisplayHardware()`): model and serial over SICP, the model
+  told apart by its content and not by its length (a firmware is digits and dots, a build date `YYYY/MM/DD`), vendor
+  Philips. On the BDL4550D (read by hand, 2026-11-23): `43BDL4550D/00`, serial `AU0A2123004336`, firmware `02.30`,
+  build date `2024/10/09`. Taken once after the start, when the launcher had its 5 s to answer; the uuid stays as
+  before.
 
 ## Watchdog
 

@@ -279,8 +279,8 @@ Details in [core/docs/reports.md](src/core/docs/reports.md) and [core/docs/conte
     zone, content URL), nothing it does not know (proxy, wifi, adb). Own values as `garlic.*`: device manufacturer,
     uptime of player and device, memory and threads of the player with their maxima, its CPU load, temperatures,
     throttling.
-  - `hardwareInfo` (the screen): empty, the player does not read the EDID; on Philips the launcher would know model and
-    serial.
+  - `hardwareInfo` (the screen): from a supervisor that knows it, on Philips over SICP (`modelName` "43BDL4550D/00",
+    `serialNumber`, `vendorId` Philips); otherwise empty, the player does not read the EDID.
 - **Events** of IAdea: `FETCH_FAILED` (also `E_CHECKSUM_NOT_MATCHED`), `OBJECT_UPDATED`, `LRU_OBJECT_REMOVED`,
   `BROKEN_OBJECT_REMOVED`, `MEDIA_NOT_AVAILABLE`, `MEDIA_OPEN_ERROR`, `MEDIA_PLAYBACK_ERROR`, `SMIL_LOADED`,
   `SMIL_NOT_AVAILABLE`, `SMIL_OPEN_ERROR`; of garlic-lib: `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`, `DISK_FULL`, the

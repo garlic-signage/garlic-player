@@ -142,6 +142,10 @@ namespace garlic::core
                 info.cpu_usage = cpu_system_of_log;
             if (info.hdmi_output.empty())
                 info.hdmi_output = display_mode;
+            info.display_model      = display_hardware[0];
+            info.display_product_id = display_hardware[1];
+            info.display_serial     = display_hardware[2];
+            info.display_vendor     = display_hardware[3];
             info.own = ownReportValues();
             return info;
         };
@@ -817,6 +821,12 @@ namespace garlic::core
         else
             display_mode = std::to_string(width) + "x" + std::to_string(height) +
                            (refresh > 0 ? "p-" + std::to_string(refresh) : "");
+    }
+
+    void PlayerRuntimeApi::setDisplayHardware(std::string model, std::string product_id, std::string serial,
+                                              std::string vendor)
+    {
+        display_hardware = {std::move(model), std::move(product_id), std::move(serial), std::move(vendor)};
     }
 
     DebugInfo PlayerRuntimeApi::debugInfo()

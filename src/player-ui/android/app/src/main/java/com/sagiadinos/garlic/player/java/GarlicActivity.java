@@ -253,6 +253,11 @@ public class GarlicActivity extends Activity implements Media.Reports
         }
         drain();
         tellDisplayMode();
+        if (launcher != null && launcher.getDisplayHardware() != null)
+        {
+            String[] hardware = launcher.getDisplayHardware();
+            core.setDisplayHardware(hardware[0], hardware[1], hardware[2], hardware[3]);
+        }
         // without an index the settings dialog comes first, Cancel ends the player (garlic-lib); not when the
         // garlic-launcher gives the content URL: the player waits for its configuration
         boolean without_index = indexOf(core.settings()).isEmpty();

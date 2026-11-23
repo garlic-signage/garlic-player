@@ -187,7 +187,8 @@ namespace garlic::core::reports
                              const PlayerInfo &player)
     {
         return begin(player.uuid, now) + systemInfo(system, network(system) + configuration(system, player)) +
-               "<hardwareInfo><hardware id=\"display:0\">" + prop("modelName", "") + prop("productId", "") +
-               prop("serialNumber", "") + prop("vendorId", "") + "</hardware></hardwareInfo>" + end();
+               "<hardwareInfo><hardware id=\"display:0\">" + prop("modelName", system.display_model) +
+               prop("productId", system.display_product_id) + prop("serialNumber", system.display_serial) +
+               prop("vendorId", system.display_vendor) + "</hardware></hardwareInfo>" + end();
     }
 }
