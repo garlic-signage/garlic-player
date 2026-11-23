@@ -18,6 +18,8 @@
 #include "downloader/downloader.hpp"
 
 #include "common/md5.hpp"
+#include "common/sha256.hpp"
+#include "downloader/digest.hpp"
 #include "common/text.hpp"
 
 #include <algorithm>
@@ -470,6 +472,13 @@ namespace garlic::core::downloader
             return;
         }
 
+        if (!digestMatches())
+        {
+            (void)fs.remove(partPath());
+            finish(DownloadStatus::Failed, "E_CHECKSUM_NOT_MATCHED");
+            return;
+        }
+
         // Never overwrite the existing file, it may be playing: the new one waits as .ready
         std::string destination = targetPath();
         if (fs.exists(destination))
@@ -489,6 +498,40 @@ namespace garlic::core::downloader
         finish(DownloadStatus::Downloaded);
     }
 
+    /**
+     * Only if the server sends a digest (expectedDigest: Repr-Digest, Content-Digest, Digest, Content-MD5), else
+     * nothing is checked. The whole .part is read again: after a resume its first bytes came with an earlier answer.
+     * A size check does not see a file resumed from two versions; HTTPS itself does not see a proxy that changes it.
+     */
+    bool Downloader::digestMatches()
+    {
+        auto expected = expectedDigest(head.headers, head.status == 206);
+        if (!expected)
+            return true;
+        common::Md5    md5;
+        common::Sha256 sha256;
+        bool           is_sha = expected->algorithm == "sha256";
+        auto           read   = fs.readChunks(partPath(), [&](std::span<const std::byte> chunk)
+                                    { is_sha ? sha256.update(chunk) : md5.update(chunk); });
+        if (!read)
+            return true; // cannot be read: not checked
+        std::vector<std::uint8_t> actual;
+        if (is_sha)
+        {
+            auto digest = sha256.finish();
+            actual.assign(digest.begin(), digest.end());
+            checksum = common::Sha256::toHex(digest);
+        }
+        else
+        {
+            auto digest = md5.finish();
+            actual.assign(digest.begin(), digest.end());
+            checksum = common::Md5::toHex(digest);
+        }
+        checksum_algorithm = expected->algorithm;
+        return actual == expected->value;
+    }
+
     void Downloader::finish(DownloadStatus status, std::string error)
     {
         closeFile();
@@ -499,6 +542,13 @@ namespace garlic::core::downloader
         result.error       = std::move(error);
         result.http_status = http_status;
         result.no_space    = no_space;
+        if (result.error == "E_CHECKSUM_NOT_MATCHED")
+        {
+            result.checksum_algorithm = checksum_algorithm;
+            result.checksum           = checksum;
+        }
+        checksum_algorithm.clear();
+        checksum.clear();
 
         switch (status)
         {

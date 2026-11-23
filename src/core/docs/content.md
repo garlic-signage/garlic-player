@@ -213,7 +213,9 @@ makeSpace(bytes)
   (index, media, task files, firmware; written by `PlayerRuntimeApi`, as garlic-lib and IAdea): `OBJECT_UPDATED`
   (`resourceURI`, `contentLength`, `lastModifiedTime`) for a new file, `FETCH_FAILED` (`resourceURI`,
   `errorMessage`, e.g. `HTTP 404`) for a failure, a warning with `lastCachedLength` and `lastCachedModifiedTime` if
-  a cached copy plays on, an error without. Not for a download without space: that is `DISK_FULL`.
+  a cached copy plays on, an error without; for a digest of the server that does not match `FETCH_FAILED` with
+  `xmp:errorMessage` `E_CHECKSUM_NOT_MATCHED` and the calculated digest (`md5` or `sha256`, see
+  [downloader](downloader.md#digest)). Not for a download without space: that is `DISK_FULL`.
 - **debug.log**: `index download failed: …`, `cannot replace index: …`, a widget that cannot be extracted
   (`<path>: <reason>`), a cache file that cannot be removed.
 - **The new playlist does not come**: is there an `index.smil.ready` (an update waiting, deleted if broken), a

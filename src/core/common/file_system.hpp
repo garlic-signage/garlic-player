@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -96,6 +97,18 @@ namespace garlic::core::common
 
             /// Complete content of a file. For small files like the configuration or SMIL indexes.
             virtual FileSystemResult<std::string> readFile(std::string_view path) const = 0;
+
+            /// A file piece by piece, e.g. the digest of a video without the video in RAM. The default reads it at
+            /// once (memory file systems); StdFileSystem reads in pieces.
+            virtual FileSystemResult<void> readChunks(std::string_view path,
+                                                      const std::function<void(std::span<const std::byte>)> &take) const
+            {
+                auto content = readFile(path);
+                if (!content)
+                    return std::unexpected(content.error());
+                take(std::as_bytes(std::span(content->data(), content->size())));
+                return {};
+            }
 
             virtual FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) = 0;
 

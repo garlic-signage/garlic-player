@@ -3,6 +3,7 @@ configure_file(version.cpp.in "${CMAKE_CURRENT_BINARY_DIR}/version.cpp" @ONLY)
 add_library(garlic_core_common STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/version.cpp"
     md5.cpp
+    sha256.cpp
     memory_file_system.cpp
     std_file_system.cpp
     system_clock.cpp

@@ -50,6 +50,11 @@ namespace garlic::core::downloader
         std::string error;           // reason for Failed, for logging
         int         http_status = 0; // last HTTP status, 0 if none was received
         bool        no_space    = false; // Failed because make_space could not free the bytes of the file
+
+        /// Failed with E_CHECKSUM_NOT_MATCHED: the digest the server sent (Repr-Digest …) is not the one of the file;
+        /// "sha256" or "md5" and the digest calculated from the file, hex
+        std::string checksum_algorithm;
+        std::string checksum;
     };
 
     struct DownloaderConfig
@@ -128,6 +133,7 @@ namespace garlic::core::downloader
             void sendGet();
             void evaluateHead();
             void finishGet();
+            bool digestMatches();
             void finish(DownloadStatus status, std::string error = {});
             void closeFile();
 
@@ -158,6 +164,8 @@ namespace garlic::core::downloader
             bool                                  no_space    = false;
             std::string                           start_error; // transport refused the first request
             std::string                           write_error;
+            std::string                           checksum_algorithm; // of a digest that did not match
+            std::string                           checksum;
             std::unique_ptr<common::WritableFile> file;
             std::uint64_t                         received = 0; // bytes of the file in the .part, for progress()
             std::chrono::steady_clock::time_point last_activity;

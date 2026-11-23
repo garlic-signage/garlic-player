@@ -29,6 +29,7 @@ Paths are UTF-8 strings with `/` as separator. All methods return `std::expected
 | `lastAccess(path)`           | last read (atime), for the cache cleanup; without atime the creation |
 | `list(path)`                 | names and directory flag of a directory, no `.`/`..`, no order |
 | `readFile(path)`             | complete content, for small files (configuration, SMIL)      |
+| `readChunks(path, take)`     | the content piece by piece, e.g. the digest of a video; the default reads it at once, `StdFileSystem` in pieces of 1 MiB |
 | `openForWrite(path, mode)`   | `Truncate` or `Append` (resume); returns a `WritableFile`    |
 | `rename(from, to)`           | file or directory; replaces an existing target file          |
 | `remove(path)`               | `NotFound` if missing                                        |
@@ -61,6 +62,11 @@ std::string hex = Md5::toHex(md5.finish());
 ```
 
 Own implementation of RFC 1321, because OpenSSL is not available on WASM and ESP32. Not for security purposes.
+
+## Sha256
+
+Header: `common/sha256.hpp`. The same interface as `Md5` (`update`, `finish`, `toHex`, `hex`), FIPS 180-4, also own
+for WASM and ESP32. For the digest a server sends with a download (see [downloader](downloader.md#digest)).
 
 ## Text
 

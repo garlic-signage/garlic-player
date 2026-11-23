@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <system_error>
+#include <vector>
 
 #include <sys/stat.h>
 
@@ -190,6 +191,25 @@ namespace garlic::core::common
             return std::unexpected(FileSystemError{FileSystemErrorCode::IoError, std::string(path) + ": read error"});
 
         return content;
+    }
+
+    FileSystemResult<void> StdFileSystem::readChunks(std::string_view path,
+                                                     const std::function<void(std::span<const std::byte>)> &take) const
+    {
+        std::FILE *file = openForRead(toPath(path));
+        if (file == nullptr)
+            return std::unexpected(errnoError(path));
+
+        std::vector<std::byte> buffer(1 << 20);
+        std::size_t            n;
+        while ((n = std::fread(buffer.data(), 1, buffer.size(), file)) > 0)
+            take(std::span(buffer.data(), n));
+
+        bool failed = std::ferror(file) != 0;
+        std::fclose(file);
+        if (failed)
+            return std::unexpected(FileSystemError{FileSystemErrorCode::IoError, std::string(path) + ": read error"});
+        return {};
     }
 
     FileSystemResult<std::unique_ptr<WritableFile>> StdFileSystem::openForWrite(std::string_view path, WriteMode mode)

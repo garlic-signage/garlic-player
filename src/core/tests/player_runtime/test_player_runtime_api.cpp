@@ -653,6 +653,22 @@ TEST_CASE("downloads: OBJECT_UPDATED for a new file, FETCH_FAILED as error witho
     CHECK(events.contains(R"(<eventName>FETCH_FAILED</eventName><metadata><meta name="resourceURI" content="http://hub/b.jpg"/><meta name="errorMessage" content="HTTP 404"/>)"));
 }
 
+TEST_CASE("downloads: a digest of the server that does not match is FETCH_FAILED : E_CHECKSUM_NOT_MATCHED")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText(R"x(<img xml:id="a" src="a.jpg" dur="10s"/>)x"), "application/smil+xml");
+    downloader::tests::FakeHttpTransport::Response r;
+    r.headers.add("Content-Type", "image/jpeg");
+    r.headers.add("Repr-Digest", "md5=:eB5eJF1ptWaXm4bijSPyxw==:"); // of another file
+    r.body = "jpeg";
+    f.transport.respond(downloader::HttpMethod::Head, "http://hub/a.jpg", r);
+    f.transport.respond(downloader::HttpMethod::Get, "http://hub/a.jpg", r);
+    REQUIRE(f.runtime->start().has_value());
+    f.run(5s);
+    std::string events = f.fs.content("logs/event_log.xml").value_or("");
+    CHECK(events.contains(R"(<eventName>FETCH_FAILED</eventName><metadata><meta name="resourceURI" content="http://hub/a.jpg"/><meta name="xmp:errorMessage" content="E_CHECKSUM_NOT_MATCHED"/><meta name="md5" content=")"));
+}
+
 // ------------------------------------------------------------------ start, poll and nextDeadline
 
 TEST_CASE("start: the version is in the user agent of the downloads, without -c no configuration file is read")

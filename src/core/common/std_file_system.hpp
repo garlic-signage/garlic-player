@@ -33,6 +33,8 @@ namespace garlic::core::common
             FileSystemResult<std::chrono::system_clock::time_point> lastAccess(std::string_view path) const override;
             FileSystemResult<std::vector<DirectoryEntry>> list(std::string_view path) const override;
             FileSystemResult<std::string> readFile(std::string_view path) const override;
+            FileSystemResult<void>        readChunks(std::string_view path,
+                                                     const std::function<void(std::span<const std::byte>)> &take) const override;
             FileSystemResult<std::unique_ptr<WritableFile>> openForWrite(std::string_view path, WriteMode mode) override;
             FileSystemResult<void> rename(std::string_view from, std::string_view to) override;
             FileSystemResult<void> remove(std::string_view path) override;

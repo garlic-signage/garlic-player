@@ -406,8 +406,10 @@ namespace garlic::core
     /**
      * Events of every download, index, media, task files and firmware alike, as garlic-lib (Downloader) and IAdea:
      * OBJECT_UPDATED for a new file, FETCH_FAILED for a failure, a warning if a cached copy plays on, an error if
-     * there is none. Without space it is DISK_FULL of the MediaManager instead (garlic-lib: FETCH_ERROR). Not modified
-     * and not cacheable: nothing. transferLength of garlic-lib is missing: the downloader does not tell it.
+     * there is none. A digest of the server that does not match: FETCH_FAILED with E_CHECKSUM_NOT_MATCHED and the
+     * calculated digest (meta md5 as IAdea, or sha256). Without space it is DISK_FULL of the MediaManager instead
+     * (garlic-lib: FETCH_ERROR). Not modified and not cacheable: nothing. transferLength of garlic-lib is missing: the
+     * downloader does not tell it.
      */
     void PlayerRuntimeApi::logDownload(const downloader::DownloadResult &result)
     {
@@ -430,6 +432,14 @@ namespace garlic::core
             for (auto &entry : file(path, "contentLength", "lastModifiedTime"))
                 data.push_back(std::move(entry));
             logger->event(logger::Severity::Informational, "ContentManager", "OBJECT_UPDATED", data);
+        }
+        else if (result.status == DownloadStatus::Failed && !result.checksum.empty())
+        {
+            // as IAdea: FETCH_FAILED : E_CHECKSUM_NOT_MATCHED with the calculated digest under its algorithm
+            logger->event(logger::Severity::Error, "ContentManager", "FETCH_FAILED",
+                          {{"resourceURI", result.url},
+                           {"xmp:errorMessage", "E_CHECKSUM_NOT_MATCHED"},
+                           {result.checksum_algorithm, result.checksum}});
         }
         else if (result.status == DownloadStatus::Failed && !result.no_space)
         {

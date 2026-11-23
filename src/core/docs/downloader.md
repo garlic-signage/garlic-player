@@ -80,7 +80,7 @@ One job at a time. `on_finished` is called exactly once, always from inside a `p
    content type, e.g. a firmware as `application/octet-stream`.
 5. `make_space(bytes)`, inventory state `Transfer`
 6. GET into `<name>.part`; resume with `Range` + `If-Range` if the server still has the same version
-7. check: not empty, size matches `Content-Length`
+7. check: not empty, size matches `Content-Length`, the digest if the server sends one ([Digest](#digest))
 8. rename to `<name>`, or to `<name>.ready` if `<name>` exists; inventory state `Complete`
 
 ### Results
@@ -99,6 +99,27 @@ space for <n> bytes`); the media manager reports it as `DISK_FULL` and does not 
 
 Without ETag and Last-Modified the downloader cannot tell whether a file changed, so it downloads it again (the new
 file waits as `.ready`). This is the safe choice: a changed file with the same size is never missed.
+
+### Digest
+
+Only if the server sends a digest of the file; without one nothing is checked. `downloader/digest.hpp`
+(`expectedDigest`) reads the headers, SHA-256 before MD5, other algorithms (sha-512 …) are not checked:
+
+| Header           | Standard | Syntax                                 | In a 206 (resume) |
+|------------------|----------|----------------------------------------|-------------------|
+| `Repr-Digest`    | RFC 9530 | `sha-256=:<base64>:, md5=:<base64>:`   | yes, the whole file |
+| `Content-Digest` | RFC 9530 | the same                               | no, only this part |
+| `Digest`         | RFC 3230 | `SHA-256=<base64>, MD5=<base64>`       | yes, the whole file |
+| `Content-MD5`    | RFC 1864 | `<base64>`                             | no, only this part |
+
+The whole `.part` is read again after the GET (`FileSystem::readChunks`): after a resume its first bytes came with
+an earlier answer. A wrong digest removes the `.part` (the next try starts from the beginning) and ends `Failed`
+with `error` `E_CHECKSUM_NOT_MATCHED`, `checksum_algorithm` (`sha256`, `md5`) and the calculated `checksum` (hex);
+the cached copy plays on. The player runtime reports it as `FETCH_FAILED` with `xmp:errorMessage`
+`E_CHECKSUM_NOT_MATCHED` and the digest under its algorithm (`md5` as IAdea, or `sha256`).
+
+What it finds that the size does not: a file resumed from two versions of the same size, a proxy that changes it
+on plain HTTP, a write error of the card while downloading. Over HTTPS the transport itself is checked by TLS.
 
 ### File names
 

@@ -27,6 +27,8 @@
 #include "fake_http_transport.hpp"
 #include "memory_inventory.hpp"
 
+#include "downloader/digest.hpp"
+
 #include <array>
 #include <optional>
 #include <string>
@@ -746,6 +748,82 @@ TEST_CASE("aborted download is resumed with Range and If-Range")
     CHECK(f.content(cache_file) == "0123456789");
     CHECK(f.requestHeader(1, "Range") == "bytes=5-");
     CHECK(f.requestHeader(1, "If-Range") == "\"v1\"");
+}
+
+// ------------------------------------------------------------------ digest of the server
+
+TEST_CASE("digest headers: Repr-Digest, Content-Digest, Digest, Content-MD5; SHA-256 before MD5")
+{
+    HttpHeaders none;
+    CHECK_FALSE(expectedDigest(none, false).has_value()); // nothing sent: nothing checked
+
+    HttpHeaders repr;
+    repr.add("Repr-Digest", "sha-512=:AAAA:, md5=:jXd/OF09/siBXSD3SWAm3A==:, sha-256=:Om6weQ85rIfJTzhWst0sXREOaBFgImGpqSPTuyOtyLc=:");
+    auto digest = expectedDigest(repr, true);
+    REQUIRE(digest.has_value());
+    CHECK(digest->algorithm == "sha256");
+    CHECK(digest->value.size() == 32);
+
+    HttpHeaders old;
+    old.add("Digest", "MD5=jXd/OF09/siBXSD3SWAm3A==");
+    REQUIRE(expectedDigest(old, false).has_value());
+    CHECK(expectedDigest(old, false)->algorithm == "md5");
+
+    HttpHeaders content;
+    content.add("Content-MD5", "jXd/OF09/siBXSD3SWAm3A==");
+    CHECK(expectedDigest(content, false).has_value());
+    CHECK_FALSE(expectedDigest(content, true).has_value()); // a 206: only the rest, not the file
+
+    HttpHeaders broken;
+    broken.add("Repr-Digest", "sha-256=:not base64!:");
+    CHECK_FALSE(expectedDigest(broken, false).has_value());
+}
+
+TEST_CASE("digest: a file that matches is taken, SHA-256 and MD5")
+{
+    for (const char *header : {"sha-256=:Om6weQ85rIfJTzhWst0sXREOaBFgImGpqSPTuyOtyLc=:", "md5=:jXd/OF09/siBXSD3SWAm3A==:"})
+    {
+        Fixture f;
+        auto    get = response(200, "image/jpeg", "data", "\"v1\"");
+        get.headers.add("Repr-Digest", header);
+        f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data", "\"v1\""));
+        f.transport.respond(HttpMethod::Get, media_url, get);
+        CHECK(f.download(media_url).status == DownloadStatus::Downloaded);
+        CHECK(f.content(cache_file) == "data");
+    }
+}
+
+TEST_CASE("digest: a file that does not match is removed, E_CHECKSUM_NOT_MATCHED with the calculated digest")
+{
+    Fixture f;
+    auto    get = response(200, "image/jpeg", "data", "\"v1\"");
+    get.headers.add("Content-MD5", "eB5eJF1ptWaXm4bijSPyxw=="); // of another file
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "data", "\"v1\""));
+    f.transport.respond(HttpMethod::Get, media_url, get);
+
+    auto r = f.download(media_url);
+    CHECK(r.status == DownloadStatus::Failed);
+    CHECK(r.error == "E_CHECKSUM_NOT_MATCHED");
+    CHECK(r.checksum_algorithm == "md5");
+    CHECK(r.checksum == "8d777f385d3dfec8815d20f7496026dc");
+    CHECK_FALSE(f.fs.exists(cache_file));
+    CHECK_FALSE(f.fs.exists(cache_file + ".part"));
+}
+
+TEST_CASE("digest after a resume: the whole file counts, a mix of two versions is found")
+{
+    Fixture f;
+    f.putFile(cache_file + ".part", "01234");
+    f.inventory.save({media_url, Md5::hex(media_url) + ".jpg", "\"v1\"", "", "image/jpeg", 10, InventoryState::Transfer});
+    f.transport.respond(HttpMethod::Head, media_url, response(200, "image/jpeg", "0123456789", "\"v1\""));
+    auto rest = response(206, "image/jpeg", "XXXXX", "\"v1\""); // the server has another file of the same size
+    rest.headers.add("Repr-Digest", "sha-256=:hNiYd/DUBB77a/kaFvAkjy/Vc+avBcGflr7bn4gveII=:");
+    f.transport.respond(HttpMethod::Get, media_url, rest);
+
+    auto r = f.download(media_url);
+    CHECK(r.error == "E_CHECKSUM_NOT_MATCHED");
+    CHECK(r.checksum == "082278c0e30e221a01f2a1fb96cab05153887a2f04db330e1ecab9946aa3692d");
+    CHECK_FALSE(f.fs.exists(cache_file + ".part")); // the next try starts from the beginning
 }
 
 TEST_CASE("server sends the complete file instead of the rest: .part starts again")

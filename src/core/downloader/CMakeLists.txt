@@ -1,5 +1,6 @@
 add_library(garlic_core_downloader STATIC
     download_queue.cpp
+    digest.cpp
     downloader.cpp
     http_headers.cpp
 )
