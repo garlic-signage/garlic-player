@@ -126,4 +126,45 @@ expose `ETag` and `Last-Modified` (`Access-Control-Expose-Headers`); see
 - **Memory**: IDBFS keeps all files in memory as well; many large videos need a lot of it. OPFS would avoid that, but
   needs the core in a worker.
 - **Menu over web pages**: clicks into an iframe do not reach the page, there the gesture does not work.
-- No HTTP server (a browser cannot accept connections), no screenshot, no launcher (reboot, software installation).
+set min values for - No HTTP server (a browser cannot accept connections), no screenshot, no launcher (reboot, software installation);
+  on signage displays see below.
+
+## Signage displays (LG webOS, Samsung Tizen) - planned
+
+As a web page in the URL launcher of the display the player runs already, but it cannot be maintained: no restart,
+no screen off, no update, no master volume. So on these displays it comes as a **packaged app** (LG: IPK, Samsung:
+WGT), signed and installed as signage app. Only then the platform gives its JavaScript APIs for the hardware.
+
+No separate launcher is needed, like on Philips: the firmware has the functions itself. Unlike Philips (broadcasts,
+SICP on a socket) they are JavaScript in the same app. One small adapter per platform maps the supervisor of the
+core (restart, installation, screen off/on, deep standby, master volume, brightness;
+[supervisor](../../core/docs/player_runtime.md#supervisor)) to the API, like `PhilipsLauncher` on Android maps it
+to SICP.
+
+| Platform           | API                                        | Rights                                                    |
+|--------------------|--------------------------------------------|-----------------------------------------------------------|
+| LG webOS Signage   | SCAP (Signage Custom API), e.g. `Power.executePowerCommand` for the restart; screen, on/off timers, volume, time and time zone, app update | installed as signage app |
+| Samsung Tizen SSSP | `b2bapis` (e.g. `b2bcontrol`): restart, panel off, serial number, timers, network | privileges in the `config.xml` of the app, some at partner level |
+
+- **Minimum versions: Chromium 85** in the engine of the display. Emscripten 6.0.13 builds for
+  `MIN_CHROME_VERSION` 85 by default (`src/settings.js` of the emsdk; the build sets no other), the JavaScript in
+  `web/` needs Chromium 84 (private methods `#name()`) and 80 (`??`, `?.`). That means, by the versions as far as
+  known here (to be checked against the documents of the makers):
+
+  | Platform | Chromium | |
+  |---|---|---|
+  | Tizen 5.5 (models of 2020) | ~69 | too old |
+  | Tizen 6.0 (2021) | ~76 | too old |
+  | **Tizen 6.5 (2022)** | ~85 | **minimum** |
+  | Tizen 7.0 (2023) | ~94 | |
+  | webOS 5 (2020) | ~68 | too old |
+  | webOS 6 (2021) | ~79 | too old |
+  | **webOS 22** (and the signage release with the same engine) | ~87 | **minimum** |
+  | webOS 23 / 24 | ~94 / ~108 | |
+
+  Roughly displays from 2022 on. Older ones would need a lower `MIN_CHROME_VERSION` and the JavaScript without
+  private methods, `??` and `?.`; not planned.
+- The names above are from memory, not from documents here: check them against the SDK of each platform and its
+  firmware versions before building the adapter.
+- The plain browser of the display has none of these APIs: the packaged app is the condition, not an option.
+- Nothing of it is built yet.
