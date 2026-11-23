@@ -104,11 +104,14 @@ Like the legacy player, with its Java classes:
     and web pages play on it, the `soundLevel` of a medium is a factor below it (master 50 % × 80 % = 40 %), web
     pages have none. Devices with a fixed volume (`isVolumeFixed()`, often HDMI boxes) ignore it. On Philips the
     volume of the display itself (menu, SICP `0x44`) stays as it is and limits what Android gives.
-  - brightness: only on Philips over SICP (`PhilipsLauncher.setBrightness()`): one of the seven video parameters of
-    `0x32` (chapter 5.1), which are only set together. The player asks for the current ones (`0x33`) and sets them
-    again with the new brightness when they come. It is the brightness of the picture setting, not the backlight
-    level (SICP V2.03 has no command for that); on the QL3 platform `0x32` does not work for apps, says the
-    document. Launcher 1.x has no command for it; Android itself needs `WRITE_SETTINGS` or a device owner.
+  - brightness: only on Philips, as Smart Power of SICP (`0xDD`, chapter 7.2; `PhilipsLauncher.setBrightness()`), a
+    power saving that dims the backlight in levels: below 33 % High (the darkest), below 66 % Medium, else Off (Low is
+    the same as Off, says the document). Coarse: on the BDL4550D High is only a little darker (tested by hand,
+    2026-11-23). Only documented interfaces: the video parameters of SICP (`0x32`/`0x33`, chapter 5.1) answer "not
+    available" for an installed apk, as the document says for QL3, and SICP has no backlight level. Not used: the
+    backlight of the MStar firmware (`ITvPicture.setBacklight`, 0 clearly darker than 100) is not documented. The
+    brightness of Android (`screen_brightness`, also `screenBrightness` of a window) does not reach the panel there.
+    Launcher 1.x has no command for it.
 - **Deep standby on Philips** (`standby_mode` `deep`, the legacy player did nothing): the display is really off, not
   only dark, and the player sleeps with it; it cannot send anything until the display wakes itself. So
   `PhilipsLauncher.activateDeepStandBy()` first programs the wake time, then switches off (SICP document V2.03):
@@ -168,5 +171,5 @@ in the same media server. Neither launcher notices it: both only check that the 
   RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
   (about 2 MB/h).
 - Watchdog only built, not yet tested on a device (hang and restart).
-- Master volume and brightness on Philips only built, not tested on a device.
+- Master volume and brightness on Philips only built, not tested from the player (Smart Power only by hand).
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

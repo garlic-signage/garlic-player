@@ -30,8 +30,9 @@ import java.util.Calendar;
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
- * As in the legacy player. Brightness of the configuration over SICP (not in the legacy player). Deep standby (not in the legacy player): the wake time into scheduling page 7, then power
- * off, see activateDeepStandBy(). No temperature: the one of SICP is the board, the core reads the SoC.
+ * As in the legacy player. Brightness of the configuration as Smart Power of SICP (not in the legacy player), see
+ * setBrightness(). Deep standby (not in the legacy player): the wake time into scheduling page 7, then power off, see
+ * activateDeepStandBy(). No temperature: the one of SICP is the board, the core reads the SoC.
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -49,7 +50,6 @@ public class PhilipsLauncher implements LauncherInterface
     private volatile String serial_number    = "";
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
-    private volatile Integer pending_brightness; // set as soon as the video parameters are reported
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -67,8 +67,6 @@ public class PhilipsLauncher implements LauncherInterface
                 launcher_version = SICPDef.convertBytesToString(ret);
             else if (ret[3] == (byte) 0xA1 && ret[0] == 15) // model number: 10 bytes + 5
                 model_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == 0x33 && ret.length >= 12) // video parameters: brightness … gamma
-                brightnessReported(ret);
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }
@@ -144,31 +142,17 @@ public class PhilipsLauncher implements LauncherInterface
     }
 
     /**
-     * Brightness is one of the seven video parameters (SICP 0x32, chapter 5.1), which are only set together: the
-     * current ones are asked (0x33) and set again with the new brightness when they come. It is the brightness of the
-     * picture setting, not the backlight level (SICP has none); the document says 0x32 does not work on the QL3
-     * platform for apps.
+     * SICP has no brightness for the player: the video parameters (0x32, chapter 5.1) do not work for an installed apk,
+     * the firmware answers "not available". What it has is Smart Power (0xDD, chapter 7.2), a power saving that dims
+     * the backlight in levels, the higher the darker: below 33 High, below 66 Medium, else Off. Low is the same as Off,
+     * says the document. On the BDL4550D High is only a little darker.
      */
     @Override
     public void setBrightness(int percent)
     {
-        pending_brightness = Math.max(0, Math.min(100, percent));
-        socket.sendSICPCommand(SICPDef.command((byte) 0x33));
-    }
-
-    /// The video parameters are reported: set them again with the new brightness
-    private void brightnessReported(byte[] report)
-    {
-        Integer brightness = pending_brightness;
-        if (brightness == null)
-            return;
-        pending_brightness = null;
-        byte[] data = new byte[8];
-        data[0]     = 0x32;
-        System.arraycopy(report, 4, data, 1, 7); // brightness, color, contrast, sharpness, tint, black level, gamma
-        data[1]     = brightness.byteValue();
-        socket.sendSICPCommand(SICPDef.command(data));
-        Log.i(TAG, "brightness " + brightness);
+        byte level = percent < 33 ? (byte) 0x03 : percent < 66 ? (byte) 0x02 : (byte) 0x00;
+        socket.sendSICPCommand(SICPDef.command((byte) 0xDD, level));
+        Log.i(TAG, "brightness " + percent + " %: Smart Power " + level);
     }
 
     /**
