@@ -57,6 +57,6 @@ public interface LauncherInterface
     /// The player ends on purpose: the launcher shall not start it again.
     void closedCorrectly();
 
-    /// Master volume and brightness of the configuration, 0…100; null: not set, left as it is
-    void applyDeviceSettings(Integer volume, Integer brightness);
+    /// Brightness of the configuration, 0…100 (the master volume the player sets itself)
+    void setBrightness(int percent);
 }

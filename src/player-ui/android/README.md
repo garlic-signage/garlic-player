@@ -98,13 +98,17 @@ Like the legacy player, with its Java classes:
   `…Lgarlic-<version>`, as the legacy player; garlic-hub reads the build number before the `L`. Only in the user agent,
   not in the version of the player (firmware update, REST API).
 - **Master volume and brightness** (`deviceSettings`, `audio/volume` and `display/brightness` of the configuration,
-  at the start and when a configuration changes them): launcher 1.x has no command for them, so with it nothing
-  happens. On Philips over SICP (`PhilipsLauncher.applyDeviceSettings()`, not in the legacy player):
-  - volume: `0x44` (chapter 6.1), speaker and audio out both to the value, 0…100.
-  - brightness: one of the seven video parameters of `0x32` (chapter 5.1), which are only set together. The player
-    asks for the current ones (`0x33`) and sets them again with the new brightness when they come. It is the
-    brightness of the picture setting, not the backlight level (SICP V2.03 has no command for that); on the QL3
-    platform `0x32` does not work for apps, says the document.
+  at the start and when a configuration changes them; neither in the legacy player):
+  - volume: the player itself, on every device, with or without launcher (`GarlicActivity.setMasterVolume()`): the
+    media volume of the system (`AudioManager.setStreamVolume(STREAM_MUSIC)`), no permission needed. Videos, audios
+    and web pages play on it, the `soundLevel` of a medium is a factor below it (master 50 % × 80 % = 40 %), web
+    pages have none. Devices with a fixed volume (`isVolumeFixed()`, often HDMI boxes) ignore it. On Philips the
+    volume of the display itself (menu, SICP `0x44`) stays as it is and limits what Android gives.
+  - brightness: only on Philips over SICP (`PhilipsLauncher.setBrightness()`): one of the seven video parameters of
+    `0x32` (chapter 5.1), which are only set together. The player asks for the current ones (`0x33`) and sets them
+    again with the new brightness when they come. It is the brightness of the picture setting, not the backlight
+    level (SICP V2.03 has no command for that); on the QL3 platform `0x32` does not work for apps, says the
+    document. Launcher 1.x has no command for it; Android itself needs `WRITE_SETTINGS` or a device owner.
 - **Deep standby on Philips** (`standby_mode` `deep`, the legacy player did nothing): the display is really off, not
   only dark, and the player sleeps with it; it cannot send anything until the display wakes itself. So
   `PhilipsLauncher.activateDeepStandBy()` first programs the wake time, then switches off (SICP document V2.03):
@@ -157,5 +161,5 @@ in the same media server. Neither launcher notices it: both only check that the 
   RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
   (about 2 MB/h).
 - Watchdog only built, not yet tested on a device (hang and restart).
-- Volume and brightness on Philips only built, not tested on a device.
+- Master volume and brightness on Philips only built, not tested on a device.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

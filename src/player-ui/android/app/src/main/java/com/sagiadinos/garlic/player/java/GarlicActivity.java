@@ -28,6 +28,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -339,9 +340,10 @@ public class GarlicActivity extends Activity implements Media.Reports
             case "screenshot": screenshot(event.optString("path")); break;
             case "downloads": downloads = event; break;
             case "deviceSettings":
-                if (launcher != null)
-                    launcher.applyDeviceSettings(event.isNull("volume") ? null : event.getInt("volume"),
-                                                 event.isNull("brightness") ? null : event.getInt("brightness"));
+                if (!event.isNull("volume"))
+                    setMasterVolume(event.getInt("volume"));
+                if (!event.isNull("brightness") && launcher != null)
+                    launcher.setBrightness(event.getInt("brightness"));
                 break;
             default: break;
         }
@@ -436,6 +438,34 @@ public class GarlicActivity extends Activity implements Media.Reports
     }
 
     // ------------------------------------------------------------------ launcher
+
+    /**
+     * audio/volume of the configuration, 0…100: the media volume of the system (STREAM_MUSIC), with or without
+     * launcher. Videos, audios and web pages play on it; the soundLevel of a medium is a factor below it. Devices with
+     * a fixed volume (often HDMI boxes) ignore it.
+     */
+    private void setMasterVolume(int percent)
+    {
+        AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null)
+            return;
+        if (audio.isVolumeFixed())
+        {
+            Log.w(TAG, "master volume " + percent + " %: the device has a fixed volume");
+            return;
+        }
+        int max   = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        int level = Math.round(max * Math.max(0, Math.min(100, percent)) / 100f);
+        try
+        {
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
+            Log.i(TAG, "master volume " + percent + " % = " + level + " of " + max);
+        }
+        catch (SecurityException refused) // do not disturb may refuse it
+        {
+            Log.w(TAG, "master volume not set: " + refused.getMessage());
+        }
+    }
 
     /** A configuration.xml the launcher sends, e.g. from a USB stick; also without a found launcher (legacy player) */
     private void applyConfiguration(String path)
