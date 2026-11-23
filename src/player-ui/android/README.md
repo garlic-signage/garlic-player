@@ -97,7 +97,14 @@ Like the legacy player, with its Java classes:
 - **User agent**: name and version of the launcher behind the version, `garlic-android/2.0.0.997Lphilips-FB01.09` or
   `…Lgarlic-<version>`, as the legacy player; garlic-hub reads the build number before the `L`. Only in the user agent,
   not in the version of the player (firmware update, REST API).
-- Master volume and brightness (`deviceSettings`) are not applied: launcher 1.x has no command for them.
+- **Master volume and brightness** (`deviceSettings`, `audio/volume` and `display/brightness` of the configuration,
+  at the start and when a configuration changes them): launcher 1.x has no command for them, so with it nothing
+  happens. On Philips over SICP (`PhilipsLauncher.applyDeviceSettings()`, not in the legacy player):
+  - volume: `0x44` (chapter 6.1), speaker and audio out both to the value, 0…100.
+  - brightness: one of the seven video parameters of `0x32` (chapter 5.1), which are only set together. The player
+    asks for the current ones (`0x33`) and sets them again with the new brightness when they come. It is the
+    brightness of the picture setting, not the backlight level (SICP V2.03 has no command for that); on the QL3
+    platform `0x32` does not work for apps, says the document.
 - **Deep standby on Philips** (`standby_mode` `deep`, the legacy player did nothing): the display is really off, not
   only dark, and the player sleeps with it; it cannot send anything until the display wakes itself. So
   `PhilipsLauncher.activateDeepStandBy()` first programs the wake time, then switches off (SICP document V2.03):
@@ -110,6 +117,7 @@ Like the legacy player, with its Java classes:
   At the wake time the firmware switches on and brings the player to the front. Without a planned end (a trigger,
   only the end of a container) `remainingTime()` is unknown: the backlight goes off instead (`0x72`) and on again at
   the end of the element. A wake time more than a week away comes early: the page fires on its weekday every week.
+  Tested on the BDL4550D below (2026-11-23): power off, woken by the page on the minute of the planned end.
 - **Written for one series:** Philips D-Line `43BDL4550D/00` (SICP model number), firmware `02.30` (SICP firmware
   build), Android 8.0 (API 26), MStar platform `m7221` (`ro.product.device` `sugarcane`), build
   `TVOS-04.24.010.05.03` of 2024-10-09. The commands follow the SICP document V2.03 of June 2019. Newer series
@@ -149,6 +157,5 @@ in the same media server. Neither launcher notices it: both only check that the 
   RK3399 box (Android 7.1.2) with arm64-v8a: more than 26 hours without a crash, the memory nearly flat
   (about 2 MB/h).
 - Watchdog only built, not yet tested on a device (hang and restart).
-- Deep standby on Philips only built: not tested whether the scheduling page wakes the display from power off,
-  whether 1 s between the two commands is enough, and whether the player runs on after waking.
+- Volume and brightness on Philips only built, not tested on a device.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

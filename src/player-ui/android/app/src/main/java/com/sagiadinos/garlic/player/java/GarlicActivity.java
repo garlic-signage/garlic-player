@@ -338,7 +338,11 @@ public class GarlicActivity extends Activity implements Media.Reports
             case "clearCaches": clearCaches(event.optBoolean("web")); break;
             case "screenshot": screenshot(event.optString("path")); break;
             case "downloads": downloads = event; break;
-            case "deviceSettings": break; // master volume and brightness are for a launcher
+            case "deviceSettings":
+                if (launcher != null)
+                    launcher.applyDeviceSettings(event.isNull("volume") ? null : event.getInt("volume"),
+                                                 event.isNull("brightness") ? null : event.getInt("brightness"));
+                break;
             default: break;
         }
     }

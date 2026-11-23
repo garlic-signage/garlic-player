@@ -30,7 +30,7 @@ import java.util.Calendar;
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
- * As in the legacy player. Deep standby (not in the legacy player): the wake time into scheduling page 7, then power
+ * As in the legacy player. Volume and brightness of the configuration over SICP (not in the legacy player). Deep standby (not in the legacy player): the wake time into scheduling page 7, then power
  * off, see activateDeepStandBy(). No temperature: the one of SICP is the board, the core reads the SoC.
  */
 public class PhilipsLauncher implements LauncherInterface
@@ -49,6 +49,7 @@ public class PhilipsLauncher implements LauncherInterface
     private volatile String serial_number    = "";
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
+    private volatile Integer pending_brightness; // set as soon as the video parameters are reported
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -66,6 +67,8 @@ public class PhilipsLauncher implements LauncherInterface
                 launcher_version = SICPDef.convertBytesToString(ret);
             else if (ret[3] == (byte) 0xA1 && ret[0] == 15) // model number: 10 bytes + 5
                 model_number = SICPDef.convertBytesToString(ret);
+            else if (ret[3] == 0x33 && ret.length >= 12) // video parameters: brightness … gamma
+                setBrightness(ret);
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }
@@ -140,14 +143,51 @@ public class PhilipsLauncher implements LauncherInterface
         send(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_ENABLE);
     }
 
+    /**
+     * Volume (SICP 0x44, chapter 6.1): speaker and audio out both, 0…100. Brightness is one of the seven video
+     * parameters (0x32, chapter 5.1), which are only set together: the current ones are asked (0x33) and set again
+     * with the new brightness when they come. It is the brightness of the picture setting, not the backlight level
+     * (SICP has none); the document says 0x32 does not work on the QL3 platform for apps.
+     */
     @Override
+    public void applyDeviceSettings(Integer volume, Integer brightness)
+    {
+        if (volume != null)
+        {
+            byte level = (byte) Math.max(0, Math.min(100, volume));
+            socket.sendSICPCommand(SICPDef.command((byte) 0x44, level, level));
+            Log.i(TAG, "volume " + level);
+        }
+        if (brightness != null)
+        {
+            pending_brightness = Math.max(0, Math.min(100, brightness));
+            socket.sendSICPCommand(SICPDef.command((byte) 0x33));
+        }
+    }
+
+    /// The video parameters are reported: set them again with the new brightness
+    private void setBrightness(byte[] report)
+    {
+        Integer brightness = pending_brightness;
+        if (brightness == null)
+            return;
+        pending_brightness = null;
+        byte[] data = new byte[8];
+        data[0]     = 0x32;
+        System.arraycopy(report, 4, data, 1, 7); // brightness, color, contrast, sharpness, tint, black level, gamma
+        data[1]     = brightness.byteValue();
+        socket.sendSICPCommand(SICPDef.command(data));
+        Log.i(TAG, "brightness " + brightness);
+    }
+
     /**
      * The display wakes itself: the player sleeps with it and cannot send anything until then. So first the wake time
      * goes into scheduling page 7 (SICP 0x5A: on at that time with the source Custom, no off time), on its weekday and
      * every week, then power off (SICP 0x18 0x01: backlight off, CPU clock low). The time is the local one of the
      * display, rounded up to the minute, at least 2 minutes away. The page stays; the next deep standby overwrites it.
-     * Untested which waits the firmware needs between the two commands: 1 s.
+     * 1 s between the two commands, enough on the BDL4550D.
      */
+    @Override
     public void activateDeepStandBy(String seconds_to_wakeup)
     {
         long seconds;

@@ -168,6 +168,10 @@ public class GarlicLauncher implements LauncherInterface
         sendCommand(intent);
     }
 
+    /// launcher 1.x has no command for them: it stores volume and brightness, but never applies them
+    @Override
+    public void applyDeviceSettings(Integer volume, Integer brightness) {}
+
     private Intent command(String name)
     {
         Intent intent = new Intent(RECEIVER + "CommandReceiver");
