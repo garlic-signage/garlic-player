@@ -300,6 +300,8 @@ namespace garlic::core::rest_api
             return respondError("delete failed: " + id);
 
         inventory.deleteByCacheName(row->file_name);
+        if (actions.removed)
+            actions.removed(row->url);
         return respond(json{{"success", id + " deleted"}});
     }
 

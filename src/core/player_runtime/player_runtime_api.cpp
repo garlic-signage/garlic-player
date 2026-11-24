@@ -171,6 +171,9 @@ namespace garlic::core
         actions.reloadIndex   = [this] { index->start(); };
         actions.playTemporary = [this](std::string uri) { index->startTemporary(std::move(uri)); };
         actions.screenshot    = [this](std::string path) { events.emplace_back(Screenshot{std::move(path)}); };
+        // IAdea: OBJECT_REMOVED for a file removed on purpose, LRU_OBJECT_REMOVED is the cleanup of CacheSpace
+        actions.removed = [this](std::string uri)
+        { logger->event(logger::Severity::Informational, "ContentManager", "OBJECT_REMOVED", {{"resourceURI", uri}}); };
         if (cache_space)
             actions.makeSpace = [this](std::uint64_t bytes) -> std::uint64_t
             {
@@ -547,8 +550,16 @@ namespace garlic::core
         auto &clear = std::get<tasks::ClearCaches>(action);
         if (clear.player)
         {
-            // garlic-lib: FreeDiscSpace::clearPlayerCache
+            // garlic-lib: FreeDiscSpace::clearPlayerCache. One event for all instead of OBJECT_REMOVED per file: the
+            // cache may hold hundreds
             media->holdDownloads(); // missing files are not downloaded again until the restart
+            std::uint64_t bytes = 0;
+            auto          rows  = inventory->findAll();
+            for (const database::InventoryRow &row : rows)
+                bytes += row.content_length;
+            logger->event(logger::Severity::Informational, "ContentManager", "OBJECTS_REMOVED",
+                          {{"information", "player cache cleared: " + std::to_string(rows.size()) + " files, " +
+                                               std::to_string(bytes) + " Bytes deleted"}});
             inventory->clear();
             (void)fs.removeAll(settings.cache_dir);
             (void)fs.createDirectories(settings.cache_dir);

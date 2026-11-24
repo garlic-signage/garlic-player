@@ -47,6 +47,7 @@ namespace garlic::core::rest_api
         std::function<void(std::string path)>      screenshot;    // /v2/task/screenshot: the frontend saves a JPEG
         // /v2/files/new: room for fileSize bytes (CacheSpace); returns 0 or the bytes that could not be made free
         std::function<std::uint64_t(std::uint64_t bytes)> makeSpace;
+        std::function<void(std::string resource_uri)>    removed; // /v2/files/delete: a file was deleted (an event)
     };
 
     /**

@@ -55,6 +55,7 @@ namespace
             a.reloadIndex   = [this] { calls.push_back("reload"); };
             a.playTemporary = [this](std::string uri) { calls.push_back("temporary " + uri); };
             a.screenshot    = [this](std::string path) { calls.push_back("screenshot " + path); };
+            a.removed       = [this](std::string uri) { calls.push_back("removed " + uri); };
             a.makeSpace     = [this](std::uint64_t bytes) -> std::uint64_t
             {
                 calls.push_back("space " + std::to_string(bytes));
@@ -365,6 +366,7 @@ TEST_CASE("files/delete removes file and entry")
     CHECK(body(f.call("POST", "/v2/files/delete", query))["success"] == id + " deleted");
     CHECK_FALSE(f.fs.exists("cache/" + id + ".jpg"));
     CHECK_FALSE(f.inventory.find(url).has_value());
+    CHECK(f.calls.back() == "removed " + url); // the player writes OBJECT_REMOVED
 
     CHECK(body(f.call("POST", "/v2/files/delete", query))["error"] == "Record not found: " + id);
     CHECK(body(f.call("POST", "/v2/files/delete", f.auth(), {}, R"({"id":"x"})"))["error"] == "Record not found: x");

@@ -281,11 +281,12 @@ Details in [core/docs/reports.md](src/core/docs/reports.md) and [core/docs/conte
     throttling.
   - `hardwareInfo` (the screen): from a supervisor that knows it, on Philips over SICP (`modelName` "43BDL4550D/00",
     `serialNumber`, `vendorId` Philips); otherwise empty, the player does not read the EDID.
-- **Events** of IAdea: `FETCH_FAILED` (also `E_CHECKSUM_NOT_MATCHED`), `OBJECT_UPDATED`, `LRU_OBJECT_REMOVED`,
-  `BROKEN_OBJECT_REMOVED`, `MEDIA_NOT_AVAILABLE`, `MEDIA_OPEN_ERROR`, `MEDIA_PLAYBACK_ERROR`, `SMIL_LOADED`,
-  `SMIL_NOT_AVAILABLE`, `SMIL_OPEN_ERROR`; of garlic-lib: `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`, `DISK_FULL`, the
-  task scheduler and configuration events; new: `MEDIA_UNSUPPORTED`. A media error is reported once per medium and
-  index version. Not used: `STORAGE_FORMATTED`, `STORAGE_TRUNCATED` (the player never formats a storage).
+- **Events** of IAdea: `FETCH_FAILED` (also `E_CHECKSUM_NOT_MATCHED`), `OBJECT_UPDATED`, `OBJECT_REMOVED` (a file
+  deleted over the REST API), `LRU_OBJECT_REMOVED` (the cleanup of a full disk), `BROKEN_OBJECT_REMOVED`,
+  `MEDIA_NOT_AVAILABLE`, `MEDIA_OPEN_ERROR`, `MEDIA_PLAYBACK_ERROR`, `SMIL_LOADED`, `SMIL_NOT_AVAILABLE`,
+  `SMIL_OPEN_ERROR`; of garlic-lib: `OBJECTS_REMOVED` (the sum of a cleanup; clearing the player cache is one such
+  event, not one per file), `FAILED_FREEING_SPACE`, `DISK_FULL`, the task scheduler and configuration events; new:
+  `MEDIA_UNSUPPORTED`. A media error is reported once per medium and index version. Not used: `STORAGE_FORMATTED`, `STORAGE_TRUNCATED` (the player never formats a storage).
 - **Digest of a download**: only if the server sends one (`Repr-Digest`, `Content-Digest`, `Digest`, `Content-MD5`;
   SHA-256 or MD5), else nothing is checked. A wrong one is `FETCH_FAILED` with `E_CHECKSUM_NOT_MATCHED` and the
   calculated digest (`md5` or `sha256`), the file is loaded again.

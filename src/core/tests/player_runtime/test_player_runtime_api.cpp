@@ -301,6 +301,9 @@ TEST_CASE("a task from the hub: the core clears the player cache, restarts when 
 
     CHECK(f.seen().find("clear player") != std::string::npos);
     CHECK(f.seen().find("reboot") == std::string::npos); // waits for the frontend
+    // one event for all files instead of OBJECT_REMOVED each
+    CHECK(f.fs.content("logs/event_log.xml").value_or("").contains("<eventName>OBJECTS_REMOVED</eventName><metadata>"
+                                                                   "<meta name=\"information\" content=\"player cache cleared: "));
     f.run(30s); // a.jpg, missing now, is not downloaded and started again until the restart
     f.runtime->cachesCleared();
     CHECK(f.seen().ends_with("clear player | reboot c1"));

@@ -203,7 +203,9 @@ makeSpace(bytes)
 ## When something goes wrong
 
 - **Events** (source `ContentManager`): `SMIL_LOADED`, `SMIL_OPEN_ERROR` (with `errorMessage` and `errorLine`),
-  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECTS_REMOVED`, `FAILED_FREEING_SPACE`,
+  `SMIL_NOT_AVAILABLE`, `MEDIA_UNSUPPORTED`, `OBJECTS_REMOVED` (the sum of a cleanup, also of "clear the player
+  cache": one event with the count of files and bytes instead of one per file), `FAILED_FREEING_SPACE`,
+  `OBJECT_REMOVED` (IAdea: a file removed on purpose, `/v2/files/delete` of the REST API, with `resourceURI`),
   `LRU_OBJECT_REMOVED` (IAdea; garlic-lib called it `OBJECT_REMOVED`: an entry the cleanup removed, `resourceURI`
   and `lastAccessTime`; informational if not read for more than 30 days, else a warning: the disk is too small),
   `BROKEN_OBJECT_REMOVED` (IAdea, at the start: a complete file of the inventory whose size is not the one of the

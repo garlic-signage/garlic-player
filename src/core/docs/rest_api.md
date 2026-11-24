@@ -21,7 +21,7 @@ The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it g
 | `/v2/oauth2/token`    | any    | `grant_type`, `username`, `password` (form, URL or JSON)          |
 | `/v2/files/new`       | any    | `data` (file), `fileSize`, `downloadPath`, `mimeType`, `modifiedDate` |
 | `/v2/files/find`      | any    | `maxResults`, `pageToken` (URL, form or JSON)                     |
-| `/v2/files/delete`    | any    | `id` (URL, form or JSON)                                          |
+| `/v2/files/delete`    | any    | `id` (URL, form or JSON); event `OBJECT_REMOVED` (`removed` of `RestActions`) |
 | `/v2/files/{id}`      | GET    | file info                                                         |
 | `/v2/files/{id}`      | POST   | replace the file: `data`, `fileSize`, `downloadPath`, …           |
 | `/v2/system/firmwareInfo` | any | `{"firmwareVersion", "family": "garlic-player-<os>"}`             |
