@@ -776,8 +776,8 @@ TEST_CASE("the first resource log after 5 minutes has the CPU load, measured sin
     REQUIRE(f.runtime->start().has_value());
     f.run(301s);
     std::string log = f.debugLog();
-    REQUIRE(log.contains(" cpu "));
-    CHECK_FALSE(log.contains(" cpu - "));
+    REQUIRE(log.contains(") cpu ")); // the load of the player after the threads, not the temperature
+    CHECK_FALSE(log.contains(") cpu - "));
 }
 
 TEST_CASE("stop(): StopMedia comes with the next poll, nextDeadline is at once")
