@@ -29,6 +29,9 @@ if ! command -v emcc >/dev/null; then
     echo "emcc not found: install Emscripten or source emsdk_env.sh" >&2
     exit 1
 fi
+# the toolchain of vcpkg follows the emcc in PATH (Arch package or emsdk), not an older path in the CMake cache
+EMSCRIPTEN_ROOT="$(dirname "$(readlink -f "$(command -v emcc)")")"
+export EMSCRIPTEN_ROOT
 if [[ -z ${VCPKG_ROOT:-} || ! -f $VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake ]]; then
     echo "VCPKG_ROOT does not point to a vcpkg clone" >&2
     exit 1
