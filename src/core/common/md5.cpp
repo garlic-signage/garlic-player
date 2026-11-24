@@ -17,6 +17,7 @@
 */
 #include "common/md5.hpp"
 
+#include "common/text.hpp"
 
 namespace garlic::core::common
 {
@@ -64,9 +65,9 @@ namespace garlic::core::common
     void Md5::update(std::span<const std::byte> data) noexcept
     {
         length += data.size();
-        for (std::byte b : data)
+        for (std::byte byte : data)
         {
-            buffer[buffered++] = static_cast<std::uint8_t>(b);
+            buffer[buffered++] = static_cast<std::uint8_t>(byte);
             if (buffered == buffer.size())
             {
                 transform(buffer.data());
@@ -82,24 +83,26 @@ namespace garlic::core::common
 
     Md5::Digest Md5::finish() noexcept
     {
-        const std::uint64_t bit_length = length * 8;
+        // Padding: 0x80, zeros until 56 bytes in the block, then the length in bits
+        const std::uint64_t bits = length * 8;
+        buffer[buffered++] = 0x80;
+        if (buffered > 56)
+        {
+            while (buffered < 64)
+                buffer[buffered++] = 0;
+            transform(buffer.data());
+            buffered = 0;
+        }
+        while (buffered < 56)
+            buffer[buffered++] = 0;
+        for (std::size_t i = 0; i < 8; ++i) // length little-endian
+            buffer[buffered++] = static_cast<std::uint8_t>(bits >> (i * 8));
+        transform(buffer.data());
 
-        // Padding: 0x80, zeros until 56 bytes in the block, then the length as 64 bit little endian
-        constexpr std::byte one{0x80};
-        constexpr std::byte zero{0x00};
-        update(std::span(&one, 1));
-        while (buffered != 56)
-            update(std::span(&zero, 1));
-
-        std::array<std::byte, 8> length_bytes;
-        for (std::size_t i = 0; i < 8; ++i)
-            length_bytes[i] = static_cast<std::byte>(bit_length >> (8 * i));
-        update(length_bytes);
-
-        Digest digest;
-        for (std::size_t i = 0; i < 16; ++i)
-            digest[i] = static_cast<std::uint8_t>(state[i / 4] >> (8 * (i % 4)));
-
+        Digest digest{};
+        for (std::size_t i = 0; i < state.size(); ++i)
+            for (std::size_t b = 0; b < 4; ++b) // state little-endian
+                digest[i * 4 + b] = static_cast<std::uint8_t>(state[i] >> (b * 8));
         reset();
         return digest;
     }
@@ -159,16 +162,7 @@ namespace garlic::core::common
 
     std::string Md5::toHex(const Digest &digest)
     {
-        constexpr std::string_view digits = "0123456789abcdef";
-
-        std::string result;
-        result.reserve(digest.size() * 2);
-        for (std::uint8_t byte : digest)
-        {
-            result.push_back(digits[byte >> 4]);
-            result.push_back(digits[byte & 0x0f]);
-        }
-        return result;
+        return common::toHex(digest);
     }
 
     std::string Md5::hex(std::string_view text)

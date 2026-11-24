@@ -36,6 +36,20 @@ namespace garlic::core::common
         return result;
     }
 
+    std::string toHex(std::span<const std::uint8_t> bytes)
+    {
+        constexpr std::string_view digits = "0123456789abcdef";
+
+        std::string result;
+        result.reserve(bytes.size() * 2);
+        for (std::uint8_t byte : bytes)
+        {
+            result.push_back(digits[byte >> 4]);
+            result.push_back(digits[byte & 0x0f]);
+        }
+        return result;
+    }
+
     std::from_chars_result fromChars(const char *first, const char *last, double &value)
     {
 #if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L

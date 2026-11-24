@@ -19,6 +19,8 @@
 #define GARLIC_CORE_COMMON_TEXT_HPP
 
 #include <charconv>
+#include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -26,6 +28,9 @@ namespace garlic::core::common
 {
     /// Only A-Z become a-z, independent of the locale (header names, file extensions, MIME types).
     std::string toLower(std::string_view text);
+
+    /// Lowercase hex string of bytes, e.g. of a hash digest.
+    std::string toHex(std::span<const std::uint8_t> bytes);
 
     /**
      * std::from_chars for double, independent of the locale. Where the standard library has no floating point

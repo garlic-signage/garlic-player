@@ -17,6 +17,8 @@
 */
 #include "common/sha256.hpp"
 
+#include "common/text.hpp"
+
 namespace garlic::core::common
 {
     namespace
@@ -73,7 +75,8 @@ namespace garlic::core::common
 
     Sha256::Digest Sha256::finish() noexcept
     {
-        std::uint64_t bits = length * 8;
+        // Padding: 0x80, zeros until 56 bytes in the block, then the length in bits
+        const std::uint64_t bits = length * 8;
         buffer[buffered++] = 0x80;
         if (buffered > 56)
         {
@@ -84,14 +87,14 @@ namespace garlic::core::common
         }
         while (buffered < 56)
             buffer[buffered++] = 0;
-        for (int i = 7; i >= 0; --i) // length big-endian
-            buffer[buffered++] = static_cast<std::uint8_t>(bits >> (i * 8));
+        for (std::size_t i = 0; i < 8; ++i) // length big-endian
+            buffer[buffered++] = static_cast<std::uint8_t>(bits >> ((7 - i) * 8));
         transform(buffer.data());
 
         Digest digest{};
         for (std::size_t i = 0; i < state.size(); ++i)
-            for (std::size_t b = 0; b < 4; ++b)
-                digest[i * 4 + b] = static_cast<std::uint8_t>(state[i] >> (24 - b * 8));
+            for (std::size_t b = 0; b < 4; ++b) // state big-endian
+                digest[i * 4 + b] = static_cast<std::uint8_t>(state[i] >> ((3 - b) * 8));
         reset();
         return digest;
     }
@@ -140,16 +143,7 @@ namespace garlic::core::common
 
     std::string Sha256::toHex(const Digest &digest)
     {
-        constexpr std::string_view digits = "0123456789abcdef";
-
-        std::string result;
-        result.reserve(digest.size() * 2);
-        for (std::uint8_t byte : digest)
-        {
-            result.push_back(digits[byte >> 4]);
-            result.push_back(digits[byte & 0x0f]);
-        }
-        return result;
+        return common::toHex(digest);
     }
 
     std::string Sha256::hex(std::string_view text)
