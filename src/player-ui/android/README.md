@@ -155,14 +155,18 @@ Like the legacy player, with its Java classes:
   the menu off.
 - **Written for one series:** Philips D-Line `43BDL4550D/00` (SICP model number), firmware `02.30` (SICP firmware
   build), Android 8.0 (API 26), MStar platform `m7221` (`ro.product.device` `sugarcane`), build
-  `TVOS-04.24.010.05.03` of 2024-10-09. The commands follow the SICP document V2.03 of June 2019. Newer series
-  (other platforms, newer Android, newer SICP versions) may lack a command, number the scheduling pages differently or
-  answer in other lengths - this one already answers model number and firmware build with other lengths than
-  `PhilipsLauncher` expects (18 and 10 bytes instead of 15 and 12), so the uuid stays empty. Check every new series
-  against the SICP document of its firmware.
-- **The screen in the system report** (`hardwareInfo`, `getDisplayHardware()`): model and serial over SICP, the model
-  told apart by its content and not by its length (a firmware is digits and dots, a build date `YYYY/MM/DD`), vendor
-  Philips. On the BDL4550D (read by hand, 2026-11-23): `43BDL4550D/00`, serial `AU0A2123004336`, firmware `02.30`,
+  `TVOS-04.24.010.05.03` of 2024-10-09. The commands follow the SICP document V2.03 of June 2019, checked against
+  V2.13 of September 2025, whose platform table lists `xxBDL4550D` as platform "BDL4550D 3.0". Newer series (other
+  platforms, newer Android, newer SICP versions) may lack a command or number the scheduling pages differently. Check
+  every new series against the SICP document of its firmware.
+- **The uuid** as of the legacy player: model number and serial, `43BDL4550D-AU0A2123004336`, only a start value for
+  a new player. Model number and firmware both answer `0xA1` without saying which was asked, so `fetchDeviceInformation()`
+  asks them one after the other and waits up to 1 s for each answer (NAV, `0x18` as the only byte, is none). The
+  legacy player told them apart by length (15 and 12 bytes); from SICP 2.09 on the model comes with the stroke number
+  (`43BDL4550D/00`) and the firmware without "V" (`02.30`), 18 and 10 bytes, so it took neither and the uuid stayed
+  empty. The stroke number is cut off for the uuid, so it is the one of the legacy player.
+- **The screen in the system report** (`hardwareInfo`, `getDisplayHardware()`): model with stroke number and serial over
+  SICP, vendor Philips. On the BDL4550D (read by hand, 2026-11-23): `43BDL4550D/00`, serial `AU0A2123004336`, firmware `02.30`,
   build date `2024/10/09`. Taken once after the start, when the launcher had its 5 s to answer; the uuid stays as
   before.
 

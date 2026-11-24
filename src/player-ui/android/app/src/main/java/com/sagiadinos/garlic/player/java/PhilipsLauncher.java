@@ -63,6 +63,7 @@ public class PhilipsLauncher implements LauncherInterface
     /// The schedule commands one after the other: a clear after waking must not overwrite the next wake time
     private final ExecutorService             schedule         = Executors.newSingleThreadExecutor();
     private final LinkedBlockingQueue<byte[]> schedule_reports = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<byte[]> model_reports    = new LinkedBlockingQueue<>(); // 0xA1, see ask()
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -78,19 +79,8 @@ public class PhilipsLauncher implements LauncherInterface
                 schedule_reports.offer(ret);
             else if (ret[3] == 0x15) // serial
                 serial_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == (byte) 0xA1)
-            {
-                // uuid and version by the lengths of the legacy player (BDL4550D: 18 and 10 bytes, both not taken)
-                if (ret[0] == 12) // firmware: 7 bytes + 5
-                    launcher_version = SICPDef.convertBytesToString(ret);
-                else if (ret[0] == 15) // model number: 10 bytes + 5
-                    model_number = SICPDef.convertBytesToString(ret);
-                // the model for the report by its content: a firmware is digits and dots ("02.30"), a build date
-                // "2024/10/09", a model has letters ("43BDL4550D/00")
-                String text = SICPDef.convertBytesToString(ret).trim();
-                if (!text.matches("[0-9.]+") && !text.matches("\\d{4}/\\d{2}/\\d{2}"))
-                    display_model = text;
-            }
+            else if (ret[3] == (byte) 0xA1) // model number or firmware, in the order asked, see ask()
+                model_reports.offer(ret);
             else
                 Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
         }
@@ -109,12 +99,48 @@ public class PhilipsLauncher implements LauncherInterface
         return "philips";
     }
 
+    /**
+     * Serial (0x15, told apart by its code), then model number and firmware (both 0xA1) one after the other: an answer
+     * of 0xA1 does not say what was asked, and its length changed with SICP 2.09 (model "43BDL4550D/00" instead of
+     * "43BDL4550D", firmware "02.30" without "V"), so the legacy player, which told them apart by length, took neither
+     * on the BDL4550D. Waits for the answers: called in a thread of its own, again until the uuid is complete.
+     */
     @Override
     public void fetchDeviceInformation()
     {
         send(SICPCommand.SICP_COMMAND_GET_SERIAL_CODE);
-        send(SICPCommand.SICP_COMMAND_GET_MODEL_NUMBER);
-        send(SICPCommand.SICP_COMMAND_GET_FIRMWARE_BUILD);
+        String model = ask(SICPCommand.SICP_COMMAND_GET_MODEL_NUMBER);
+        if (model != null)
+        {
+            display_model = model.trim();                 // for the report: "43BDL4550D/00"
+            model_number  = display_model.split("/")[0]; // the uuid as of the legacy player: "43BDL4550D-<serial>"
+        }
+        String firmware = ask(SICPCommand.SICP_COMMAND_GET_FIRMWARE_BUILD);
+        if (firmware != null)
+            launcher_version = firmware.trim();
+    }
+
+    /**
+     * Asks 0xA1 and waits up to 1 s for its answer; null without one or with NAV (0x18 as the only byte: the display
+     * does not have it, SICP 2.13 3.2.1). Answers that came too late for an earlier question are dropped first.
+     */
+    private String ask(SICPCommand command)
+    {
+        model_reports.clear();
+        send(command);
+        byte[] report;
+        try
+        {
+            report = model_reports.poll(1, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+        if (report == null || (report.length == 6 && report[4] == 0x18))
+            return null;
+        return SICPDef.convertBytesToString(report);
     }
 
     /// The legacy player took this as content URL on Philips; the new one only as default without one.
@@ -127,9 +153,10 @@ public class PhilipsLauncher implements LauncherInterface
     @Override
     public String getUUIDFromLauncher()
     {
-        if (model_number.isEmpty() || serial_number.isEmpty())
+        String serial = serial_number.trim();
+        if (model_number.isEmpty() || serial.isEmpty())
             return "";
-        return model_number + "-" + serial_number;
+        return model_number + "-" + serial;
     }
 
     @Override
