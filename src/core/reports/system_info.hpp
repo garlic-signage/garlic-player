@@ -66,6 +66,9 @@ namespace garlic::core::reports
         std::string                   hdmi_output;         // the screen as the frontend tells it: "1920x1080p-60"
         std::string                   device_model;        // the hardware: "Raspberry Pi 4 Model B Rev 1.4", "BDL4550D"
         std::string                   device_manufacturer; // "Raspberry Pi Foundation", "Philips"
+        /// The device as a supervisor knows it (Philips over SICP), modelName and PCBRevision; empty: unknown
+        std::string device_model_name; // "43BDL4550D/00"
+        std::string device_firmware;   // "02.30"
 
         /// The screen as a supervisor knows it (Philips over SICP), hardwareInfo of the system report; empty: unknown
         std::string display_model;
@@ -83,7 +86,7 @@ namespace garlic::core::reports
         std::string uuid;
         std::string app_name; // modelName, e.g. "garlic-player"
         std::string os;       // licenseModel: "linux", "android" …
-        std::string version;  // modelDescription
+        std::string version;  // modelDescription without known hardware, garlic.player.version
         std::string player_name;
         std::string index_uri;
         // of the configuration (ini), empty if not set

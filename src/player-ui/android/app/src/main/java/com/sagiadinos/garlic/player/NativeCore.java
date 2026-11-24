@@ -80,6 +80,8 @@ public final class NativeCore
     {
         setDisplayHardware(handle, model, productId, serial, vendor);
     }
+    /** The device as the launcher knows it (Philips over SICP), modelInfo of the system report; "" unknown */
+    public void setDeviceModel(String model, String firmware) { setDeviceModel(handle, model, firmware); }
     /** Hours the screen has run (Philips over SICP), for the system report; -1 unknown */
     public void setDisplayOperatingHours(int hours) { setDisplayOperatingHours(handle, hours); }
     /** CPU temperature of the launcher (Philips: SICP sensor 1), only where the core reads none; -1 unknown */
@@ -152,6 +154,7 @@ public final class NativeCore
     private static native void setDisplayMode(long handle, int width, int height, int refresh);
     private static native void setDisplayHardware(long handle, String model, String productId, String serial,
                                                   String vendor);
+    private static native void setDeviceModel(long handle, String model, String firmware);
     private static native void setDisplayOperatingHours(long handle, int hours);
     private static native void setTemperatureCpuFallback(long handle, int celsius);
     private static native void setThrottlingFallback(long handle, int throttling);

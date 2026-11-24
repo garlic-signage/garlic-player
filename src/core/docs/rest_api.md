@@ -26,7 +26,7 @@ The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it g
 | `/v2/files/{id}`      | GET    | file info                                                         |
 | `/v2/files/{id}`      | POST   | replace the file: `data`, `fileSize`, `downloadPath`, …           |
 | `/v2/system/firmwareInfo` | any | `{"firmwareVersion", "family": "garlic-player-<os>"}`             |
-| `/v2/system/modelInfo`    | any | `{"modelName"/"PCB": "garlic-player", "licenseModel": <os>, "manufacturer"`: of the hardware as in the system report, else `"Sagiadinos"`, …} |
+| `/v2/system/modelInfo`    | any | the `modelInfo` of the system report as JSON, with `"options": ""` |
 | `/v2/app/start`       | any    | `uri` (+ `packageName`, `className`): store as `index_uri`, load it |
 | `/v2/app/exec`        | any    | like `start`, but play `uri` for a while; `index_uri` stays       |
 | `/v2/app/switch`      | any    | `mode=start`: play the stored index again                         |

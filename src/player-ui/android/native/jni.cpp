@@ -423,6 +423,13 @@ extern "C"
                          PlayerRuntimeApi &api) { api.setDisplayHardware(m, p, s, v); });
     }
 
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setDeviceModel(JNIEnv *env, jclass,
+                                                                                      jlong handle, jstring model,
+                                                                                      jstring firmware)
+    {
+        post(handle, [m = text(env, model), f = text(env, firmware)](PlayerRuntimeApi &api) { api.setDeviceModel(m, f); });
+    }
+
     /// hours < 0: unknown
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setDisplayOperatingHours(JNIEnv *, jclass,
                                                                                                 jlong handle, jint hours)

@@ -11,5 +11,6 @@ target_link_libraries(garlic_core_rest_api PUBLIC
     garlic::core::configuration
     garlic::core::database
     garlic::core::httpd
+    garlic::core::reports
     nlohmann_json::nlohmann_json
 )

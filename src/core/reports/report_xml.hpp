@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace garlic::core::reports
@@ -54,6 +55,12 @@ namespace garlic::core::reports
                                     std::string_view tasks);
     std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now,
                                 const std::vector<InventoryObject> &objects);
+    /**
+     * modelInfo of the system report and of /v2/system/modelInfo, without option: the hardware the player runs on.
+     * Model of the supervisor, else that of the platform; manufacturer of the platform; firmware of the supervisor as
+     * PCBRevision. Without a known model or manufacturer the player stands in: garlic-player, its version, Sagiadinos.
+     */
+    std::vector<std::pair<std::string, std::string>> modelInfo(const SystemInfo &system, const PlayerInfo &player);
     /// As the Android players of IAdea, with our namespace; see systemInfo and configuration in report_xml.cpp, the own
     /// values as props "garlic.*".
     std::string systemReport(std::chrono::system_clock::time_point now, const SystemInfo &system,

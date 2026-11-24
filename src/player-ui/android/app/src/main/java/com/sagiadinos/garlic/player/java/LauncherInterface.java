@@ -39,6 +39,10 @@ public interface LauncherInterface
     /// not know it (garlic-launcher)
     String[] getDisplayHardware();
 
+    /// The device for modelInfo of the system report: model and firmware; null if the launcher does not know it
+    /// (garlic-launcher: the core takes what Android tells)
+    String[] getDeviceModel();
+
     /// Hours the screen has run, null if the launcher does not know them; waits for the answer: not in the UI thread
     Integer fetchOperatingHours();
 

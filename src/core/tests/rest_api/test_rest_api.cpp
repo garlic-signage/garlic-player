@@ -406,19 +406,28 @@ TEST_CASE("system: firmwareInfo and modelInfo like garlic-lib")
     CHECK(firmware["family"] == "garlic-player-" + os);
 
     auto model = body(f.call("GET", "/v2/system/modelInfo", f.auth()));
-    CHECK(model["modelName"] == "garlic-player");
-    CHECK(model["PCB"] == "garlic-player");
+    CHECK(model["modelName"] == "garlic-player"); // the hardware unknown: the player
+    CHECK(model["PCB"] == "");
     CHECK(model["licenseModel"] == os);
     CHECK(model["manufacturer"] == "Sagiadinos"); // the hardware unknown
     CHECK(model["manufacturerURL"] == "https://garlic-signage.com/garlic-player/");
-    CHECK(model["modelDescription"] == "");
+    CHECK(model["modelDescription"] == "2.0");
+    CHECK(model["modelURL"] == "https://garlic-signage.com/garlic-player/");
+    CHECK(model["options"] == "");
 }
 
-TEST_CASE("modelInfo: the manufacturer of the hardware where it is known, without URL")
+TEST_CASE("modelInfo: the hardware where it is known, as in the system report")
 {
     Fixture               f;
     rest_api::RestActions actions = f.actions();
-    actions.manufacturer          = [] { return std::string("Philips"); };
+    actions.device                = []
+    {
+        reports::SystemInfo device;
+        device.device_manufacturer = "Philips";
+        device.device_model_name   = "43BDL4550D/00";
+        device.device_firmware     = "02.30";
+        return device;
+    };
     rest_api::RestApi api{f.config, f.inventory, f.failing, f.clock, actions};
     httpd::Router     router;
     api.registerRoutes(router);
@@ -429,6 +438,9 @@ TEST_CASE("modelInfo: the manufacturer of the hardware where it is known, withou
     auto model     = body(router.handle(request));
     CHECK(model["manufacturer"] == "Philips");
     CHECK(model["manufacturerURL"] == "");
+    CHECK(model["modelName"] == "43BDL4550D/00");
+    CHECK(model["PCBRevision"] == "02.30");
+    CHECK(model["modelDescription"] == "");
 }
 
 TEST_CASE("system, app, task: token first (403), then an unknown name is 404")

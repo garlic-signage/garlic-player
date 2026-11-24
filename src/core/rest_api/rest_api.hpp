@@ -23,6 +23,7 @@
 #include "configuration/configuration.hpp"
 #include "database/inventory_table.hpp"
 #include "httpd/router.hpp"
+#include "reports/system_info.hpp"
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -53,7 +54,7 @@ namespace garlic::core::rest_api
         std::function<void()>        deviceSettingsChanged; // /v2/hardware/audioOut: audio/volume changed
         std::function<void(bool on)> screenPower;           // /v2/hardware/display: through the supervisor
         std::function<std::string()> serialNumber;          // /v2/system/playerInfo: the MAC of the device
-        std::function<std::string()> manufacturer;          // /v2/system/modelInfo: of the hardware, empty if unknown
+        std::function<reports::SystemInfo()> device;       // /v2/system/modelInfo: the hardware as in the system report
     };
 
     /**

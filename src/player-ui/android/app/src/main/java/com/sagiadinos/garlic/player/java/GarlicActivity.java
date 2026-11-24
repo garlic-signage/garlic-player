@@ -266,6 +266,11 @@ public class GarlicActivity extends Activity implements Media.Reports
             String[] hardware = launcher.getDisplayHardware();
             core.setDisplayHardware(hardware[0], hardware[1], hardware[2], hardware[3]);
         }
+        if (launcher != null && launcher.getDeviceModel() != null)
+        {
+            String[] device = launcher.getDeviceModel();
+            core.setDeviceModel(device[0], device[1]);
+        }
         core.setDisplayOperatingHours(operating_hours != null ? operating_hours : -1);
         core.setTemperatureCpuFallback(temperature_fallback != null ? temperature_fallback : -1);
         core.setThrottlingFallback(throttling_fallback);
@@ -746,12 +751,19 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     /**
      * Operating hours, the fallback CPU temperature and throttling again, every 5 minutes like the resource log of the
-     * core, in a thread: the launcher waits for the answers.
+     * core, in a thread: the launcher waits for the answers. Model and firmware too, asked again while they are missing.
      */
     private void refreshDisplayValues()
     {
         LauncherInterface asked = launcher;
         new Thread(() -> {
+            String[] device = asked.getDeviceModel();
+            if (device != null && (device[0].isEmpty() || device[1].isEmpty()))
+            {
+                asked.fetchDeviceInformation(); // SICP did not answer before the start
+                device = asked.getDeviceModel();
+            }
+            String[] model  = device;
             Integer hours   = asked.fetchOperatingHours();
             Integer celsius    = asked.fetchTemperatureCpuFallback();
             Boolean throttling = asked.fetchThrottlingFallback();
@@ -764,6 +776,8 @@ public class GarlicActivity extends Activity implements Media.Reports
                     core.setDisplayOperatingHours(hours != null ? hours : -1);
                     core.setTemperatureCpuFallback(celsius != null ? celsius : -1);
                     core.setThrottlingFallback(throttling);
+                    if (model != null)
+                        core.setDeviceModel(model[0], model[1]);
                 }
             });
         }, "display values").start();

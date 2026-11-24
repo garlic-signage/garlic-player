@@ -84,15 +84,19 @@ The text is written without line breaks; values are escaped.
 - System report, as the Android players of IAdea, what the player knows; proxy, wifi, adb and the like are left out:
   - `network`: per interface `type`, `mac`, `ip` and `netmask` of the first IPv4 address, then the IPv6 addresses as
     `ip_v6`, `netmask_v6` (garlic-lib: `ip_v4`, `netmask_v4`, `broadcast_v4`).
-  - `modelInfo`: the player is the model: `modelName` `garlic-player`, `modelDescription` its version,
-    `manufacturer` the manufacturer of the hardware (`system::device()`, Android `ro.product.manufacturer`, e.g.
-    Philips) with an empty `manufacturerURL`, unknown: Sagiadinos and `https://garlic-signage.com/garlic-player/`;
-    `PCB` the hardware it runs on (`system::device()`: Android `ro.product.model`, Linux the
-    device tree or the DMI, Windows the BIOS of the registry, Apple `hw.model`), `licenseModel` the operating system.
+  - `modelInfo`: the hardware the player runs on (`reports::modelInfo`, the same for `/v2/system/modelInfo`):
+    `PCB` the hardware of the platform (`system::device()`: Android `ro.product.model`, Linux the device tree or the
+    DMI, Windows the BIOS of the registry, Apple `hw.model`); `modelName` the model of the supervisor
+    (`PlayerRuntimeApi::setDeviceModel`, Philips over SICP `0xA1`: `43BDL4550D/00`), without one that of the
+    platform; `PCBRevision` the firmware of the supervisor (Philips: `02.30`), else empty; `manufacturer` that of
+    the platform (Android `ro.product.manufacturer`, e.g. Philips) with an empty `manufacturerURL`; `modelDescription`
+    and `modelURL` empty. Without a known model the player stands in: `modelName` `garlic-player`,
+    `modelDescription` its version, `modelURL` `https://garlic-signage.com/garlic-player/`; without a known
+    manufacturer Sagiadinos with the same `manufacturerURL`. `licenseModel` the operating system.
   - `userPref`: `info.playerName`, `info.playGroup`, `info.playGroupMaster`, `system.locale`,
     `hardware.videoOut.0.rotation` (`auto` if not set), `schedule.reboot.days` and `.time` if set,
     `hardware.audioOut.0.masterSoundLevel` (0…1 of `audio/volume`) and `display.brightness` if set,
-    `time.timeZone`, `content.serverUrl`; then the own values: `garlic.uptime.player`
+    `time.timeZone`, `content.serverUrl`, `garlic.player.version`; then the own values: `garlic.uptime.player`
     and `garlic.uptime.system` (seconds), `garlic.memory.player` and `.max` (bytes), `garlic.threads` and `.max`,
     `garlic.cpu.player` (the load of the last resource log), `garlic.temperature.cpu`, `.ram`, `.ssd` (°C),
     `garlic.throttling`, `garlic.display.operating_hours` (the hours the screen has run, as a supervisor tells them

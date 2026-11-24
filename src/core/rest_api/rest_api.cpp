@@ -21,6 +21,7 @@
 #include "common/sha256.hpp"
 #include "common/text.hpp"
 #include "common/time_format.hpp"
+#include "reports/report_xml.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -466,19 +467,17 @@ namespace garlic::core::rest_api
         std::string os(configuration::Configuration::os());
         if (name == "firmwareInfo")
             return respond(json{{"firmwareVersion", config.version()}, {"family", "garlic-player-" + os}});
-        if (name == "modelInfo") // the manufacturer of the hardware as in the system report, else Sagiadinos
+        if (name == "modelInfo") // the hardware as in the system report
         {
-            std::string manufacturer = actions.manufacturer ? actions.manufacturer() : "";
-            bool        known        = !manufacturer.empty();
-            return respond(json{{"modelDescription", ""},
-                                {"modelName", "garlic-player"},
-                                {"modelURL", ""},
-                                {"manufacturer", known ? manufacturer : "Sagiadinos"},
-                                {"licenseModel", os},
-                                {"PCBRevision", ""},
-                                {"manufacturerURL", known ? "" : "https://garlic-signage.com/garlic-player/"},
-                                {"PCB", "garlic-player"},
-                                {"options", ""}});
+            reports::PlayerInfo player;
+            player.app_name = "garlic-player";
+            player.os       = os;
+            player.version  = config.version();
+            json model      = json::object();
+            for (const auto &[key, value] : reports::modelInfo(actions.device ? actions.device() : reports::SystemInfo{}, player))
+                model[key] = value;
+            model["options"] = "";
+            return respond(model);
         }
         if (name == "playerInfo") // IAdea: playerId, serialNumber is the MAC, factoryDefaults an add-on package
             return respond(json{{"playerId", config.uuid()},

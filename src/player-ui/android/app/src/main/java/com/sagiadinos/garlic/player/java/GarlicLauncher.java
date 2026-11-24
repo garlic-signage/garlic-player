@@ -96,6 +96,12 @@ public class GarlicLauncher implements LauncherInterface
         return null; // the box does not know the screen
     }
 
+    @Override
+    public String[] getDeviceModel()
+    {
+        return null;
+    }
+
     /// In a thread: the dialog asks every second from the UI thread
     @Override
     public void fetchThermal()

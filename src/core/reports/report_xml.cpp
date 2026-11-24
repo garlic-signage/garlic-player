@@ -125,20 +125,16 @@ namespace garlic::core::reports
         }
 
         /**
-         * As the Android players of IAdea: modelInfo (the player is the model, PCB and manufacturer the hardware it
-         * runs on; without a known manufacturer Sagiadinos with the URL of the player), userPref
-         * with what is known (the configuration, the system), then the own values as "garlic.*". What the player does
-         * not know (proxy, wifi, adb …) is left out.
+         * As the Android players of IAdea: modelInfo (see modelInfo()), userPref with what is known (the
+         * configuration, the system), then the version of the player and the own values as "garlic.*". What the
+         * player does not know (proxy, wifi, adb …) is left out.
          */
         std::string configuration(const SystemInfo &system, const PlayerInfo &player)
         {
-            bool        known = !system.device_manufacturer.empty();
-            std::string text  = "<configuration><modelInfo>" + prop("PCB", system.device_model) + prop("PCBRevision", "") +
-                               prop("licenseModel", player.os) +
-                               prop("manufacturer", known ? system.device_manufacturer : "Sagiadinos") +
-                               prop("manufacturerURL", known ? "" : "https://garlic-signage.com/garlic-player/") +
-                               prop("modelDescription", player.version) + prop("modelName", player.app_name) +
-                               prop("modelURL", "") + prop("option", "") + "</modelInfo>" + "<factoryDefault>" +
+            std::string text = "<configuration><modelInfo>";
+            for (const auto &[name, value] : modelInfo(system, player))
+                text += prop(name, value);
+            text += prop("option", "") + "</modelInfo>" + "<factoryDefault>" +
                                tag("variant", "") + "</factoryDefault><userPref>" +
                                prop("info.playerName", player.player_name) + prop("info.playGroup", "") +
                                prop("info.playGroupMaster", "") + prop("system.locale", system.locale) +
@@ -149,11 +145,28 @@ namespace garlic::core::reports
                 text += prop("hardware.audioOut.0.masterSoundLevel", level);
             if (!player.brightness.empty())
                 text += prop("display.brightness", player.brightness);
-            text += prop("time.timeZone", system.time_zone) + prop("content.serverUrl", player.index_uri);
+            text += prop("time.timeZone", system.time_zone) + prop("content.serverUrl", player.index_uri) +
+                    prop("garlic.player.version", player.version);
             for (const auto &[name, value] : system.own)
                 text += prop(name, value);
             return text + "</userPref></configuration>";
         }
+    }
+
+    std::vector<std::pair<std::string, std::string>> modelInfo(const SystemInfo &system, const PlayerInfo &player)
+    {
+        constexpr std::string_view url = "https://garlic-signage.com/garlic-player/";
+        std::string model        = system.device_model_name.empty() ? system.device_model : system.device_model_name;
+        bool        model_known  = !model.empty();
+        bool        maker_known  = !system.device_manufacturer.empty();
+        return {{"PCB", system.device_model},
+                {"PCBRevision", system.device_firmware},
+                {"licenseModel", player.os},
+                {"manufacturer", maker_known ? system.device_manufacturer : "Sagiadinos"},
+                {"manufacturerURL", maker_known ? "" : std::string(url)},
+                {"modelDescription", model_known ? "" : player.version},
+                {"modelName", model_known ? model : player.app_name},
+                {"modelURL", model_known ? "" : std::string(url)}};
     }
 
     std::string playLogReport(std::string_view uuid, std::chrono::system_clock::time_point now, std::string_view lines)

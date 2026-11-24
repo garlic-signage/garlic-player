@@ -148,10 +148,18 @@ namespace garlic::core
             { return system::collectSystemInfo(cache, started); };
 #endif
         settings.system_info = system_info;
-        // the system report with the load since the previous system report, the first since the start
-        auto report_info = [this, system_info]
+        // the hardware: of the platform and what the supervisor told
+        auto device_info = [this, system_info]
         {
             reports::SystemInfo info = system_info ? system_info() : reports::SystemInfo{};
+            info.device_model_name   = device_model[0];
+            info.device_firmware     = device_model[1];
+            return info;
+        };
+        // the system report with the load since the previous system report, the first since the start
+        auto report_info = [this, device_info]
+        {
+            reports::SystemInfo info = device_info();
             if (!info.cpu_usage) // the system, where it cannot be read (Android 8+) the player
             {
                 DebugInfo load;
@@ -221,8 +229,7 @@ namespace garlic::core
             }
             return first;
         };
-        actions.manufacturer = [this]
-        { return settings.system_info ? settings.system_info().device_manufacturer : std::string{}; };
+        actions.device = device_info;
         if (cache_space)
             actions.makeSpace = [this](std::uint64_t bytes) -> std::uint64_t
             {
@@ -891,6 +898,11 @@ namespace garlic::core
                                               std::string vendor)
     {
         display_hardware = {std::move(model), std::move(product_id), std::move(serial), std::move(vendor)};
+    }
+
+    void PlayerRuntimeApi::setDeviceModel(std::string model, std::string firmware)
+    {
+        device_model = {std::move(model), std::move(firmware)};
     }
 
     DebugInfo PlayerRuntimeApi::debugInfo()

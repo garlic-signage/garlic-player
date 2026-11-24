@@ -821,7 +821,7 @@ TEST_CASE("nextDeadline: the next change of the engine, the next upload of a rep
     CHECK(*next <= r.clock.monotonic() + 20s);
 }
 
-TEST_CASE("system report: the screen of the frontend as hdmiOutput, the uptime of the player as garlic prop")
+TEST_CASE("system report: the screen of the frontend as hdmiOutput, the model of the supervisor, the uptime of the player as garlic prop")
 {
     Fixture f;
     f.serve("http://hub/index.smil", indexText("", 3600, R"x(<metadata><subscription><type>SystemReport</type>
@@ -829,10 +829,13 @@ TEST_CASE("system report: the screen of the frontend as hdmiOutput, the uptime o
             "application/smil+xml");
     REQUIRE(f.runtime->start().has_value());
     f.runtime->setDisplayMode(1920, 1080, 60);
+    f.runtime->setDeviceModel("43BDL4550D/00", "02.30");
     f.run(reports::Reporter::first_system_report + 2s);
     auto put = std::ranges::find_if(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; });
     REQUIRE(put != f.transport.requests.end());
     CHECK(put->body.contains("<hdmiOutput>1920x1080p-60</hdmiOutput>"));
+    CHECK(put->body.contains(R"(<prop name="PCBRevision" value="02.30"/>)"));
+    CHECK(put->body.contains(R"(<prop name="modelName" value="43BDL4550D/00"/>)"));
     CHECK(put->body.contains(R"(<prop name="garlic.uptime.player" value=")"));
 }
 

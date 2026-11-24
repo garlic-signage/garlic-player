@@ -256,6 +256,10 @@ namespace garlic::core
             /// The screen as a supervisor knows it (Philips over SICP): hardwareInfo of the system report
             void setDisplayHardware(std::string model, std::string product_id, std::string serial, std::string vendor);
 
+            /// The device as a supervisor knows it (Philips over SICP: "43BDL4550D/00", "02.30"): modelName and
+            /// PCBRevision of modelInfo in the system report and the REST API; empty: unknown
+            void setDeviceModel(std::string model, std::string firmware);
+
             /// The hours the screen has run as a supervisor knows them (Philips over SICP), garlic.display.operating_hours
             /// of the system report; nullopt: unknown
             void setDisplayOperatingHours(std::optional<int> hours) { display_operating_hours = hours; }
@@ -360,6 +364,7 @@ namespace garlic::core
             std::optional<int>       cpu_player_of_log; // the load of the player over the 5 minutes of the last log
             std::string              display_mode;      // setDisplayMode: hdmiOutput of the reports
             std::array<std::string, 4> display_hardware;  // setDisplayHardware: model, product id, serial, vendor
+            std::array<std::string, 2> device_model;      // setDeviceModel: model, firmware
             std::optional<int>         display_operating_hours; // setDisplayOperatingHours
             std::optional<int>         temperature_cpu_fallback; // setTemperatureCpuFallback
             std::optional<bool>        throttling_fallback;      // setThrottlingFallback
