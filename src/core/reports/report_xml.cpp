@@ -125,15 +125,18 @@ namespace garlic::core::reports
         }
 
         /**
-         * As the Android players of IAdea: modelInfo (the player is the model, PCB the hardware it runs on), userPref
+         * As the Android players of IAdea: modelInfo (the player is the model, PCB and manufacturer the hardware it
+         * runs on; without a known manufacturer Sagiadinos with the URL of the player), userPref
          * with what is known (the configuration, the system), then the own values as "garlic.*". What the player does
          * not know (proxy, wifi, adb …) is left out.
          */
         std::string configuration(const SystemInfo &system, const PlayerInfo &player)
         {
-            std::string text = "<configuration><modelInfo>" + prop("PCB", system.device_model) + prop("PCBRevision", "") +
-                               prop("licenseModel", player.os) + prop("manufacturer", "Sagiadinos") +
-                               prop("manufacturerURL", "https://garlic-player.com") +
+            bool        known = !system.device_manufacturer.empty();
+            std::string text  = "<configuration><modelInfo>" + prop("PCB", system.device_model) + prop("PCBRevision", "") +
+                               prop("licenseModel", player.os) +
+                               prop("manufacturer", known ? system.device_manufacturer : "Sagiadinos") +
+                               prop("manufacturerURL", known ? "" : "https://garlic-signage.com/garlic-player/") +
                                prop("modelDescription", player.version) + prop("modelName", player.app_name) +
                                prop("modelURL", "") + prop("option", "") + "</modelInfo>" + "<factoryDefault>" +
                                tag("variant", "") + "</factoryDefault><userPref>" +
@@ -147,8 +150,6 @@ namespace garlic::core::reports
             if (!player.brightness.empty())
                 text += prop("display.brightness", player.brightness);
             text += prop("time.timeZone", system.time_zone) + prop("content.serverUrl", player.index_uri);
-            if (!system.device_manufacturer.empty())
-                text += prop("garlic.device.manufacturer", system.device_manufacturer);
             for (const auto &[name, value] : system.own)
                 text += prop(name, value);
             return text + "</userPref></configuration>";

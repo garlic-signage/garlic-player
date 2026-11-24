@@ -85,12 +85,14 @@ The text is written without line breaks; values are escaped.
   - `network`: per interface `type`, `mac`, `ip` and `netmask` of the first IPv4 address, then the IPv6 addresses as
     `ip_v6`, `netmask_v6` (garlic-lib: `ip_v4`, `netmask_v4`, `broadcast_v4`).
   - `modelInfo`: the player is the model: `modelName` `garlic-player`, `modelDescription` its version,
-    `manufacturer` Sagiadinos; `PCB` the hardware it runs on (`system::device()`: Android `ro.product.model`, Linux the
+    `manufacturer` the manufacturer of the hardware (`system::device()`, Android `ro.product.manufacturer`, e.g.
+    Philips) with an empty `manufacturerURL`, unknown: Sagiadinos and `https://garlic-signage.com/garlic-player/`;
+    `PCB` the hardware it runs on (`system::device()`: Android `ro.product.model`, Linux the
     device tree or the DMI, Windows the BIOS of the registry, Apple `hw.model`), `licenseModel` the operating system.
   - `userPref`: `info.playerName`, `info.playGroup`, `info.playGroupMaster`, `system.locale`,
     `hardware.videoOut.0.rotation` (`auto` if not set), `schedule.reboot.days` and `.time` if set,
     `hardware.audioOut.0.masterSoundLevel` (0…1 of `audio/volume`) and `display.brightness` if set,
-    `time.timeZone`, `content.serverUrl`; then the own values: `garlic.device.manufacturer`, `garlic.uptime.player`
+    `time.timeZone`, `content.serverUrl`; then the own values: `garlic.uptime.player`
     and `garlic.uptime.system` (seconds), `garlic.memory.player` and `.max` (bytes), `garlic.threads` and `.max`,
     `garlic.cpu.player` (the load of the last resource log), `garlic.temperature.cpu`, `.ram`, `.ssd` (°C),
     `garlic.throttling`, `garlic.display.operating_hours` (the hours the screen has run, as a supervisor tells them

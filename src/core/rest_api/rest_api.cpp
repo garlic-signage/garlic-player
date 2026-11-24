@@ -466,16 +466,20 @@ namespace garlic::core::rest_api
         std::string os(configuration::Configuration::os());
         if (name == "firmwareInfo")
             return respond(json{{"firmwareVersion", config.version()}, {"family", "garlic-player-" + os}});
-        if (name == "modelInfo")
+        if (name == "modelInfo") // the manufacturer of the hardware as in the system report, else Sagiadinos
+        {
+            std::string manufacturer = actions.manufacturer ? actions.manufacturer() : "";
+            bool        known        = !manufacturer.empty();
             return respond(json{{"modelDescription", ""},
                                 {"modelName", "garlic-player"},
                                 {"modelURL", ""},
-                                {"manufacturer", "Sagiadinos"},
+                                {"manufacturer", known ? manufacturer : "Sagiadinos"},
                                 {"licenseModel", os},
                                 {"PCBRevision", ""},
-                                {"manufacturerURL", "https://garlic-player.com"},
+                                {"manufacturerURL", known ? "" : "https://garlic-signage.com/garlic-player/"},
                                 {"PCB", "garlic-player"},
                                 {"options", ""}});
+        }
         if (name == "playerInfo") // IAdea: playerId, serialNumber is the MAC, factoryDefaults an add-on package
             return respond(json{{"playerId", config.uuid()},
                                 {"serialNumber", actions.serialNumber ? actions.serialNumber() : ""},

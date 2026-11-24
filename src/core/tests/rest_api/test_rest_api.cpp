@@ -409,9 +409,26 @@ TEST_CASE("system: firmwareInfo and modelInfo like garlic-lib")
     CHECK(model["modelName"] == "garlic-player");
     CHECK(model["PCB"] == "garlic-player");
     CHECK(model["licenseModel"] == os);
-    CHECK(model["manufacturer"] == "Sagiadinos");
-    CHECK(model["manufacturerURL"] == "https://garlic-player.com");
+    CHECK(model["manufacturer"] == "Sagiadinos"); // the hardware unknown
+    CHECK(model["manufacturerURL"] == "https://garlic-signage.com/garlic-player/");
     CHECK(model["modelDescription"] == "");
+}
+
+TEST_CASE("modelInfo: the manufacturer of the hardware where it is known, without URL")
+{
+    Fixture               f;
+    rest_api::RestActions actions = f.actions();
+    actions.manufacturer          = [] { return std::string("Philips"); };
+    rest_api::RestApi api{f.config, f.inventory, f.failing, f.clock, actions};
+    httpd::Router     router;
+    api.registerRoutes(router);
+    Request request;
+    request.method = "GET";
+    request.path   = "/v2/system/modelInfo";
+    request.query  = f.auth();
+    auto model     = body(router.handle(request));
+    CHECK(model["manufacturer"] == "Philips");
+    CHECK(model["manufacturerURL"] == "");
 }
 
 TEST_CASE("system, app, task: token first (403), then an unknown name is 404")

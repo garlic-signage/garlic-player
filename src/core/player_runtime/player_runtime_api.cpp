@@ -221,6 +221,8 @@ namespace garlic::core
             }
             return first;
         };
+        actions.manufacturer = [this]
+        { return settings.system_info ? settings.system_info().device_manufacturer : std::string{}; };
         if (cache_space)
             actions.makeSpace = [this](std::uint64_t bytes) -> std::uint64_t
             {

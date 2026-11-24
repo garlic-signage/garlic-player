@@ -114,14 +114,17 @@ TEST_CASE("system report: as the Android players of IAdea, the own values as gar
                           "<netmask>255.0.0.0</netmask><ip_v6>fe80::1</ip_v6><netmask_v6>ffff::</netmask_v6></interface>"
                           "</network>"));
     CHECK(report.contains(R"(<modelInfo><prop name="PCB" value="Raspberry Pi 4 Model B Rev 1.4"/><prop name="PCBRevision" value=""/>)"
-                          R"(<prop name="licenseModel" value="linux"/><prop name="manufacturer" value="Sagiadinos"/>)"));
+                          R"(<prop name="licenseModel" value="linux"/><prop name="manufacturer" value="Raspberry Pi Foundation"/>)"
+                          R"(<prop name="manufacturerURL" value=""/>)"));
+    CHECK(systemReport(now, system(), player)
+              .contains(R"(<prop name="manufacturer" value="Sagiadinos"/>)"
+                        R"(<prop name="manufacturerURL" value="https://garlic-signage.com/garlic-player/"/>)"));
     CHECK(report.contains(R"(<prop name="modelDescription" value="2.0.0"/><prop name="modelName" value="garlic-player"/>)"));
     CHECK(report.contains(R"(<userPref><prop name="info.playerName" value="Lobby"/>)"));
     CHECK(report.contains(R"(<prop name="hardware.videoOut.0.rotation" value="auto"/><prop name="schedule.reboot.days" value="Sun|Mon"/>)"
                           R"(<prop name="schedule.reboot.time" value="04:00"/><prop name="hardware.audioOut.0.masterSoundLevel" value="0.8"/>)"));
     CHECK_FALSE(report.contains("display.brightness")); // not set
     CHECK(report.contains(R"(<prop name="time.timeZone" value="Europe/Berlin"/><prop name="content.serverUrl" value="http://hub/index.smil"/>)"
-                          R"(<prop name="garlic.device.manufacturer" value="Raspberry Pi Foundation"/>)"
                           R"(<prop name="garlic.uptime.player" value="3600"/></userPref></configuration></systemInfo>)"));
     CHECK(report.ends_with(R"(<hardwareInfo><hardware id="display:0"><prop name="modelName" value=""/><prop name="productId" value=""/>)"
                            R"(<prop name="serialNumber" value=""/><prop name="vendorId" value=""/></hardware></hardwareInfo></player></report>)"));

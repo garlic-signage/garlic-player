@@ -53,6 +53,7 @@ namespace garlic::core::rest_api
         std::function<void()>        deviceSettingsChanged; // /v2/hardware/audioOut: audio/volume changed
         std::function<void(bool on)> screenPower;           // /v2/hardware/display: through the supervisor
         std::function<std::string()> serialNumber;          // /v2/system/playerInfo: the MAC of the device
+        std::function<std::string()> manufacturer;          // /v2/system/modelInfo: of the hardware, empty if unknown
     };
 
     /**
