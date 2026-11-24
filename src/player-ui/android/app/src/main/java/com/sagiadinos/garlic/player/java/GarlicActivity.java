@@ -250,6 +250,13 @@ public class GarlicActivity extends Activity implements Media.Reports
         }
         core = new NativeCore(paths.ini, paths.cache, paths.logs, index, uuid, launcher_agent, Paths.caBundle(this),
                               this::drain, supervisor);
+        // before the start: the core takes them before its first round, in which a cached index sends the system report
+        tellDisplayMode();
+        if (launcher != null && launcher.getDisplayHardware() != null)
+        {
+            String[] hardware = launcher.getDisplayHardware();
+            core.setDisplayHardware(hardware[0], hardware[1], hardware[2], hardware[3]);
+        }
         String error = core.start();
         if (error != null)
         {
@@ -260,12 +267,6 @@ public class GarlicActivity extends Activity implements Media.Reports
         if (launcher != null && core.standbyMode().equals("deep")) // before the first blankScreen of drain()
             launcher.takeOverSchedule();
         drain();
-        tellDisplayMode();
-        if (launcher != null && launcher.getDisplayHardware() != null)
-        {
-            String[] hardware = launcher.getDisplayHardware();
-            core.setDisplayHardware(hardware[0], hardware[1], hardware[2], hardware[3]);
-        }
         // without an index the settings dialog comes first, Cancel ends the player (garlic-lib); not when the
         // garlic-launcher gives the content URL: the player waits for its configuration
         boolean without_index = indexOf(core.settings()).isEmpty();

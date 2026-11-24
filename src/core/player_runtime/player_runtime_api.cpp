@@ -138,10 +138,14 @@ namespace garlic::core
         auto report_info = [this, system_info]
         {
             reports::SystemInfo info = system_info ? system_info() : reports::SystemInfo{};
-            if (!info.cpu_usage)
-                info.cpu_usage = cpu_system_of_log;
+                    if (!info.cpu_usage) // the system, where it cannot be read (Android 8+) the player
+                info.cpu_usage = cpu_system_of_log ? cpu_system_of_log : cpu_player_of_log;
             if (info.hdmi_output.empty())
                 info.hdmi_output = display_mode;
+#if GARLIC_CORE_WITH_SYSTEM
+            if (!info.cpu_temperature)
+                info.cpu_temperature = system::thermal().cpu; // as the information dialog
+#endif
             info.display_model      = display_hardware[0];
             info.display_product_id = display_hardware[1];
             info.display_serial     = display_hardware[2];

@@ -75,7 +75,10 @@ The text is written without line breaks; values are escaped.
 
 - `<systemInfo>` (also in the inventory): `systemStartTime`, `systemTimeZone`, `totalCapacity` and `totalFreeSpace`
   in bytes, `cpuUsage` with `%` (the load of the whole system in percent of all cores, the 5-minute average of the
-  resource log; empty before its first line and on Android; garlic-lib left it empty), `memoryTotal` and `memoryUsed`
+  resource log; where the system cannot be read, Android 8+, the load of the player process as in the information
+  dialog; empty before the first line of the log; garlic-lib left it empty), `cpuTemperature` with `°C` (the CPU temperature as
+  in the information dialog, `system::thermal()`; not in the reports of IAdea, empty where unknown), `memoryTotal` and
+  `memoryUsed`
   in bytes like garlic-lib (IAdea seems to give KB: an evaluation has to treat IAdea reports apart), `hdmiOutput` as the frontend tells it with `PlayerRuntimeApi::setDisplayMode` (`1920x1080p-60`, WASM without
   the refresh rate). garlic-lib wrote the CPU without `%` and no screen.
 - System report, as the Android players of IAdea, what the player knows; proxy, wifi, adb and the like are left out:

@@ -60,6 +60,7 @@ namespace garlic::core::reports
         std::optional<std::uint64_t>  memory_total;
         std::optional<std::uint64_t>  memory_used;
         std::optional<int>            cpu_usage; // percent of all cores, the whole system (garlic-lib: always empty)
+        std::optional<int>            cpu_temperature; // °C, as the information dialog (not in IAdea reports)
         std::vector<NetworkInterface> network;
         std::string                   locale; // e.g. "de_DE"
         std::string                   hdmi_output;         // the screen as the frontend tells it: "1920x1080p-60"

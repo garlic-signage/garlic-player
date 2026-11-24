@@ -66,6 +66,15 @@ TEST_CASE("system info: the CPU load of the system as cpuUsage with %, empty whe
     CHECK(inventoryReport("uuid-1", now, system(), {}).find("<cpuUsage></cpuUsage>") != std::string::npos);
 }
 
+TEST_CASE("system info: the CPU temperature as cpuTemperature with °C after cpuUsage, empty where unknown")
+{
+    SystemInfo info      = system();
+    info.cpu_usage       = 12;
+    info.cpu_temperature = 47;
+    CHECK(inventoryReport("uuid-1", now, info, {}).contains("<cpuUsage>12%</cpuUsage><cpuTemperature>47°C</cpuTemperature>"));
+    CHECK(inventoryReport("uuid-1", now, system(), {}).contains("<cpuTemperature></cpuTemperature>"));
+}
+
 TEST_CASE("inventory report: system info and one object per file, values escaped")
 {
     std::vector<InventoryObject> objects{{"abc", "http://hub/a.jpg?x=1&y=2", "COMPLETE", "image/jpeg", 100,
@@ -74,7 +83,7 @@ TEST_CASE("inventory report: system info and one object per file, values escaped
           head +
               "<systemInfo><systemStartTime>2026-10-28T06:00:00</systemStartTime><systemTimeZone>Europe/Berlin"
               "</systemTimeZone><totalCapacity>1000</totalCapacity><totalFreeSpace>400</totalFreeSpace><cpuUsage>"
-              "</cpuUsage><memoryTotal>2048</memoryTotal><memoryUsed></memoryUsed><hdmiOutput></hdmiOutput></systemInfo>"
+              "</cpuUsage><cpuTemperature></cpuTemperature><memoryTotal>2048</memoryTotal><memoryUsed></memoryUsed><hdmiOutput></hdmiOutput></systemInfo>"
               "<contentDirectory><objectInfo><object id=\"abc\" persistent=\"false\"><resourceURI>"
               "http://hub/a.jpg?x=1&amp;y=2</resourceURI><state>COMPLETE</state><contentType>image/jpeg</contentType>"
               "<contentLength>100</contentLength><lastModified>2026-10-28 07:00:00</lastModified><expires></expires>"
