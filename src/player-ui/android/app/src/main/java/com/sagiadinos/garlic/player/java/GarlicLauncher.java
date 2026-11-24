@@ -48,7 +48,9 @@ public class GarlicLauncher implements LauncherInterface
     private String launcher_version = "";
     private volatile Integer temperature;
     private volatile Boolean throttling;
-    private volatile boolean thermal_unknown; // the launcher has neither key: not asked again
+    private volatile boolean thermal_unknown;     // the launcher has neither key: not asked again
+    private volatile boolean temperature_unknown; // no temperature_cpu: not asked again until the next start
+    private volatile boolean throttling_unknown;  // no throttling: the same
     private volatile boolean thermal_asking;
 
     public GarlicLauncher(Context c)
@@ -102,19 +104,10 @@ public class GarlicLauncher implements LauncherInterface
             return;
         thermal_asking = true;
         new Thread(() -> {
-            String cpu      = askProvider("temperature_cpu");
-            String throttle = askProvider("throttling");
-            try
-            {
-                temperature = cpu.isEmpty() ? null : Integer.valueOf(cpu.trim());
-            }
-            catch (NumberFormatException e)
-            {
-                temperature = null;
-            }
-            throttling      = throttle.isEmpty() ? null : Boolean.valueOf(throttle.trim());
-            thermal_unknown = cpu.isEmpty() && throttle.isEmpty();
-            thermal_asking  = false;
+            Integer cpu      = askTemperature();
+            Boolean throttle = askThrottling();
+            thermal_unknown  = cpu == null && throttle == null;
+            thermal_asking   = false;
         }, "launcher thermal").start();
     }
 
@@ -164,7 +157,37 @@ public class GarlicLauncher implements LauncherInterface
     @Override
     public Integer fetchTemperatureCpuFallback()
     {
-        if (thermal_unknown)
+        return askTemperature();
+    }
+
+    @Override
+    public Boolean fetchThrottlingFallback()
+    {
+        return askThrottling();
+    }
+
+    /// throttling of the ContentProvider; an empty answer like askTemperature(): not asked again until the next start
+    private Boolean askThrottling()
+    {
+        if (throttling_unknown)
+            return null;
+        String throttle = askProvider("throttling");
+        throttling      = throttle.isEmpty() ? null : Boolean.valueOf(throttle.trim());
+        if (throttle.isEmpty())
+        {
+            throttling_unknown = true;
+            Log.i(TAG, "SettingsProvider has no throttling, not asked again");
+        }
+        return throttling;
+    }
+
+    /**
+     * temperature_cpu of the ContentProvider. An empty answer (an older launcher without the key, no provider, no
+     * permission) is remembered like NAV of SICP: not asked again until the next start, logged once.
+     */
+    private Integer askTemperature()
+    {
+        if (temperature_unknown)
             return null;
         String cpu = askProvider("temperature_cpu");
         try
@@ -174,6 +197,11 @@ public class GarlicLauncher implements LauncherInterface
         catch (NumberFormatException e)
         {
             temperature = null;
+        }
+        if (cpu.isEmpty())
+        {
+            temperature_unknown = true;
+            Log.i(TAG, "SettingsProvider has no temperature_cpu, not asked again");
         }
         return temperature;
     }

@@ -46,6 +46,9 @@ public interface LauncherInterface
     /// not know it; waits for the answer: not in the UI thread
     Integer fetchTemperatureCpuFallback();
 
+    /// Throttling, the same: only a fallback where the core cannot tell it; null unknown; waits, not in the UI thread
+    Boolean fetchThrottlingFallback();
+
     /// Asks for CPU temperature and throttling; the answers may come later (Philips: over the SICP socket).
     void fetchThermal();
 

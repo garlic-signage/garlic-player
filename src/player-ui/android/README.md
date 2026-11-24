@@ -148,6 +148,10 @@ Like the legacy player, with its Java classes:
   another mode has to clear page 7 in the menu (Scheduling) by hand, else it wakes the display once a week and, on the
   BDL4550D, switches it off at midnight of that day. Likewise a mode changed to `deep` clears the pages only at the
   next start.
+- **The SICP connection** (`SocketClient`, 127.0.0.1:5000) is made at the first command and again whenever it is
+  gone: the display closed it (its service restarted) or a write failed. The next command connects anew (2 s), so
+  SICP does not stay dead until the player restarts. The legacy client connected once, and its reader spun without
+  end on a closed connection.
 - **One SICP command after the other** (SICP 2.13 chapter 2.2: a new command not before the previous one is
   acknowledged): every command of `PhilipsLauncher` runs in one thread and waits up to 1 s for its answer, a set
   command for ACK, NACK or NAV, a get command for its report. NACK (checksum, parameter or length wrong) and NAV (the

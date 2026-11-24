@@ -84,6 +84,11 @@ public final class NativeCore
     public void setDisplayOperatingHours(int hours) { setDisplayOperatingHours(handle, hours); }
     /** CPU temperature of the launcher (Philips: SICP sensor 1), only where the core reads none; -1 unknown */
     public void setTemperatureCpuFallback(int celsius) { setTemperatureCpuFallback(handle, celsius); }
+    /** Throttling of the launcher, only where the core cannot tell it; null unknown */
+    public void setThrottlingFallback(Boolean throttling)
+    {
+        setThrottlingFallback(handle, throttling == null ? -1 : throttling ? 1 : 0);
+    }
     public void cachesCleared() { cachesCleared(handle); }
     public void playIndex(String uri) { playIndex(handle, uri); }
     public boolean applyConfiguration(String path) { return applyConfiguration(handle, path); }
@@ -149,6 +154,7 @@ public final class NativeCore
                                                   String vendor);
     private static native void setDisplayOperatingHours(long handle, int hours);
     private static native void setTemperatureCpuFallback(long handle, int celsius);
+    private static native void setThrottlingFallback(long handle, int throttling);
     private static native void cachesCleared(long handle);
     private static native void playIndex(long handle, String uri);
     private static native boolean applyConfiguration(long handle, String path);

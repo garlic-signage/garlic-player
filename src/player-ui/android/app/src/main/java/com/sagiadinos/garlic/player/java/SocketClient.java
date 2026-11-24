@@ -1,183 +1,148 @@
 package com.sagiadinos.garlic.player.java;
 
-
-import java.io.BufferedOutputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-
-import android.os.Handler;
 import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.util.Arrays;
+
 /**
- * Socket Client needed for communicating SICP commands to Philips Launcher
+ * The SICP connection to the Philips firmware on 127.0.0.1:5000. Connects at the first command and again whenever the
+ * connection is gone (the firmware restarted its service, a write failed): the next command connects anew, so SICP
+ * does not stay dead until the player restarts. Commands are written by the caller's thread (PhilipsLauncher sends
+ * them one after the other); a reader thread per connection hands every complete answer to SocketResponse.
  */
 public class SocketClient
 {
-    private static final String TAG = "SocketClient";
-    public static final String address = "127.0.0.1";
-    public static final int port = 5000;
-    private Socket mClientSocket;
-    private final SocketResponse mSocketResponse;
-    protected DataInputStream mDataInputStream;
-    private BufferedOutputStream mBufferedOutputStream;
+    private static final String TAG        = "SocketClient";
+    public static final String  address    = "127.0.0.1";
+    public static final int     port       = 5000;
+    private static final int    CONNECT_MS = 2000;
 
-    private static boolean bStopped;
-
-    public static interface SocketResponse
+    public interface SocketResponse
     {
-        public void sockResponse(byte[] ret);
+        void sockResponse(byte[] ret);
     }
 
-    public SocketClient(SocketResponse socketResponse) {
-        mSocketResponse = socketResponse;
+    private final SocketResponse response;
+    private Socket       socket; // null: not connected
+    private OutputStream out;
+
+    public SocketClient(SocketResponse socketResponse)
+    {
+        response = socketResponse;
     }
 
-    public void start()
+    /// Writes a command, connecting first if needed; a failed write connects once more and writes again.
+    public synchronized void sendSICPCommand(final byte[] data)
     {
-        bStopped = false;
-
-        new Thread(new Runnable()
+        for (int attempt = 0; attempt < 2; ++attempt)
         {
-            @Override
-            public void run() {
-                mClientSocket = new Socket();
-                InetSocketAddress isa = new InetSocketAddress(address, port);
-                try
-                {
-                    mClientSocket.connect(isa, 10000);
-                    mDataInputStream = new DataInputStream(mClientSocket.getInputStream());
-                    mBufferedOutputStream = new BufferedOutputStream(mClientSocket.getOutputStream());
-                    Log.w(TAG, "Socket started");
-                }
-                catch (IOException e)
-                {
-                    e.printStackTrace();
-                }
-
-                new SocketReplyThread(mClientSocket, mDataInputStream, mSocketResponse).start();
-            }
-        }).start();
-    }
-
-    public void stop()
-    {
-        bStopped = true;
-        new Handler().postDelayed(new Runnable()
-        {
-            @Override
-            public void run()
+            if (socket == null && !connect())
+                return;
+            try
             {
-                try {
-                    mBufferedOutputStream.close();
-                    mBufferedOutputStream = null;
-
-                    mDataInputStream.close();
-                    mDataInputStream = null;
-
-                    mClientSocket.close();
-                    mClientSocket = null;
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }, 1000);
-    }
-
-    public void sendSICPCommand(final byte[] data)
-    {
-        new SocketSendCommandThread(mClientSocket, mBufferedOutputStream, data).start();
-    }
-
-    public static class SocketSendCommandThread extends Thread
-    {
-        private Socket clientSocket;
-        private BufferedOutputStream bufferedOutputStream;
-        private byte[] data;
-
-        public SocketSendCommandThread(Socket clientSocket, BufferedOutputStream bufferedOutputStream, byte[] data) {
-            this.clientSocket = clientSocket;
-            this.bufferedOutputStream = bufferedOutputStream;
-            this.data = data;
-        }
-
-        @Override
-        public void run() {
-            if (clientSocket == null || clientSocket.isClosed()) {
-                Log.w(TAG, "SocketSendCommandThread, clientSocket is invalid. clientSocket: " + clientSocket);
+                out.write(data);
+                out.flush();
                 return;
             }
-
-            if (bufferedOutputStream == null) {
-                Log.w(TAG, "SocketSendCommandThread, null pointer. bufferedOutputStream: " + bufferedOutputStream);
-                return;
-            }
-
-            try {
-                bufferedOutputStream.write(data);
-                bufferedOutputStream.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
+            catch (IOException e)
+            {
+                Log.w(TAG, "SICP write failed, connecting again: " + e.getMessage());
+                close(socket);
             }
         }
     }
 
-    public static class SocketReplyThread extends Thread
+    private boolean connect()
     {
-        private Socket clientSocket;
-        private SocketResponse socketResponse;
-        private DataInputStream dataInputStream;
-        private byte[] byteBuf = new byte[64];
-        private byte nCmdLen;
-
-        public SocketReplyThread(Socket clientSocket, DataInputStream dataInputStream, SocketResponse socketResponse) {
-            this.clientSocket = clientSocket;
-            this.socketResponse = socketResponse;
-            this.dataInputStream = dataInputStream;
+        Socket next = new Socket();
+        try
+        {
+            next.connect(new InetSocketAddress(address, port), CONNECT_MS);
+            socket = next;
+            out    = next.getOutputStream();
+            InputStream in = next.getInputStream();
+            new Thread(() -> read(next, in), "SICP reader").start();
+            Log.i(TAG, "SICP connected");
+            return true;
         }
-
-        @Override
-        public void run() {
-            if (clientSocket == null || clientSocket.isClosed()) {
-                Log.w(TAG, "SocketReplyThread, clientSocket is invalid. clientSocket: " + clientSocket);
-                return;
+        catch (IOException e)
+        {
+            Log.w(TAG, "SICP not connected: " + e.getMessage());
+            try
+            {
+                next.close();
             }
-
-            if (socketResponse == null || dataInputStream == null) {
-                Log.w(TAG, "SocketReplyThread, null pointer. socketResponse: " + socketResponse + ", bufferedReader: "
-                        + dataInputStream);
-                return;
+            catch (IOException ignored)
+            {
             }
-            while (!bStopped && !clientSocket.isClosed()) {
-                try {
-                    int nRead = dataInputStream.read(byteBuf);
-                    int nOffset = 0;
-                    while (!bStopped && nRead > 0) {
-                        nCmdLen = byteBuf[0];
-                        nOffset = 0;
-                        Log.d(TAG, "nCmdLen= " + nCmdLen);
+            return false;
+        }
+    }
 
-                        if (nCmdLen > 0 && (nCmdLen <= nRead)) {
-                            byte[] command = new byte[nCmdLen];
-                            System.arraycopy(byteBuf, nOffset, command, 0, nCmdLen);
-                            if (socketResponse != null) {
-                                socketResponse.sockResponse(command);
-                            }
-                        }
+    /// Closes the connection if it is still the current one (a reader of an old one closes only its own)
+    private synchronized void close(Socket which)
+    {
+        if (which == null)
+            return;
+        try
+        {
+            which.close();
+        }
+        catch (IOException ignored)
+        {
+        }
+        if (which == socket)
+        {
+            socket = null;
+            out    = null;
+        }
+    }
 
-                        nRead = nRead - nCmdLen;
-                        if (nRead <= 0) {
-                            break;
-                        } else {
-                            nOffset = nOffset + nCmdLen;
-                        }
+    /**
+     * The answers of one connection until it ends (end of stream or an error), then the connection is closed: the next
+     * command connects again. An answer starts with its size; a read may hold several answers or a part of one.
+     */
+    private void read(Socket which, InputStream in)
+    {
+        byte[]                chunk   = new byte[256];
+        ByteArrayOutputStream pending = new ByteArrayOutputStream();
+        try
+        {
+            int n;
+            while ((n = in.read(chunk)) > 0)
+            {
+                pending.write(chunk, 0, n);
+                byte[] bytes  = pending.toByteArray();
+                int    offset = 0;
+                while (offset < bytes.length)
+                {
+                    int size = bytes[offset] & 0xFF;
+                    if (size < 4) // no answer is that short: out of step, the rest is dropped
+                    {
+                        Log.w(TAG, "SICP answer with size " + size + ", dropped");
+                        offset = bytes.length;
+                        break;
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
+                    if (offset + size > bytes.length)
+                        break; // the rest comes with the next read
+                    response.sockResponse(Arrays.copyOfRange(bytes, offset, offset + size));
+                    offset += size;
                 }
+                pending.reset();
+                pending.write(bytes, offset, bytes.length - offset);
             }
+            Log.w(TAG, "SICP connection closed by the display");
         }
+        catch (IOException e)
+        {
+            Log.w(TAG, "SICP connection lost: " + e.getMessage());
+        }
+        close(which);
     }
-
 }

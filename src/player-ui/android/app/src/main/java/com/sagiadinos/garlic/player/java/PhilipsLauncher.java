@@ -95,8 +95,7 @@ public class PhilipsLauncher implements LauncherInterface
     public PhilipsLauncher(Context c)
     {
         context = c;
-        socket  = new SocketClient(response);
-        socket.start();
+        socket  = new SocketClient(response); // connects at the first command
     }
 
     @Override
@@ -211,6 +210,12 @@ public class PhilipsLauncher implements LauncherInterface
                 celsius[0] = report[4] & 0xFF;
         });
         return celsius[0];
+    }
+
+    @Override
+    public Boolean fetchThrottlingFallback()
+    {
+        return null; // SICP does not tell it
     }
 
     @Override

@@ -236,8 +236,8 @@ final class Dialogs
     }
 
     /**
-     * label (empty: continues the one above), value, amount (empty or "42 %  136.0 / 323.0 MiB"); launcher_cpu and
-     * launcher_throttling replace the values of the core, null: the core's
+     * label (empty: continues the one above), value, amount (empty or "42 %  136.0 / 323.0 MiB"); launcher_cpu only
+     * where the core has no CPU temperature, launcher_throttling only where it has no throttling (like the system report)
      */
     static List<String[]> debugRows(String json, List<String> playing, Integer launcher_cpu, Boolean launcher_throttling)
     {
@@ -261,9 +261,10 @@ final class Dialogs
                     : ", max " + info.optInt("cpuMax") + " % at " + info.optString("cpuMaxTime") + " (5 min)"))
                 + " · System " + (info.isNull("cpuSystem") ? "-" : info.optInt("cpuSystem") + " %")));
             // a red or green circle after the text, "-" where neither launcher nor Android tell it (core: before 11)
-            String cpu = launcher_cpu != null ? launcher_cpu + " °C" : celsius(info, "temperatureCpu");
-            Boolean throttling = launcher_throttling != null ? launcher_throttling
-                : info.isNull("throttling") ? null : info.optBoolean("throttling");
+            String cpu = !info.isNull("temperatureCpu") || launcher_cpu == null ? celsius(info, "temperatureCpu")
+                                                                                : launcher_cpu + " °C";
+            Boolean throttling = !info.isNull("throttling") ? Boolean.valueOf(info.optBoolean("throttling"))
+                                                            : launcher_throttling;
             String temperatures = "CPU " + cpu + " · RAM " + celsius(info, "temperatureRam")
                 + " · SSD " + celsius(info, "temperatureSsd") + " · Throttling ";
             rows.add(throttling == null ? row("Temperature", temperatures + "-")

@@ -440,6 +440,15 @@ extern "C"
              { api.setTemperatureCpuFallback(celsius < 0 ? std::nullopt : std::optional<int>(celsius)); });
     }
 
+    /// throttling < 0: unknown, 0 no, 1 yes
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setThrottlingFallback(JNIEnv *, jclass,
+                                                                                             jlong handle,
+                                                                                             jint throttling)
+    {
+        post(handle, [throttling](PlayerRuntimeApi &api)
+             { api.setThrottlingFallback(throttling < 0 ? std::nullopt : std::optional<bool>(throttling > 0)); });
+    }
+
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_screenshotTaken(JNIEnv *env, jclass,
                                                                                        jlong handle, jstring path)
     {

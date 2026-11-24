@@ -83,6 +83,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     private final Handler ui = new Handler(Looper.getMainLooper());
     private volatile Integer operating_hours;     // of the screen, from the launcher (Philips over SICP)
     private volatile Integer temperature_fallback; // a CPU temperature of the launcher, see refreshDisplayValues()
+    private volatile Boolean throttling_fallback;  // throttling of the launcher, the same
     private final Runnable   display_values = this::refreshDisplayValues;
     private static final long DISPLAY_VALUES_MS = 300000L; // like the resource log of the core
     private volatile NativeCore core; // volatile: the watchdog reads it in its thread
@@ -209,6 +210,7 @@ public class GarlicActivity extends Activity implements Media.Reports
                        + asked.getUUIDFromLauncher());
             operating_hours      = asked.fetchOperatingHours();
             temperature_fallback = asked.fetchTemperatureCpuFallback();
+            throttling_fallback  = asked.fetchThrottlingFallback();
             ui.post(() -> createCore(storage));
         }, "launcher").start();
     }
@@ -266,6 +268,7 @@ public class GarlicActivity extends Activity implements Media.Reports
         }
         core.setDisplayOperatingHours(operating_hours != null ? operating_hours : -1);
         core.setTemperatureCpuFallback(temperature_fallback != null ? temperature_fallback : -1);
+        core.setThrottlingFallback(throttling_fallback);
         if (launcher != null)
             ui.postDelayed(display_values, DISPLAY_VALUES_MS);
         String error = core.start();
@@ -742,7 +745,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     }
 
     /**
-     * Operating hours and the fallback CPU temperature of the screen again, every 5 minutes like the resource log of the
+     * Operating hours, the fallback CPU temperature and throttling again, every 5 minutes like the resource log of the
      * core, in a thread: the launcher waits for the answers.
      */
     private void refreshDisplayValues()
@@ -750,14 +753,17 @@ public class GarlicActivity extends Activity implements Media.Reports
         LauncherInterface asked = launcher;
         new Thread(() -> {
             Integer hours   = asked.fetchOperatingHours();
-            Integer celsius = asked.fetchTemperatureCpuFallback();
+            Integer celsius    = asked.fetchTemperatureCpuFallback();
+            Boolean throttling = asked.fetchThrottlingFallback();
             ui.post(() -> {
                 operating_hours      = hours;
                 temperature_fallback = celsius;
+                throttling_fallback  = throttling;
                 if (core != null)
                 {
                     core.setDisplayOperatingHours(hours != null ? hours : -1);
                     core.setTemperatureCpuFallback(celsius != null ? celsius : -1);
+                    core.setThrottlingFallback(throttling);
                 }
             });
         }, "display values").start();

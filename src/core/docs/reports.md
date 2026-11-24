@@ -98,7 +98,8 @@ The text is written without line breaks; values are escaped.
     every 5 minutes), each only if known. The CPU temperature (`garlic.temperature.cpu`, `cpuTemperature`, the
     information dialog) is the one the core reads; only where it reads none, the one of the supervisor
     (`setTemperatureCpuFallback`; Philips: SICP temperature sensor 1, `0x2F`; garlic-launcher 1.x: `temperature_cpu` of
-    its ContentProvider, every 5 minutes).
+    its ContentProvider, every 5 minutes). Throttling (`garlic.throttling`) the same: the core's first, else the one
+    of garlic-launcher 1.x (`setThrottlingFallback`, `throttling` of its ContentProvider).
   - `hardwareInfo`: `modelName`, `productId` (garlic-lib: `product_id`), `serialNumber`, `vendorId` of the screen,
     as a supervisor tells it with `PlayerRuntimeApi::setDisplayHardware` (Android on Philips: model and serial over
     SICP); else empty, the player does not read the EDID.

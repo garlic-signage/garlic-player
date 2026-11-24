@@ -264,6 +264,9 @@ namespace garlic::core
             /// core cannot read one itself: information dialog, cpuTemperature and garlic.temperature.cpu
             void setTemperatureCpuFallback(std::optional<int> celsius) { temperature_cpu_fallback = celsius; }
 
+            /// Throttling of the supervisor (garlic-launcher 1.x), the same: only where the core cannot tell it itself
+            void setThrottlingFallback(std::optional<bool> throttling) { throttling_fallback = throttling; }
+
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
@@ -359,6 +362,7 @@ namespace garlic::core
             std::array<std::string, 4> display_hardware;  // setDisplayHardware: model, product id, serial, vendor
             std::optional<int>         display_operating_hours; // setDisplayOperatingHours
             std::optional<int>         temperature_cpu_fallback; // setTemperatureCpuFallback
+            std::optional<bool>        throttling_fallback;      // setThrottlingFallback
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
             std::chrono::steady_clock::time_point started_at;      // for the uptime of the player
