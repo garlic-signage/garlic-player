@@ -27,6 +27,8 @@ import com.sagiadinos.garlic.player.java.SocketClient.SocketResponse;
 
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -74,6 +76,7 @@ public class PhilipsLauncher implements LauncherInterface
     /// All commands one after the other (also: a clear after waking must not overwrite the next wake time)
     private final ExecutorService             sicp    = Executors.newSingleThreadExecutor();
     private final LinkedBlockingQueue<byte[]> answers = new LinkedBlockingQueue<>(); // read only in sicp
+    private final Set<String>                 not_available = new HashSet<>();      // NAV, see key(); only in sicp
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -371,6 +374,8 @@ public class PhilipsLauncher implements LauncherInterface
     /// A set command in the thread sicp: ACK, NACK or NAV (logged), NONE without an answer
     private Reply set(byte[] command)
     {
+        if (not_available.contains(key(command, false)))
+            return Reply.NAV;
         byte[] answer = exchange(command, (byte) 0x00);
         Reply  reply  = answer == null || answer.length < 6 ? Reply.NONE
                         : answer[4] == 0x06 ? Reply.ACK
@@ -379,7 +384,7 @@ public class PhilipsLauncher implements LauncherInterface
         if (reply == Reply.NACK)
             Log.e(TAG, "SICP NACK (checksum, parameter or length wrong): " + hex(command));
         else if (reply == Reply.NAV)
-            Log.w(TAG, "SICP NAV (this display does not have it): " + hex(command));
+            remember(command, false);
         else if (reply == Reply.NONE)
             Log.w(TAG, "SICP no answer: " + hex(command));
         return reply;
@@ -388,13 +393,42 @@ public class PhilipsLauncher implements LauncherInterface
     /// A get command in the thread sicp: its report, null for NACK, NAV or no answer
     private byte[] get(byte[] command)
     {
+        if (not_available.contains(key(command, true)))
+            return null;
         byte[] answer = exchange(command, command[3]);
+        boolean nav = answer != null && answer.length == 6 && answer[4] == 0x18
+                      && (answer[3] == 0x00 || answer[3] == (byte) 0xA1); // 0xA1 answers NAV in itself (3.2.1)
+        if (nav)
+        {
+            remember(command, true);
+            return null;
+        }
         if (answer != null && answer[3] == 0x00)
         {
-            Log.w(TAG, "SICP " + (answer.length > 4 && answer[4] == 0x18 ? "NAV" : "NACK") + ": " + hex(command));
+            Log.w(TAG, "SICP NACK: " + hex(command));
             return null;
         }
         return answer;
+    }
+
+    /**
+     * NAV: the display does not have the command (SICP 2.13 chapter 2.2), so it is not sent again until the next
+     * start; no answers to wait for and no log every 5 minutes. Logged once.
+     */
+    private void remember(byte[] command, boolean get)
+    {
+        if (not_available.add(key(command, get)))
+            Log.w(TAG, "SICP NAV (this display does not have it), not asked again: " + hex(command));
+    }
+
+    /**
+     * What NAV stands for: a set command by its code (DATA[0]), a get command by its code and the item it asks for
+     * (DATA[1], e.g. 0xA1 0x00 model number, 0xA1 0x01 firmware, 0x0F 0x02 operating hours)
+     */
+    private static String key(byte[] command, boolean get)
+    {
+        int data = command.length - 4; // size, control, group … checksum
+        return get && data >= 2 ? hex(Arrays.copyOfRange(command, 3, 5)) : hex(Arrays.copyOfRange(command, 3, 4));
     }
 
     private byte[] get(SICPCommand command)

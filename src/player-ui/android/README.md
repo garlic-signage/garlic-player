@@ -152,6 +152,8 @@ Like the legacy player, with its Java classes:
   acknowledged): every command of `PhilipsLauncher` runs in one thread and waits up to 1 s for its answer, a set
   command for ACK, NACK or NAV, a get command for its report. NACK (checksum, parameter or length wrong) and NAV (the
   command is right, but this display does not have it) are in the log with the command in hex, as is a missing answer.
+  A command answered with NAV is not sent again until the next start (logged once): a set command by its code, a
+  get command by its code and item (`0xA1 0x00`, `0x0F 0x02` …), so the 5-minute questions neither wait nor log.
   So a clear after waking cannot overwrite the wake time of a `blankScreen` that follows at once, and the answers of
   `0xA1` (model number, firmware) belong to the question asked.
 - **Daily restart:** the core plans it (`schedule/reboot_days`, `schedule/reboot_time` of the configuration, like
