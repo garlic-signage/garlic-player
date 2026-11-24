@@ -423,6 +423,14 @@ extern "C"
                          PlayerRuntimeApi &api) { api.setDisplayHardware(m, p, s, v); });
     }
 
+    /// hours < 0: unknown
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setDisplayOperatingHours(JNIEnv *, jclass,
+                                                                                                jlong handle, jint hours)
+    {
+        post(handle, [hours](PlayerRuntimeApi &api)
+             { api.setDisplayOperatingHours(hours < 0 ? std::nullopt : std::optional<int>(hours)); });
+    }
+
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_screenshotTaken(JNIEnv *env, jclass,
                                                                                        jlong handle, jstring path)
     {

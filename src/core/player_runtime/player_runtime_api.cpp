@@ -823,6 +823,8 @@ namespace garlic::core
         system_uptime = system::uptime();
 #endif
         values.emplace_back("garlic.uptime.player", std::to_string(playerUptime(system_uptime).count()));
+        if (display_operating_hours)
+            values.emplace_back("garlic.display.operating_hours", std::to_string(*display_operating_hours));
         if (system_uptime)
             values.emplace_back("garlic.uptime.system", std::to_string(system_uptime->count()));
 #if GARLIC_CORE_WITH_SYSTEM

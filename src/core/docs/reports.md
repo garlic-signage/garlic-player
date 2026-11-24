@@ -93,7 +93,9 @@ The text is written without line breaks; values are escaped.
     `time.timeZone`, `content.serverUrl`; then the own values: `garlic.device.manufacturer`, `garlic.uptime.player`
     and `garlic.uptime.system` (seconds), `garlic.memory.player` and `.max` (bytes), `garlic.threads` and `.max`,
     `garlic.cpu.player` (the load of the last resource log), `garlic.temperature.cpu`, `.ram`, `.ssd` (°C),
-    `garlic.throttling`, each only if known.
+    `garlic.throttling`, `garlic.display.operating_hours` (the hours the screen has run, as a supervisor tells them
+    with `PlayerRuntimeApi::setDisplayOperatingHours`; Android on Philips over SICP `0x0F 0x02`, at the start and
+    every hour), each only if known.
   - `hardwareInfo`: `modelName`, `productId` (garlic-lib: `product_id`), `serialNumber`, `vendorId` of the screen,
     as a supervisor tells it with `PlayerRuntimeApi::setDisplayHardware` (Android on Philips: model and serial over
     SICP); else empty, the player does not read the EDID.

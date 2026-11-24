@@ -39,6 +39,9 @@ public interface LauncherInterface
     /// not know it (garlic-launcher)
     String[] getDisplayHardware();
 
+    /// Hours the screen has run, null if the launcher does not know them; waits for the answer: not in the UI thread
+    Integer fetchOperatingHours();
+
     /// Asks for CPU temperature and throttling; the answers may come later (Philips: over the SICP socket).
     void fetchThermal();
 

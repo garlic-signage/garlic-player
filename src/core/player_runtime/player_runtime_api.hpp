@@ -256,6 +256,10 @@ namespace garlic::core
             /// The screen as a supervisor knows it (Philips over SICP): hardwareInfo of the system report
             void setDisplayHardware(std::string model, std::string product_id, std::string serial, std::string vendor);
 
+            /// The hours the screen has run as a supervisor knows them (Philips over SICP), garlic.display.operating_hours
+            /// of the system report; nullopt: unknown
+            void setDisplayOperatingHours(std::optional<int> hours) { display_operating_hours = hours; }
+
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
@@ -349,6 +353,7 @@ namespace garlic::core
             std::optional<int>       cpu_player_of_log; // the load of the player, the same
             std::string              display_mode;      // setDisplayMode: hdmiOutput of the reports
             std::array<std::string, 4> display_hardware;  // setDisplayHardware: model, product id, serial, vendor
+            std::optional<int>         display_operating_hours; // setDisplayOperatingHours
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
             std::chrono::steady_clock::time_point started_at;      // for the uptime of the player

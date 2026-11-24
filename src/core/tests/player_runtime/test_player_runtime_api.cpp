@@ -823,6 +823,29 @@ TEST_CASE("system report: the screen of the frontend as hdmiOutput, the uptime o
     CHECK(put->body.contains(R"(<prop name="garlic.uptime.player" value=")"));
 }
 
+TEST_CASE("system report: the operating hours of the screen as garlic prop, only where a supervisor tells them")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText("", 3600, R"x(<metadata><subscription><type>SystemReport</type>
+            <action>http://hub/system.xml</action><refreshInterval>20</refreshInterval></subscription></metadata>)x"),
+            "application/smil+xml");
+    f.runtime->setDisplayOperatingHours(19712);
+    REQUIRE(f.runtime->start().has_value());
+    f.run(2s);
+    auto put = std::ranges::find_if(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; });
+    REQUIRE(put != f.transport.requests.end());
+    CHECK(put->body.contains(R"(<prop name="garlic.display.operating_hours" value="19712"/>)"));
+
+    f.runtime->setDisplayOperatingHours(std::nullopt);
+    f.run(21s);
+    auto last = std::find_if(f.transport.requests.rbegin(), f.transport.requests.rend(),
+                             [](const auto &r) { return r.method == downloader::HttpMethod::Put; });
+    REQUIRE(last != f.transport.requests.rend());
+    REQUIRE(std::ranges::count_if(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; })
+            >= 2); // the last one is the report of 20 s later
+    CHECK_FALSE(last->body.contains("garlic.display.operating_hours"));
+}
+
 TEST_CASE("nextDeadline: fast while a report is uploaded (curl needs poll())")
 {
     Fixture f;

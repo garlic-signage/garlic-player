@@ -80,6 +80,8 @@ public final class NativeCore
     {
         setDisplayHardware(handle, model, productId, serial, vendor);
     }
+    /** Hours the screen has run (Philips over SICP), for the system report; -1 unknown */
+    public void setDisplayOperatingHours(int hours) { setDisplayOperatingHours(handle, hours); }
     public void cachesCleared() { cachesCleared(handle); }
     public void playIndex(String uri) { playIndex(handle, uri); }
     public boolean applyConfiguration(String path) { return applyConfiguration(handle, path); }
@@ -143,6 +145,7 @@ public final class NativeCore
     private static native void setDisplayMode(long handle, int width, int height, int refresh);
     private static native void setDisplayHardware(long handle, String model, String productId, String serial,
                                                   String vendor);
+    private static native void setDisplayOperatingHours(long handle, int hours);
     private static native void cachesCleared(long handle);
     private static native void playIndex(long handle, String uri);
     private static native boolean applyConfiguration(long handle, String path);

@@ -151,6 +151,12 @@ public class GarlicLauncher implements LauncherInterface
     }
 
     @Override
+    public Integer fetchOperatingHours()
+    {
+        return null; // launcher 1.x does not know the screen
+    }
+
+    @Override
     public void deepStandbyEnded()
     {
         // launcher 1.x wakes the device itself

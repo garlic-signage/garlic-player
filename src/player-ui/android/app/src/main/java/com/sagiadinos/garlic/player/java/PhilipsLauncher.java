@@ -180,6 +180,19 @@ public class PhilipsLauncher implements LauncherInterface
         return new String[]{display_model, "", serial_number.trim(), "Philips"};
     }
 
+    /// SICP Operating Hours (0x0F 0x02, chapter 3.3): DATA[1] and DATA[2] are the high and low byte
+    @Override
+    public Integer fetchOperatingHours()
+    {
+        Integer[] hours = {null};
+        await(() -> {
+            byte[] report = get(SICPDef.command((byte) 0x0F, (byte) 0x02));
+            if (report != null && report[3] == 0x0F && report.length >= 7)
+                hours[0] = (report[4] & 0xFF) << 8 | (report[5] & 0xFF);
+        });
+        return hours[0];
+    }
+
     @Override
     public void fetchThermal() {}
 
