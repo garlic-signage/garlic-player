@@ -122,9 +122,9 @@ Like the legacy player, with its Java classes:
      (`remainingTime()`, the earlier of its `dur` and `end`), no off time (24:60), source Custom (`0x18`, the custom
      app, which is the player), its weekday and every week. Local time of the display (`persist.sys.timezone`, the
      same the core plans with), rounded up to the minute, at least 2 minutes away.
-  2. **Read back** (`0x5B` page 7), 1 s later: the answer must be enabled and carry the written times, source and
-     days, within 3 s. If not, the display does not go off: only the backlight (`0x72`), on again at the end of the
-     element. The log shows both pages in hex.
+  2. **Acknowledged and read back** (`0x5B` page 7): the page must be answered with ACK, and the read answer must be
+     enabled and carry the written times, source and days. If not, the display does not go off: only the backlight
+     (`0x72`), on again at the end of the element. The log shows both pages in hex.
   3. **Power off** (`0x18 0x01`, chapter 4.1: backlight off, CPU clock low).
   At the wake time the firmware switches on and brings the player to the front. Without a planned end (a trigger,
   only the end of a container) `remainingTime()` is unknown: the backlight goes off instead (`0x72`) and on again at
@@ -134,8 +134,11 @@ Like the legacy player, with its Java classes:
   week, whatever the player plays; it does not hold a state between them. A page left behind switches the display
   beside the SMIL. The BDL4550D does not even take 24:60 as "no off time": page 7 showed an end time of 1:00 in the
   menu and the display went off at midnight of the wake day (2026-11-23), and would have stayed off until the wake
-  time a week later. So with `standby_mode` exactly `deep` the player clears all pages 1 to 7 (`0x5A`, disabled,
-  24:60, no source, no days; `PhilipsLauncher.takeOverSchedule()`):
+  time a week later. So with `standby_mode` exactly `deep` the player disables all pages 1 to 7
+  (`PhilipsLauncher.takeOverSchedule()`): from SICP 2.09 on with Reset Scheduler (`0x60 0x00`, one command), if every
+  page then reads back disabled (`0x5B`; SICP 2.13 does not say what its "default values" are); otherwise, and before
+  2.09, every page with `0x5A` (disabled, 24:60, no source, no days). The SICP version is asked once at the start
+  (`0xA2 0x00`, in the log as `SICP version …`). The pages are disabled:
   - at the start, after the core read the configuration, before the first `blankScreen`;
   - after waking: when the `blankScreen` element of the deep standby ends (`deepStandbyEnded()`).
   Schedules set up in the menu of the display are lost then; `deep` means the CMS alone switches the display. With
@@ -144,8 +147,13 @@ Like the legacy player, with its Java classes:
   only at the start and at `blankScreen`). Whoever switches a display from `deep` to
   another mode has to clear page 7 in the menu (Scheduling) by hand, else it wakes the display once a week and, on the
   BDL4550D, switches it off at midnight of that day. Likewise a mode changed to `deep` clears the pages only at the
-  next start. The schedule commands run one after the other in one thread, so a clear after waking cannot overwrite
-  the wake time of a `blankScreen` that follows at once.
+  next start.
+- **One SICP command after the other** (SICP 2.13 chapter 2.2: a new command not before the previous one is
+  acknowledged): every command of `PhilipsLauncher` runs in one thread and waits up to 1 s for its answer, a set
+  command for ACK, NACK or NAV, a get command for its report. NACK (checksum, parameter or length wrong) and NAV (the
+  command is right, but this display does not have it) are in the log with the command in hex, as is a missing answer.
+  So a clear after waking cannot overwrite the wake time of a `blankScreen` that follows at once, and the answers of
+  `0xA1` (model number, firmware) belong to the question asked.
 - **Daily restart:** the core plans it (`schedule/reboot_days`, `schedule/reboot_time` of the configuration, like
   garlic-lib) and hands `Reboot` to the launcher; on Philips the broadcast `php.intent.action.REBOOT`. The Philips
   firmware has a restart schedule of its own (menu Signage Display, `com.tpv.signagesettings`, receiver
@@ -202,6 +210,7 @@ in the same media server. Neither launcher notices it: both only check that the 
   (about 2 MB/h).
 - Watchdog only built, not yet tested on a device (hang and restart).
 - Master volume and brightness on Philips only built, not tested from the player (Smart Power only by hand).
-- Philips scheduling pages: read back (`0x5B`) and clearing (`takeOverSchedule()`) only built, not tested on the
-  BDL4550D; the format of the `0x5B` answer is the one of SICP V2.03, not seen from this firmware yet.
+- Philips: read back (`0x5B`), clearing (`takeOverSchedule()`, `0x60`), the SICP version (`0xA2`), ACK/NACK/NAV and
+  the uuid from model number and serial only built, not tested on the BDL4550D; the answers are the ones of SICP
+  V2.13, not seen from this firmware yet.
 - A background image with repeatX or repeatY stretches the last pixels in the other direction (BitmapDrawable).

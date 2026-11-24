@@ -31,6 +31,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
@@ -39,6 +41,10 @@ import java.util.concurrent.TimeUnit;
  * setBrightness(). Deep standby (not in the legacy player): the wake time into scheduling page 7, read back, then power
  * off, see activateDeepStandBy(); with standby_mode deep the player clears all scheduling pages at the start and after
  * waking, see takeOverSchedule(). No temperature: the one of SICP is the board, the core reads the SoC.
+ *
+ * Every command goes through one thread and waits for its answer before the next one (SICP 2.13 chapter 2.2: a new
+ * command not before the previous one is acknowledged): a set command gets ACK, NACK (checksum, parameter or length
+ * wrong) or NAV (correct, but this display does not have it), a get command its report or NACK/NAV; see set(), get().
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -52,18 +58,21 @@ public class PhilipsLauncher implements LauncherInterface
     private static final long MIN_SLEEP_S     = 120;  // shorter: the page would come before the power off
     private static final byte NULL_HOUR       = 24;   // SICP: no time
     private static final byte NULL_MINUTE     = 60;
+    private static final long ANSWER_MS       = 1000; // SICP: a retry after 500 ms may be triggered; no retries here
+
+    private enum Reply { ACK, NACK, NAV, NONE }
 
     private final Context      context;
     private final SocketClient socket;
     private volatile String serial_number    = "";
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
-    private volatile String display_model    = ""; // for the report: by content, the lengths differ per series
+    private volatile String display_model    = ""; // for the report: "43BDL4550D/00"
+    private volatile int    sicp_version     = 0;  // of the firmware (0xA2 0x00), 213 for "2.13"; 0 unknown
 
-    /// The schedule commands one after the other: a clear after waking must not overwrite the next wake time
-    private final ExecutorService             schedule         = Executors.newSingleThreadExecutor();
-    private final LinkedBlockingQueue<byte[]> schedule_reports = new LinkedBlockingQueue<>();
-    private final LinkedBlockingQueue<byte[]> model_reports    = new LinkedBlockingQueue<>(); // 0xA1, see ask()
+    /// All commands one after the other (also: a clear after waking must not overwrite the next wake time)
+    private final ExecutorService             sicp    = Executors.newSingleThreadExecutor();
+    private final LinkedBlockingQueue<byte[]> answers = new LinkedBlockingQueue<>(); // read only in sicp
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -75,14 +84,7 @@ public class PhilipsLauncher implements LauncherInterface
                 Log.w(TAG, "SICP answer with wrong checksum");
                 return;
             }
-            if (ret[3] == 0x5B) // a scheduling page, read back by scheduled()
-                schedule_reports.offer(ret);
-            else if (ret[3] == 0x15) // serial
-                serial_number = SICPDef.convertBytesToString(ret);
-            else if (ret[3] == (byte) 0xA1) // model number or firmware, in the order asked, see ask()
-                model_reports.offer(ret);
-            else
-                Log.d(TAG, "unknown SICP answer: " + SICPDef.convertBytesToString(ret));
+            answers.offer(ret); // to the command that waits for it, see exchange()
         }
     };
 
@@ -100,45 +102,51 @@ public class PhilipsLauncher implements LauncherInterface
     }
 
     /**
-     * Serial (0x15, told apart by its code), then model number and firmware (both 0xA1) one after the other: an answer
-     * of 0xA1 does not say what was asked, and its length changed with SICP 2.09 (model "43BDL4550D/00" instead of
-     * "43BDL4550D", firmware "02.30" without "V"), so the legacy player, which told them apart by length, took neither
-     * on the BDL4550D. Waits for the answers: called in a thread of its own, again until the uuid is complete.
+     * Serial (0x15), model number and firmware (both 0xA1) and once the SICP version (0xA2 0x00), one after the other:
+     * an answer of 0xA1 does not say what was asked, and its length changed with SICP 2.09 (model "43BDL4550D/00"
+     * instead of "43BDL4550D", firmware "02.30" without "V"), so the legacy player, which told them apart by length,
+     * took neither on the BDL4550D. Waits for the answers: called in a thread of its own, again until the uuid is
+     * complete; without the serial (socket not connected yet) it stops at once.
      */
     @Override
     public void fetchDeviceInformation()
     {
-        send(SICPCommand.SICP_COMMAND_GET_SERIAL_CODE);
-        String model = ask(SICPCommand.SICP_COMMAND_GET_MODEL_NUMBER);
-        if (model != null)
-        {
-            display_model = model.trim();                 // for the report: "43BDL4550D/00"
-            model_number  = display_model.split("/")[0]; // the uuid as of the legacy player: "43BDL4550D-<serial>"
-        }
-        String firmware = ask(SICPCommand.SICP_COMMAND_GET_FIRMWARE_BUILD);
-        if (firmware != null)
-            launcher_version = firmware.trim();
+        await(() -> {
+            String serial = text(get(SICPCommand.SICP_COMMAND_GET_SERIAL_CODE));
+            if (serial == null)
+                return;
+            serial_number = serial;
+            String model = text(get(SICPCommand.SICP_COMMAND_GET_MODEL_NUMBER));
+            if (model != null)
+            {
+                display_model = model.trim();                 // for the report: "43BDL4550D/00"
+                model_number  = display_model.split("/")[0]; // the uuid as of the legacy player: "43BDL4550D-<serial>"
+            }
+            String firmware = text(get(SICPCommand.SICP_COMMAND_GET_FIRMWARE_BUILD));
+            if (firmware != null)
+                launcher_version = firmware.trim();
+            if (sicp_version == 0)
+            {
+                String version = text(get(SICPDef.command((byte) 0xA2, (byte) 0x00)));
+                sicp_version   = version(version);
+                Log.i(TAG, "SICP version " + version);
+            }
+        });
     }
 
-    /**
-     * Asks 0xA1 and waits up to 1 s for its answer; null without one or with NAV (0x18 as the only byte: the display
-     * does not have it, SICP 2.13 3.2.1). Answers that came too late for an earlier question are dropped first.
-     */
-    private String ask(SICPCommand command)
+    /// "2.13", "V2.03" → 213, 203; 0 if there is none
+    static int version(String text)
     {
-        model_reports.clear();
-        send(command);
-        byte[] report;
-        try
-        {
-            report = model_reports.poll(1, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            return null;
-        }
-        if (report == null || (report.length == 6 && report[4] == 0x18))
+        if (text == null)
+            return 0;
+        Matcher m = Pattern.compile("(\\d+)\\.(\\d+)").matcher(text);
+        return m.find() ? Integer.parseInt(m.group(1)) * 100 + Integer.parseInt(m.group(2)) : 0;
+    }
+
+    /// The characters of a report (DATA[1] on), null without one; an 0xA1 with 0x18 as its only byte is NAV (3.2.1)
+    private static String text(byte[] report)
+    {
+        if (report == null || (report.length == 6 && report[3] == (byte) 0xA1 && report[4] == 0x18))
             return null;
         return SICPDef.convertBytesToString(report);
     }
@@ -190,13 +198,13 @@ public class PhilipsLauncher implements LauncherInterface
     @Override
     public void setScreenOff()
     {
-        send(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_DISABLE);
+        sicp.execute(() -> set(SICPDef.getSICPCommand(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_DISABLE)));
     }
 
     @Override
     public void setScreenOn()
     {
-        send(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_ENABLE);
+        sicp.execute(() -> set(SICPDef.getSICPCommand(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_ENABLE)));
     }
 
     /**
@@ -209,18 +217,19 @@ public class PhilipsLauncher implements LauncherInterface
     public void setBrightness(int percent)
     {
         byte level = percent < 33 ? (byte) 0x03 : percent < 66 ? (byte) 0x02 : (byte) 0x00;
-        socket.sendSICPCommand(SICPDef.command((byte) 0xDD, level));
-        Log.i(TAG, "brightness " + percent + " %: Smart Power " + level);
+        sicp.execute(() -> {
+            if (set(SICPDef.command((byte) 0xDD, level)) == Reply.ACK)
+                Log.i(TAG, "brightness " + percent + " %: Smart Power " + level);
+        });
     }
 
     /**
      * The display wakes itself: the player sleeps with it and cannot send anything until then. So first the wake time
      * goes into scheduling page 7 (SICP 0x5A: on at that time with the source Custom, no off time), on its weekday and
      * every week, then power off (SICP 0x18 0x01: backlight off, CPU clock low). The time is the local one of the
-     * display, rounded up to the minute, at least 2 minutes away. Before the power off the page is read back (0x5B):
-     * if it does not come back as written, the display does not go off, only the backlight (on again in
-     * deepStandbyEnded()). 1 s between the commands, enough on the BDL4550D. The page stays until
-     * deepStandbyEnded() or the next start clears it.
+     * display, rounded up to the minute, at least 2 minutes away. The page must be acknowledged and read back (0x5B) as
+     * written, else the display does not go off, only the backlight (on again in deepStandbyEnded()). The page stays
+     * until deepStandbyEnded() or the next start clears it.
      */
     @Override
     public void activateDeepStandBy(String seconds_to_wakeup)
@@ -248,18 +257,15 @@ public class PhilipsLauncher implements LauncherInterface
                                       NULL_HOUR, NULL_MINUTE, // no off time
                                       SOURCE_CUSTOM, weekdays(wake));
         byte[] off  = SICPDef.command((byte) 0x18, (byte) 0x01);
-        schedule.execute(() -> {
-            socket.sendSICPCommand(page);
-            SystemClock.sleep(1000);
-            if (!scheduled(page))
+        sicp.execute(() -> {
+            if (set(page) != Reply.ACK || !scheduled(page))
             {
-                Log.e(TAG, "deep standby: page " + SCHEDULE_PAGE + " not read back as written, only the backlight goes"
-                           + " off");
-                setScreenOff();
+                Log.e(TAG, "deep standby: page " + SCHEDULE_PAGE + " not written as asked, only the backlight goes off");
+                set(SICPDef.getSICPCommand(SICPCommand.SICP_COMMAND_SET_BACKLIGHT_DISABLE));
                 return;
             }
             Log.i(TAG, String.format("deep standby until %tF %<tR", wake));
-            socket.sendSICPCommand(off);
+            set(off);
         });
     }
 
@@ -272,45 +278,53 @@ public class PhilipsLauncher implements LauncherInterface
     }
 
     /**
-     * standby_mode deep: only the CMS switches the display. All scheduling pages 1…7 disabled and emptied (0x5A, page
-     * in the high nibble, 0 disabled, times 24:60, no source, no days), also the ones set up in the menu: the firmware
-     * switches exactly at the times of a page, an old page would switch the display off or on beside the SMIL. 300 ms
-     * between the pages.
+     * standby_mode deep: only the CMS switches the display, all scheduling pages 1…7 are disabled, also the ones set up
+     * in the menu: the firmware switches exactly at the times of a page, an old page would switch the display off or on
+     * beside the SMIL. From SICP 2.09 on with one command, Reset Scheduler (0x60 0x00), if afterwards every page reads
+     * back disabled (0x5B; what "default values" are, the document does not say); otherwise, and before 2.09, every
+     * page on its own (0x5A, page in the high nibble, 0 disabled, times 24:60, no source, no days).
      */
     @Override
     public void takeOverSchedule()
     {
-        schedule.execute(() -> {
-            for (byte p = 1; p <= 7; ++p)
+        sicp.execute(() -> {
+            if (sicp_version >= 209 && set(SICPDef.command((byte) 0x60, (byte) 0x00)) == Reply.ACK && allDisabled())
             {
-                socket.sendSICPCommand(SICPDef.command((byte) 0x5A, (byte) (p << 4), NULL_HOUR, NULL_MINUTE, NULL_HOUR,
-                                                       NULL_MINUTE, (byte) 0x00, (byte) 0x00));
-                SystemClock.sleep(300);
+                Log.i(TAG, "standby_mode deep: scheduling pages reset (0x60)");
+                return;
             }
-            Log.i(TAG, "standby_mode deep: scheduling pages 1-7 cleared");
+            boolean all = true;
+            for (byte p = 1; p <= 7; ++p)
+                all &= set(SICPDef.command((byte) 0x5A, (byte) (p << 4), NULL_HOUR, NULL_MINUTE, NULL_HOUR, NULL_MINUTE,
+                                           (byte) 0x00, (byte) 0x00)) == Reply.ACK;
+            Log.i(TAG, "standby_mode deep: scheduling pages 1-7 " + (all ? "disabled" : "not all acknowledged"));
         });
+    }
+
+    /// Every scheduling page reads back disabled (0x5B report: DATA[1] 0)
+    private boolean allDisabled()
+    {
+        for (byte p = 1; p <= 7; ++p)
+        {
+            byte[] report = get(SICPDef.command((byte) 0x5B, p));
+            if (report == null || report[3] != 0x5B || report.length < 6 || report[4] != 0x00)
+            {
+                Log.w(TAG, "after Reset Scheduler page " + p + " " + (report == null ? "no answer" : hex(report)));
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * Reads page 7 back (0x5B) and compares it with the written command. The report: 0x5B, enabled, start hour and
-     * minute, end hour and minute, source, working days, from the 4th byte on like the command after its page byte.
-     * 3 s for the answer.
+     * minute, end hour and minute, source, working days (from SICP 2.05 on a tag after them), from the 4th byte on like
+     * the command after its page byte.
      */
     private boolean scheduled(byte[] page)
     {
-        schedule_reports.clear();
-        socket.sendSICPCommand(SICPDef.command((byte) 0x5B, SCHEDULE_PAGE));
-        byte[] report;
-        try
-        {
-            report = schedule_reports.poll(3, TimeUnit.SECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-        if (report == null)
+        byte[] report = get(SICPDef.command((byte) 0x5B, SCHEDULE_PAGE));
+        if (report == null || report[3] != 0x5B)
         {
             Log.w(TAG, "scheduling page " + SCHEDULE_PAGE + ": no answer");
             return false;
@@ -320,6 +334,85 @@ public class PhilipsLauncher implements LauncherInterface
         if (!same)
             Log.w(TAG, "scheduling page " + SCHEDULE_PAGE + " written " + hex(page) + ", read " + hex(report));
         return same;
+    }
+
+    // ------------------------------------------------------------------ one command after the other
+
+    /// A set command in the thread sicp: ACK, NACK or NAV (logged), NONE without an answer
+    private Reply set(byte[] command)
+    {
+        byte[] answer = exchange(command, (byte) 0x00);
+        Reply  reply  = answer == null || answer.length < 6 ? Reply.NONE
+                        : answer[4] == 0x06 ? Reply.ACK
+                        : answer[4] == 0x15 ? Reply.NACK
+                        : answer[4] == 0x18 ? Reply.NAV : Reply.NONE;
+        if (reply == Reply.NACK)
+            Log.e(TAG, "SICP NACK (checksum, parameter or length wrong): " + hex(command));
+        else if (reply == Reply.NAV)
+            Log.w(TAG, "SICP NAV (this display does not have it): " + hex(command));
+        else if (reply == Reply.NONE)
+            Log.w(TAG, "SICP no answer: " + hex(command));
+        return reply;
+    }
+
+    /// A get command in the thread sicp: its report, null for NACK, NAV or no answer
+    private byte[] get(byte[] command)
+    {
+        byte[] answer = exchange(command, command[3]);
+        if (answer != null && answer[3] == 0x00)
+        {
+            Log.w(TAG, "SICP " + (answer.length > 4 && answer[4] == 0x18 ? "NAV" : "NACK") + ": " + hex(command));
+            return null;
+        }
+        return answer;
+    }
+
+    private byte[] get(SICPCommand command)
+    {
+        return get(SICPDef.getSICPCommand(command));
+    }
+
+    /**
+     * Sends and waits ANSWER_MS for the answer with the code (DATA[0]) or for ACK/NACK/NAV (DATA[0] 0x00); answers
+     * that came late for an earlier command are dropped, so is an ACK while a get command waits.
+     */
+    private byte[] exchange(byte[] command, byte code)
+    {
+        answers.clear();
+        socket.sendSICPCommand(command);
+        long deadline = SystemClock.uptimeMillis() + ANSWER_MS;
+        try
+        {
+            for (long left = ANSWER_MS; left > 0; left = deadline - SystemClock.uptimeMillis())
+            {
+                byte[] answer = answers.poll(left, TimeUnit.MILLISECONDS);
+                if (answer == null)
+                    return null;
+                boolean control = answer.length > 4 && answer[3] == 0x00;
+                if (control && code != 0x00 && answer[4] == 0x06)
+                    continue; // a late ACK of a set command: a get command is not acknowledged
+                if (answer.length > 4 && (answer[3] == code || control))
+                    return answer;
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
+        return null;
+    }
+
+    /// Runs in the thread sicp and waits for it (fetchDeviceInformation is called in a thread of its own)
+    private void await(Runnable work)
+    {
+        try
+        {
+            sicp.submit(work).get();
+        }
+        catch (Exception e) // interrupted or the work failed: the information stays as it is
+        {
+            Log.w(TAG, "SICP: " + e);
+        }
     }
 
     private static String hex(byte[] bytes)
@@ -363,10 +456,5 @@ public class PhilipsLauncher implements LauncherInterface
     public void closedCorrectly()
     {
         // nothing to report: the Philips firmware starts the player again after a crash
-    }
-
-    private void send(SICPCommand command)
-    {
-        socket.sendSICPCommand(SICPDef.getSICPCommand(command));
     }
 }
