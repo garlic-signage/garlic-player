@@ -25,6 +25,8 @@
 #include <string>
 #include <string_view>
 
+#include "common/hash_block.hpp"
+
 namespace garlic::core::common
 {
     /**
@@ -55,9 +57,7 @@ namespace garlic::core::common
             void transform(const std::uint8_t *block) noexcept;
 
             std::array<std::uint32_t, 8> state;
-            std::array<std::uint8_t, 64> buffer;
-            std::size_t                  buffered = 0;
-            std::uint64_t                length   = 0; // in bytes
+            HashBlock                    input;
     };
 }
 

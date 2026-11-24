@@ -49,23 +49,12 @@ namespace garlic::core::common
     void Sha256::reset() noexcept
     {
         state    = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
-        buffer   = {};
-        buffered = 0;
-        length   = 0;
+        input.reset();
     }
 
     void Sha256::update(std::span<const std::byte> data) noexcept
     {
-        length += data.size();
-        for (std::byte byte : data)
-        {
-            buffer[buffered++] = static_cast<std::uint8_t>(byte);
-            if (buffered == buffer.size())
-            {
-                transform(buffer.data());
-                buffered = 0;
-            }
-        }
+        input.add(data, [this](const std::uint8_t *full) { transform(full); });
     }
 
     void Sha256::update(std::string_view text) noexcept
@@ -75,21 +64,7 @@ namespace garlic::core::common
 
     Sha256::Digest Sha256::finish() noexcept
     {
-        // Padding: 0x80, zeros until 56 bytes in the block, then the length in bits
-        const std::uint64_t bits = length * 8;
-        buffer[buffered++] = 0x80;
-        if (buffered > 56)
-        {
-            while (buffered < 64)
-                buffer[buffered++] = 0;
-            transform(buffer.data());
-            buffered = 0;
-        }
-        while (buffered < 56)
-            buffer[buffered++] = 0;
-        for (std::size_t i = 0; i < 8; ++i) // length big-endian
-            buffer[buffered++] = static_cast<std::uint8_t>(bits >> ((7 - i) * 8));
-        transform(buffer.data());
+        input.pad(true, [this](const std::uint8_t *full) { transform(full); });
 
         Digest digest{};
         for (std::size_t i = 0; i < state.size(); ++i)

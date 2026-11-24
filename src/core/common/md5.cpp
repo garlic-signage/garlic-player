@@ -57,23 +57,12 @@ namespace garlic::core::common
     void Md5::reset() noexcept
     {
         state    = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476};
-        buffer   = {};
-        buffered = 0;
-        length   = 0;
+        input.reset();
     }
 
     void Md5::update(std::span<const std::byte> data) noexcept
     {
-        length += data.size();
-        for (std::byte byte : data)
-        {
-            buffer[buffered++] = static_cast<std::uint8_t>(byte);
-            if (buffered == buffer.size())
-            {
-                transform(buffer.data());
-                buffered = 0;
-            }
-        }
+        input.add(data, [this](const std::uint8_t *full) { transform(full); });
     }
 
     void Md5::update(std::string_view text) noexcept
@@ -83,21 +72,7 @@ namespace garlic::core::common
 
     Md5::Digest Md5::finish() noexcept
     {
-        // Padding: 0x80, zeros until 56 bytes in the block, then the length in bits
-        const std::uint64_t bits = length * 8;
-        buffer[buffered++] = 0x80;
-        if (buffered > 56)
-        {
-            while (buffered < 64)
-                buffer[buffered++] = 0;
-            transform(buffer.data());
-            buffered = 0;
-        }
-        while (buffered < 56)
-            buffer[buffered++] = 0;
-        for (std::size_t i = 0; i < 8; ++i) // length little-endian
-            buffer[buffered++] = static_cast<std::uint8_t>(bits >> (i * 8));
-        transform(buffer.data());
+        input.pad(false, [this](const std::uint8_t *full) { transform(full); });
 
         Digest digest{};
         for (std::size_t i = 0; i < state.size(); ++i)
