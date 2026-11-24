@@ -402,7 +402,7 @@ manager parses it first and swaps document and engine only if it is valid; a bro
 | Player → engine        | When                                                                  |
 |------------------------|-----------------------------------------------------------------------|
 | `mediaFinished(id)`    | a video or audio ended by itself                                      |
-| `mediaFailed(id, error, reason)` | a medium could not be played; an event of IAdea by `MediaError` (source `MediaPlayer`, type error: `contentId`, `resourceURI`, `errorMessage` = reason): `NotAvailable` `MEDIA_NOT_AVAILABLE` (the file is gone), `Open` `MEDIA_OPEN_ERROR` (it does not start; also an unknown command), `Playback` `MEDIA_PLAYBACK_ERROR` (it stops while playing). Once per event and `src` while the engine plays (one engine per index version) |
+| `mediaFailed(id, error, reason)` | a medium could not be played; an event of IAdea by `MediaError` (source `MediaPlayer`, type error: `contentId`, `resourceURI`, `errorMessage` = reason): `NotAvailable` `MEDIA_NOT_AVAILABLE` (the file is gone), `Open` `MEDIA_OPEN_ERROR` (it does not start; also an unknown command), `Playback` `MEDIA_PLAYBACK_ERROR` (it stops while playing). Once an hour per event and `src` while it keeps failing, so every hourly upload of the event log shows it (a new engine, i.e. a new index version or a restart, reports at once) |
 | `elementActivated(id)` | touch or click on a medium: `id.activateEvent`, `id.click`            |
 | `accessKey(key)`       | a key was pressed: `accesskey(…)`                                     |
 | `notify(name)`         | notification from outside (REST API `/v2/task`): `notify(…)`          |

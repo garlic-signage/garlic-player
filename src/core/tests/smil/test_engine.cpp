@@ -179,7 +179,7 @@ TEST_CASE("play log: a pass that failed and is repeated is logged when the repea
     CHECK(runner.playLog().contains("<contentId>c</contentId>"));
 }
 
-TEST_CASE("a failed medium: MEDIA_OPEN_ERROR with the reason, once per medium while the engine plays")
+TEST_CASE("a failed medium: MEDIA_OPEN_ERROR with the reason, once an hour per medium")
 {
     auto runner = EngineRunner::body(R"(<video xml:id="v" src="v.ts" repeatCount="3"><param name="logContentId" value="c"/></video>)");
     CHECK(runner.run(1s) == "0s start v");
@@ -194,6 +194,15 @@ TEST_CASE("a failed medium: MEDIA_OPEN_ERROR with the reason, once per medium wh
     CHECK(events.contains(R"(<meta name="errorMessage" content="MediaPlayer error 1 -5003"/>)"));
     auto first = events.find("MEDIA_OPEN_ERROR");
     CHECK(events.find("MEDIA_OPEN_ERROR", first + 1) == std::string::npos);
+
+    runner.clock.advance(1h); // an hour later it still fails: reported again
+    runner.runFor(2s);
+    runner.engine->mediaFailed(runner.starts.back().id, MediaError::Open, "MediaPlayer error 1 -5003");
+    runner.collect();
+    events = runner.fs.content(runner.logger.path(garlic::core::logger::LogFile::Event)).value_or("");
+    auto second = events.find("MEDIA_OPEN_ERROR", first + 1);
+    CHECK(second != std::string::npos);
+    CHECK(events.find("MEDIA_OPEN_ERROR", second + 1) == std::string::npos);
 }
 
 TEST_CASE("the error of the frontend decides the event: not available, playback")

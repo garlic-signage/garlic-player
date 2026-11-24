@@ -150,10 +150,18 @@ namespace garlic::core::smil
             std::string_view name = error == MediaError::NotAvailable ? "MEDIA_NOT_AVAILABLE"
                                     : error == MediaError::Playback   ? "MEDIA_PLAYBACK_ERROR"
                                                                       : "MEDIA_OPEN_ERROR";
-            if (media && failed_media.insert(std::string(name) + " " + media->src).second)
-                logger.event(logger::Severity::Error, "MediaPlayer", name,
-                             {{"contentId", media->log_content_id}, {"resourceURI", media->src},
-                              {"errorMessage", std::string(reason)}});
+            auto now = clock.monotonic();
+            if (media)
+            {
+                auto [last, added] = failed_media.try_emplace(std::string(name) + " " + media->src, now);
+                if (added || now - last->second >= failed_media_interval)
+                {
+                    last->second = now;
+                    logger.event(logger::Severity::Error, "MediaPlayer", name,
+                                 {{"contentId", media->log_content_id}, {"resourceURI", media->src},
+                                  {"errorMessage", std::string(reason)}});
+                }
+            }
             nodes[*node].failed = true;
             earlyEnd(*node);
         }

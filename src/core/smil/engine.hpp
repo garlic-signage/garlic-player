@@ -142,8 +142,8 @@ namespace garlic::core::smil
             /**
              * The medium could not be played. Like an early end: a dur still decides the end, no play log. An event of
              * the error (MEDIA_NOT_AVAILABLE, MEDIA_OPEN_ERROR, MEDIA_PLAYBACK_ERROR) with the reason of the frontend,
-             * once per medium and error while this engine plays, so a medium that fails at every loop does not flood
-             * the event log.
+             * once an hour per medium and error, so a medium that fails at every loop does not flood the event log,
+             * but the hourly uploads show while it keeps failing.
              */
             void mediaFailed(InstanceId id, MediaError error = MediaError::Open, std::string_view reason = {});
 
@@ -275,7 +275,9 @@ namespace garlic::core::smil
             const common::Clock   &clock;
             MediaSource           &media_source;
             logger::Logger        &logger;
-            std::set<std::string, std::less<>> failed_media; // event name and src already reported
+            /// event name and src → when last reported: once an hour while a medium keeps failing
+            std::map<std::string, std::chrono::steady_clock::time_point, std::less<>> failed_media;
+            static constexpr std::chrono::hours failed_media_interval{1};
             EngineConfig           config;
 
             std::vector<Runtime>   nodes; // [0] is the body
