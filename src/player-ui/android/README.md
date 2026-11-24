@@ -181,8 +181,15 @@ Like the legacy player, with its Java classes:
   empty. The stroke number is cut off for the uuid, so it is the one of the legacy player.
 - **The screen in the system report** (`hardwareInfo`, `getDisplayHardware()`): model with stroke number and serial over
   SICP, vendor Philips. On the BDL4550D (read by hand, 2026-11-23): `43BDL4550D/00`, serial `AU0A2123004336`, firmware `02.30`,
-  build date `2024/10/09`. Taken once after the start, when the launcher had its 5 s to answer; the uuid stays as
-  before.
+  build date `2024/10/09`.
+- **The device in the system report** (`modelInfo`, `getDeviceModel()`): model and firmware over SICP (`0xA1`),
+  `modelName` and `PCBRevision` through `NativeCore.setDeviceModel`. garlic-launcher 1.x knows neither (null): the
+  core takes the model of Android.
+- **When they reach the core:** screen, model and firmware once before the start, when the launcher had its 5 s to
+  answer, and again every 5 minutes with operating hours and temperature (`refreshDisplayValues`). While model or
+  firmware are missing, the 5-minute round asks SICP again (`fetchDeviceInformation()`), so a display that answered
+  too late is in the report at the latest 5 minutes after the start. The uuid is taken only before the start and
+  stays as it is.
 
 ## Watchdog
 

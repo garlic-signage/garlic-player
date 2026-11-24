@@ -172,7 +172,9 @@ agent, the version of the player (`version`, from the file VERSION, in the title
 (`system::processInfo`) with their maxima since the start and the time of the memory maximum. The maxima are updated at
 every call and with the resource log every 5 minutes, which now writes them to debug.log too. New: the CPU load of the
 player with its processes (`cpu`, in percent of all cores, since the previous `debugInfo()`, empty at the first call)
-and the highest 5-minute average of the resource log (`cpu_max`, `cpu_max_time`); the log writes that average as `cpu`. Beside it the load of the whole system (`cpu_system`, same interval, no
+and the highest 5-minute average of the resource log (`cpu_max`, `cpu_max_time`); the log writes that average as `cpu`,
+the first log too (the core takes a first sample at the start). `cpuUsage` of the system report is measured apart,
+since the previous system report (reports.md). Beside it the load of the whole system (`cpu_system`, same interval, no
 maximum: it cannot be put down to the player), empty on Android. The temperatures of CPU, RAM and SSD in °C
 (`temperature_cpu`, `temperature_ram`, `temperature_ssd`) and whether the device throttles (`throttling`), see
 system.md. Without the system module

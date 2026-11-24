@@ -270,13 +270,19 @@ Details in [core/docs/reports.md](src/core/docs/reports.md) and [core/docs/conte
 
 - **System report** like the Android players of IAdea, with our namespace `http://schemas.garlic-player.com/gapi-1.0`.
   Disk and memory in bytes like garlic-lib (IAdea seems to give the memory in KB: an evaluation treats IAdea reports
-  apart), `cpuUsage` with `%`, `hdmiOutput` from the frontend (`1920x1080p-60`).
+  apart), `cpuUsage` with `%` (the load of the system since the previous system report, the first one since the
+  start; it goes 5 s after the start), `hdmiOutput` from the frontend (`1920x1080p-60`). The inventory report has no
+  system information.
   - `network`: `type`, `mac`, `ip`, `netmask` (first IPv4), IPv6 as `ip_v6`, `netmask_v6`.
-  - `modelInfo`: `modelName` garlic-player, `modelDescription` the version, `licenseModel` the operating system, `PCB`
-    the hardware. The player reads it itself, without supervisor: Android `ro.product.model`, Linux the device tree
-    (Raspberry Pi) or the DMI (PCs), Windows the BIOS in the registry, macOS `hw.model`.
+  - `modelInfo`: the hardware the player runs on, the same in `/v2/system/modelInfo`. `PCB` and `manufacturer` the
+    player reads itself, without supervisor: Android `ro.product.model` and `ro.product.manufacturer`, Linux the
+    device tree (Raspberry Pi) or the DMI (PCs), Windows the BIOS in the registry, macOS `hw.model`. `modelName` and
+    `PCBRevision` the model and firmware of a supervisor (Philips over SICP: `43BDL4550D/00`, `02.30`), without one
+    `modelName` is the model of the platform. Without a known model the player stands in (`modelName` garlic-player,
+    `modelDescription` its version, `modelURL`), without a known manufacturer Sagiadinos (`manufacturerURL`
+    `https://garlic-signage.com/garlic-player/`). `licenseModel` the operating system.
   - `userPref`: what the player knows (player name, locale, rotation, daily reboot, master volume, brightness, time
-    zone, content URL), nothing it does not know (proxy, wifi, adb). Own values as `garlic.*`: device manufacturer,
+    zone, content URL), nothing it does not know (proxy, wifi, adb). Own values as `garlic.*`: version of the player,
     uptime of player and device, memory and threads of the player with their maxima, its CPU load, temperatures,
     throttling.
   - `hardwareInfo` (the screen): from a supervisor that knows it, on Philips over SICP (`modelName` "43BDL4550D/00",
