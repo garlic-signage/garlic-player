@@ -54,6 +54,12 @@ public interface LauncherInterface
 
     void activateDeepStandBy(String seconds_to_wakeup);
 
+    /// The element that started the deep standby ended: the device is awake again
+    void deepStandbyEnded();
+
+    /// standby_mode deep at the start: the CMS alone switches the device, schedules of the device are cleared
+    void takeOverSchedule();
+
     void rebootOS(String task_id);
 
     void installSoftware(String apk_path);

@@ -251,6 +251,8 @@ public class GarlicActivity extends Activity implements Media.Reports
             showMessage("garlic-player cannot start: " + error);
             return;
         }
+        if (launcher != null && core.standbyMode().equals("deep")) // before the first blankScreen of drain()
+            launcher.takeOverSchedule();
         drain();
         tellDisplayMode();
         if (launcher != null && launcher.getDisplayHardware() != null)

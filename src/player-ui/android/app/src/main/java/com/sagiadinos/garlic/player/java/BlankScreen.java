@@ -69,11 +69,18 @@ final class BlankScreen
         active.put(instance, true);
     }
 
-    /** The element ends: the screen goes on again if begin() switched it off. Unknown instances: nothing. */
+    /**
+     * The element ends: the screen goes on again if begin() switched it off; after a deep standby the launcher is told
+     * that the device is awake. Unknown instances: nothing.
+     */
     void end(long instance)
     {
         Boolean switched_off = active.remove(instance);
-        if (switched_off != null && switched_off && control != null)
+        if (switched_off == null || control == null)
+            return;
+        if (switched_off)
             control.setScreenOn();
+        else
+            control.deepStandbyEnded();
     }
 }

@@ -25,14 +25,20 @@ import android.util.Log;
 import com.sagiadinos.garlic.player.java.SICPDef.SICPCommand;
 import com.sagiadinos.garlic.player.java.SocketClient.SocketResponse;
 
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Philips displays (TPV launcher): screen over SICP on 127.0.0.1:5000, restart and installation with the broadcasts of
  * the firmware. uuid is model number and serial, the version the firmware build; they come later over the socket.
  * As in the legacy player. Brightness of the configuration as Smart Power of SICP (not in the legacy player), see
- * setBrightness(). Deep standby (not in the legacy player): the wake time into scheduling page 7, then power off, see
- * activateDeepStandBy(). No temperature: the one of SICP is the board, the core reads the SoC.
+ * setBrightness(). Deep standby (not in the legacy player): the wake time into scheduling page 7, read back, then power
+ * off, see activateDeepStandBy(); with standby_mode deep the player clears all scheduling pages at the start and after
+ * waking, see takeOverSchedule(). No temperature: the one of SICP is the board, the core reads the SoC.
  */
 public class PhilipsLauncher implements LauncherInterface
 {
@@ -44,6 +50,8 @@ public class PhilipsLauncher implements LauncherInterface
     private static final byte SCHEDULE_PAGE   = 7;    // of 1…7; overwritten at every deep standby
     private static final byte SOURCE_CUSTOM   = 0x18; // the custom app: the player
     private static final long MIN_SLEEP_S     = 120;  // shorter: the page would come before the power off
+    private static final byte NULL_HOUR       = 24;   // SICP: no time
+    private static final byte NULL_MINUTE     = 60;
 
     private final Context      context;
     private final SocketClient socket;
@@ -51,6 +59,10 @@ public class PhilipsLauncher implements LauncherInterface
     private volatile String model_number     = "";
     private volatile String launcher_version = "";
     private volatile String display_model    = ""; // for the report: by content, the lengths differ per series
+
+    /// The schedule commands one after the other: a clear after waking must not overwrite the next wake time
+    private final ExecutorService             schedule         = Executors.newSingleThreadExecutor();
+    private final LinkedBlockingQueue<byte[]> schedule_reports = new LinkedBlockingQueue<>();
 
     private final SocketResponse response = new SocketResponse()
     {
@@ -62,7 +74,9 @@ public class PhilipsLauncher implements LauncherInterface
                 Log.w(TAG, "SICP answer with wrong checksum");
                 return;
             }
-            if (ret[3] == 0x15) // serial
+            if (ret[3] == 0x5B) // a scheduling page, read back by scheduled()
+                schedule_reports.offer(ret);
+            else if (ret[3] == 0x15) // serial
                 serial_number = SICPDef.convertBytesToString(ret);
             else if (ret[3] == (byte) 0xA1)
             {
@@ -176,8 +190,10 @@ public class PhilipsLauncher implements LauncherInterface
      * The display wakes itself: the player sleeps with it and cannot send anything until then. So first the wake time
      * goes into scheduling page 7 (SICP 0x5A: on at that time with the source Custom, no off time), on its weekday and
      * every week, then power off (SICP 0x18 0x01: backlight off, CPU clock low). The time is the local one of the
-     * display, rounded up to the minute, at least 2 minutes away. The page stays; the next deep standby overwrites it.
-     * 1 s between the two commands, enough on the BDL4550D.
+     * display, rounded up to the minute, at least 2 minutes away. Before the power off the page is read back (0x5B):
+     * if it does not come back as written, the display does not go off, only the backlight (on again in
+     * deepStandbyEnded()). 1 s between the commands, enough on the BDL4550D. The page stays until
+     * deepStandbyEnded() or the next start clears it.
      */
     @Override
     public void activateDeepStandBy(String seconds_to_wakeup)
@@ -202,15 +218,89 @@ public class PhilipsLauncher implements LauncherInterface
 
         byte[] page = SICPDef.command((byte) 0x5A, (byte) (SCHEDULE_PAGE << 4 | 0x01),
                                       (byte) wake.get(Calendar.HOUR_OF_DAY), (byte) wake.get(Calendar.MINUTE),
-                                      (byte) 24, (byte) 60, // no off time
+                                      NULL_HOUR, NULL_MINUTE, // no off time
                                       SOURCE_CUSTOM, weekdays(wake));
         byte[] off  = SICPDef.command((byte) 0x18, (byte) 0x01);
-        Log.i(TAG, String.format("deep standby until %tF %<tR", wake));
-        new Thread(() -> {
+        schedule.execute(() -> {
             socket.sendSICPCommand(page);
             SystemClock.sleep(1000);
+            if (!scheduled(page))
+            {
+                Log.e(TAG, "deep standby: page " + SCHEDULE_PAGE + " not read back as written, only the backlight goes"
+                           + " off");
+                setScreenOff();
+                return;
+            }
+            Log.i(TAG, String.format("deep standby until %tF %<tR", wake));
             socket.sendSICPCommand(off);
-        }, "deep standby").start();
+        });
+    }
+
+    /// Backlight on (only off if the wake time could not be read back) and the scheduling pages cleared
+    @Override
+    public void deepStandbyEnded()
+    {
+        setScreenOn();
+        takeOverSchedule();
+    }
+
+    /**
+     * standby_mode deep: only the CMS switches the display. All scheduling pages 1…7 disabled and emptied (0x5A, page
+     * in the high nibble, 0 disabled, times 24:60, no source, no days), also the ones set up in the menu: the firmware
+     * switches exactly at the times of a page, an old page would switch the display off or on beside the SMIL. 300 ms
+     * between the pages.
+     */
+    @Override
+    public void takeOverSchedule()
+    {
+        schedule.execute(() -> {
+            for (byte p = 1; p <= 7; ++p)
+            {
+                socket.sendSICPCommand(SICPDef.command((byte) 0x5A, (byte) (p << 4), NULL_HOUR, NULL_MINUTE, NULL_HOUR,
+                                                       NULL_MINUTE, (byte) 0x00, (byte) 0x00));
+                SystemClock.sleep(300);
+            }
+            Log.i(TAG, "standby_mode deep: scheduling pages 1-7 cleared");
+        });
+    }
+
+    /**
+     * Reads page 7 back (0x5B) and compares it with the written command. The report: 0x5B, enabled, start hour and
+     * minute, end hour and minute, source, working days, from the 4th byte on like the command after its page byte.
+     * 3 s for the answer.
+     */
+    private boolean scheduled(byte[] page)
+    {
+        schedule_reports.clear();
+        socket.sendSICPCommand(SICPDef.command((byte) 0x5B, SCHEDULE_PAGE));
+        byte[] report;
+        try
+        {
+            report = schedule_reports.poll(3, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        if (report == null)
+        {
+            Log.w(TAG, "scheduling page " + SCHEDULE_PAGE + ": no answer");
+            return false;
+        }
+        boolean same = report.length >= 12 && report[4] == 0x01
+                       && Arrays.equals(Arrays.copyOfRange(report, 5, 11), Arrays.copyOfRange(page, 5, 11));
+        if (!same)
+            Log.w(TAG, "scheduling page " + SCHEDULE_PAGE + " written " + hex(page) + ", read " + hex(report));
+        return same;
+    }
+
+    private static String hex(byte[] bytes)
+    {
+        StringBuilder text = new StringBuilder();
+        for (byte b : bytes)
+            text.append(SICPDef.convertByteToHexString(b)).append(' ');
+        return text.toString().trim();
     }
 
     /// SICP working days: bit 0 every week, bit 1 Monday … bit 7 Sunday

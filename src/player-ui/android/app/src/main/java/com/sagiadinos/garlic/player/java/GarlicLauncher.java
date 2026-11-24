@@ -151,6 +151,18 @@ public class GarlicLauncher implements LauncherInterface
     }
 
     @Override
+    public void deepStandbyEnded()
+    {
+        // launcher 1.x wakes the device itself
+    }
+
+    @Override
+    public void takeOverSchedule()
+    {
+        // launcher 1.x has no schedule of its own
+    }
+
+    @Override
     public void rebootOS(String task_id)
     {
         Intent intent = command("reboot");
