@@ -42,6 +42,10 @@ public interface LauncherInterface
     /// Hours the screen has run, null if the launcher does not know them; waits for the answer: not in the UI thread
     Integer fetchOperatingHours();
 
+    /// A CPU temperature of the screen in °C, only a fallback where the core reads none; null if the launcher does
+    /// not know it; waits for the answer: not in the UI thread
+    Integer fetchTemperatureCpuFallback();
+
     /// Asks for CPU temperature and throttling; the answers may come later (Philips: over the SICP socket).
     void fetchThermal();
 

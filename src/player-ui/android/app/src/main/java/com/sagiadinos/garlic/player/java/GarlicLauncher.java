@@ -156,6 +156,28 @@ public class GarlicLauncher implements LauncherInterface
         return null; // launcher 1.x does not know the screen
     }
 
+    /**
+     * temperature_cpu of the ContentProvider, the same as getTemperatureCpu(), for the core: there only where it reads
+     * none itself (the launcher reads it as device owner, the player usually cannot). The information dialog shows the
+     * one of the launcher first, as before. Asked directly: the caller is a thread of its own.
+     */
+    @Override
+    public Integer fetchTemperatureCpuFallback()
+    {
+        if (thermal_unknown)
+            return null;
+        String cpu = askProvider("temperature_cpu");
+        try
+        {
+            temperature = cpu.isEmpty() ? null : Integer.valueOf(cpu.trim());
+        }
+        catch (NumberFormatException e)
+        {
+            temperature = null;
+        }
+        return temperature;
+    }
+
     @Override
     public void deepStandbyEnded()
     {

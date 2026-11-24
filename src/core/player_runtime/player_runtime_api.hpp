@@ -260,6 +260,10 @@ namespace garlic::core
             /// of the system report; nullopt: unknown
             void setDisplayOperatingHours(std::optional<int> hours) { display_operating_hours = hours; }
 
+            /// A CPU temperature (°C) of the supervisor (Philips: SICP temperature sensor 1), taken only where the
+            /// core cannot read one itself: information dialog, cpuTemperature and garlic.temperature.cpu
+            void setTemperatureCpuFallback(std::optional<int> celsius) { temperature_cpu_fallback = celsius; }
+
             /// The screenshot of a Screenshot event is saved (or could not be): the REST API answers with it.
             void screenshotTaken(std::string_view path);
 
@@ -354,6 +358,7 @@ namespace garlic::core
             std::string              display_mode;      // setDisplayMode: hdmiOutput of the reports
             std::array<std::string, 4> display_hardware;  // setDisplayHardware: model, product id, serial, vendor
             std::optional<int>         display_operating_hours; // setDisplayOperatingHours
+            std::optional<int>         temperature_cpu_fallback; // setTemperatureCpuFallback
             std::optional<int>       cpu_max;
             std::string              cpu_max_time;
             std::chrono::steady_clock::time_point started_at;      // for the uptime of the player

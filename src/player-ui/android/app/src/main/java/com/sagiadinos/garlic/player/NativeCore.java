@@ -82,6 +82,8 @@ public final class NativeCore
     }
     /** Hours the screen has run (Philips over SICP), for the system report; -1 unknown */
     public void setDisplayOperatingHours(int hours) { setDisplayOperatingHours(handle, hours); }
+    /** CPU temperature of the launcher (Philips: SICP sensor 1), only where the core reads none; -1 unknown */
+    public void setTemperatureCpuFallback(int celsius) { setTemperatureCpuFallback(handle, celsius); }
     public void cachesCleared() { cachesCleared(handle); }
     public void playIndex(String uri) { playIndex(handle, uri); }
     public boolean applyConfiguration(String path) { return applyConfiguration(handle, path); }
@@ -146,6 +148,7 @@ public final class NativeCore
     private static native void setDisplayHardware(long handle, String model, String productId, String serial,
                                                   String vendor);
     private static native void setDisplayOperatingHours(long handle, int hours);
+    private static native void setTemperatureCpuFallback(long handle, int celsius);
     private static native void cachesCleared(long handle);
     private static native void playIndex(long handle, String uri);
     private static native boolean applyConfiguration(long handle, String path);

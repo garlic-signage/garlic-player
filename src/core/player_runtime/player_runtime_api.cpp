@@ -52,6 +52,17 @@ namespace garlic::core
             c.log_dir = log_dir;
             return c;
         }
+
+#if GARLIC_CORE_WITH_SYSTEM
+        /// The temperatures of the device; the CPU one of the supervisor only where the core reads none itself
+        system::Thermal thermalWithFallback(std::optional<int> cpu_fallback)
+        {
+            system::Thermal thermal = system::thermal();
+            if (!thermal.cpu)
+                thermal.cpu = cpu_fallback;
+            return thermal;
+        }
+#endif
     }
 
     PlayerRuntimeApi::PlayerRuntimeApi(common::FileSystem &f, const common::Clock &c, downloader::HttpTransport &t,
@@ -144,7 +155,7 @@ namespace garlic::core
                 info.hdmi_output = display_mode;
 #if GARLIC_CORE_WITH_SYSTEM
             if (!info.cpu_temperature)
-                info.cpu_temperature = system::thermal().cpu; // as the information dialog
+                info.cpu_temperature = thermalWithFallback(temperature_cpu_fallback).cpu; // as the information dialog
 #endif
             info.display_model      = display_hardware[0];
             info.display_product_id = display_hardware[1];
@@ -770,7 +781,7 @@ namespace garlic::core
         }
         else
         {
-            system::Thermal thermal = system::thermal();
+            system::Thermal thermal = thermalWithFallback(temperature_cpu_fallback);
             now.thermal_at          = now.at;
             now.throttle_events     = thermal.throttle_events;
             now.temperature_cpu     = thermal.cpu;
@@ -841,7 +852,7 @@ namespace garlic::core
         }
         if (cpu_player_of_log)
             values.emplace_back("garlic.cpu.player", std::to_string(*cpu_player_of_log) + "%");
-        system::Thermal thermal = system::thermal();
+        system::Thermal thermal = thermalWithFallback(temperature_cpu_fallback);
         auto celsius = [&values](const char *name, const std::optional<int> &value)
         {
             if (value)

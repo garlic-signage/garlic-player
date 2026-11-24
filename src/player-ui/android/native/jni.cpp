@@ -431,6 +431,15 @@ extern "C"
              { api.setDisplayOperatingHours(hours < 0 ? std::nullopt : std::optional<int>(hours)); });
     }
 
+    /// celsius < 0: unknown
+    JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_setTemperatureCpuFallback(JNIEnv *, jclass,
+                                                                                                 jlong handle,
+                                                                                                 jint celsius)
+    {
+        post(handle, [celsius](PlayerRuntimeApi &api)
+             { api.setTemperatureCpuFallback(celsius < 0 ? std::nullopt : std::optional<int>(celsius)); });
+    }
+
     JNIEXPORT void JNICALL Java_com_sagiadinos_garlic_player_NativeCore_screenshotTaken(JNIEnv *env, jclass,
                                                                                        jlong handle, jstring path)
     {

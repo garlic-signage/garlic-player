@@ -40,7 +40,8 @@ import java.util.regex.Pattern;
  * As in the legacy player. Brightness of the configuration as Smart Power of SICP (not in the legacy player), see
  * setBrightness(). Deep standby (not in the legacy player): the wake time into scheduling page 7, read back, then power
  * off, see activateDeepStandBy(); with standby_mode deep the player clears all scheduling pages at the start and after
- * waking, see takeOverSchedule(). No temperature: the one of SICP is the board, the core reads the SoC.
+ * waking, see takeOverSchedule(). CPU temperature: the core reads the SoC; SICP sensor 1 only as its fallback, see
+ * fetchTemperatureCpuFallback(). Operating hours of the screen for the system report, see fetchOperatingHours().
  *
  * Every command goes through one thread and waits for its answer before the next one (SICP 2.13 chapter 2.2: a new
  * command not before the previous one is acknowledged): a set command gets ACK, NACK (checksum, parameter or length
@@ -191,6 +192,22 @@ public class PhilipsLauncher implements LauncherInterface
                 hours[0] = (report[4] & 0xFF) << 8 | (report[5] & 0xFF);
         });
         return hours[0];
+    }
+
+    /**
+     * SICP Temperature Sensors (0x2F, chapter 3.4), sensor 1, which seems to follow the SoC on the BDL4550D (±3 °C).
+     * SICP does not name its sensors, so it is only the fallback where the core reads no CPU temperature itself.
+     */
+    @Override
+    public Integer fetchTemperatureCpuFallback()
+    {
+        Integer[] celsius = {null};
+        await(() -> {
+            byte[] report = get(SICPDef.command((byte) 0x2F));
+            if (report != null && report[3] == 0x2F && report.length >= 6)
+                celsius[0] = report[4] & 0xFF;
+        });
+        return celsius[0];
     }
 
     @Override

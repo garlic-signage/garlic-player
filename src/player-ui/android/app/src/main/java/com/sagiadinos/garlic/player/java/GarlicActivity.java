@@ -81,8 +81,10 @@ public class GarlicActivity extends Activity implements Media.Reports
     private static final int    STORAGE_REQUEST = 1;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private volatile Integer operating_hours; // of the screen, from the launcher (Philips over SICP)
-    private final Runnable   hourly_hours = this::refreshOperatingHours;
+    private volatile Integer operating_hours;     // of the screen, from the launcher (Philips over SICP)
+    private volatile Integer temperature_fallback; // a CPU temperature of the launcher, see refreshDisplayValues()
+    private final Runnable   display_values = this::refreshDisplayValues;
+    private static final long DISPLAY_VALUES_MS = 300000L; // like the resource log of the core
     private volatile NativeCore core; // volatile: the watchdog reads it in its thread
     private Stage         stage;
     private LinearLayout  loading;
@@ -149,7 +151,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     protected void onDestroy()
     {
         watchdog.stop();
-        ui.removeCallbacks(hourly_hours);
+        ui.removeCallbacks(display_values);
         unregisterReceiver(config_receiver);
         unregisterReceiver(index_receiver);
         if (stage != null)
@@ -205,7 +207,8 @@ public class GarlicActivity extends Activity implements Media.Reports
             } while (SystemClock.uptimeMillis() < deadline);
             Log.i(TAG, "launcher: " + asked.getLauncherName() + " " + asked.getLauncherVersion() + " uuid: "
                        + asked.getUUIDFromLauncher());
-            operating_hours = asked.fetchOperatingHours();
+            operating_hours      = asked.fetchOperatingHours();
+            temperature_fallback = asked.fetchTemperatureCpuFallback();
             ui.post(() -> createCore(storage));
         }, "launcher").start();
     }
@@ -262,8 +265,9 @@ public class GarlicActivity extends Activity implements Media.Reports
             core.setDisplayHardware(hardware[0], hardware[1], hardware[2], hardware[3]);
         }
         core.setDisplayOperatingHours(operating_hours != null ? operating_hours : -1);
+        core.setTemperatureCpuFallback(temperature_fallback != null ? temperature_fallback : -1);
         if (launcher != null)
-            ui.postDelayed(hourly_hours, 3600000L); // like the system report
+            ui.postDelayed(display_values, DISPLAY_VALUES_MS);
         String error = core.start();
         if (error != null)
         {
@@ -737,19 +741,27 @@ public class GarlicActivity extends Activity implements Media.Reports
         loading.setVisibility(View.VISIBLE);
     }
 
-    /** The operating hours of the screen again, every hour, in a thread: the launcher waits for the answer */
-    private void refreshOperatingHours()
+    /**
+     * Operating hours and the fallback CPU temperature of the screen again, every 5 minutes like the resource log of the
+     * core, in a thread: the launcher waits for the answers.
+     */
+    private void refreshDisplayValues()
     {
         LauncherInterface asked = launcher;
         new Thread(() -> {
-            Integer hours = asked.fetchOperatingHours();
+            Integer hours   = asked.fetchOperatingHours();
+            Integer celsius = asked.fetchTemperatureCpuFallback();
             ui.post(() -> {
-                operating_hours = hours;
+                operating_hours      = hours;
+                temperature_fallback = celsius;
                 if (core != null)
+                {
                     core.setDisplayOperatingHours(hours != null ? hours : -1);
+                    core.setTemperatureCpuFallback(celsius != null ? celsius : -1);
+                }
             });
-        }, "operating hours").start();
-        ui.postDelayed(hourly_hours, 3600000L);
+        }, "display values").start();
+        ui.postDelayed(display_values, DISPLAY_VALUES_MS);
     }
 
     /** Black over the whole screen while an adapi:blankScreen runs */
