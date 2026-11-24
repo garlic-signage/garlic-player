@@ -248,6 +248,19 @@ TEST_CASE("subscriptions: refresh and retry intervals, values trimmed")
     CHECK(head.subscriptions[0].retry_interval == 30);
 }
 
+TEST_CASE("subscriptions: without refreshInterval hourly (garlic-lib), 0 stays 0")
+{
+    Head head = parseHead(R"(<metadata><x-server xmlns="http://schemas.adfotain.org/adapi-1.0"><subscriptionList>
+        <subscription><type>SystemReport</type><action>http://hub/system</action></subscription>
+        <subscription><type>InventoryReport</type><action>http://hub/inventory</action>
+            <refreshInterval>0</refreshInterval></subscription>
+    </subscriptionList></x-server></metadata>)");
+
+    REQUIRE(head.subscriptions.size() == 2);
+    CHECK(head.subscriptions[0].refresh_interval == 3600);
+    CHECK(head.subscriptions[1].refresh_interval == 0);
+}
+
 TEST_CASE("errors: broken XML with line, wrong root element")
 {
     auto broken = parse("<smil>\n<head>\n</smil>");

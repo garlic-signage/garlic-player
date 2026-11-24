@@ -32,7 +32,8 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 
 - **When**: at once when a subscription is new or changed, then every `refreshInterval` seconds. An unchanged
   subscription in a new index keeps its schedule; garlic-lib created all managers again and sent at every index.
-- **Without `refreshInterval`** (0): only once. garlic-lib started a timer of 0 ms, which fires all the time.
+- **Without `refreshInterval`**: every 3600 s, as garlic-lib (`SubScription::refresh_interval`).
+- **`refreshInterval` 0**: only once. garlic-lib started a timer of 0 ms, which fires all the time.
 - **After a failure** (transport error, HTTP status not 2xx, a log file that cannot be read): the next try after
   `retryInterval` seconds, without it after `refreshInterval`. A log that cannot be read is not sent, so it is not
   deleted either. garlic-lib read `retryInterval` but did not use it.

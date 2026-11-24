@@ -113,7 +113,7 @@ TEST_CASE("system and inventory report: PUT to the action at once and every refr
     CHECK(f.puts().size() == 5);
 }
 
-TEST_CASE("without refreshInterval: only once (garlic-lib sent all the time)")
+TEST_CASE("refreshInterval 0: only once (garlic-lib sent all the time)")
 {
     Fixture f;
     f.reporter.subscribe({subscription("SystemReport", "http://hub/system.xml")});

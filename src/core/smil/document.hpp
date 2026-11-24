@@ -65,7 +65,7 @@ namespace garlic::core::smil
         std::string type;   // SystemReport, InventoryReport, PlaylogCollection, EventlogCollection, TaskSchedule
         std::string action; // URL
         std::string method; // get, put
-        int         refresh_interval = 0;
+        int         refresh_interval = 3600; // without <refreshInterval> hourly, as garlic-lib; 0: only once
         int         retry_interval   = 0;
     };
 
