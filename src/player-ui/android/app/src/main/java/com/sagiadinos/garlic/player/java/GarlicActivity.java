@@ -751,7 +751,8 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     /**
      * Operating hours, the fallback CPU temperature and throttling again, every 5 minutes like the resource log of the
-     * core, in a thread: the launcher waits for the answers. Model and firmware too, asked again while they are missing.
+     * core, in a thread: the launcher waits for the answers. Model, firmware and the screen too, asked again while
+     * model or firmware are missing.
      */
     private void refreshDisplayValues()
     {
@@ -763,7 +764,8 @@ public class GarlicActivity extends Activity implements Media.Reports
                 asked.fetchDeviceInformation(); // SICP did not answer before the start
                 device = asked.getDeviceModel();
             }
-            String[] model  = device;
+            String[] model   = device;
+            String[] display = asked.getDisplayHardware(); // model and serial of the same answers
             Integer hours   = asked.fetchOperatingHours();
             Integer celsius    = asked.fetchTemperatureCpuFallback();
             Boolean throttling = asked.fetchThrottlingFallback();
@@ -778,6 +780,8 @@ public class GarlicActivity extends Activity implements Media.Reports
                     core.setThrottlingFallback(throttling);
                     if (model != null)
                         core.setDeviceModel(model[0], model[1]);
+                    if (display != null)
+                        core.setDisplayHardware(display[0], display[1], display[2], display[3]);
                 }
             });
         }, "display values").start();
