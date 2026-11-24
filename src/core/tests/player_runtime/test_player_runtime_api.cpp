@@ -767,6 +767,19 @@ TEST_CASE("resources are written to debug.log every 5 minutes")
     CHECK(f.debugLog().contains("disc 400/1000 memory 512/2048"));
 }
 
+TEST_CASE("the first resource log after 5 minutes has the CPU load, measured since the start")
+{
+    Fixture f;
+    auto    config     = f.base();
+    config.system_info = [] { return reports::SystemInfo{}; };
+    f.runtime = std::make_unique<PlayerRuntimeApi>(f.fs, f.clock, f.transport, config);
+    REQUIRE(f.runtime->start().has_value());
+    f.run(301s);
+    std::string log = f.debugLog();
+    REQUIRE(log.contains(" cpu "));
+    CHECK_FALSE(log.contains(" cpu - "));
+}
+
 TEST_CASE("stop(): StopMedia comes with the next poll, nextDeadline is at once")
 {
     Fixture f;
@@ -816,11 +829,31 @@ TEST_CASE("system report: the screen of the frontend as hdmiOutput, the uptime o
             "application/smil+xml");
     REQUIRE(f.runtime->start().has_value());
     f.runtime->setDisplayMode(1920, 1080, 60);
-    f.run(2s);
+    f.run(reports::Reporter::first_system_report + 2s);
     auto put = std::ranges::find_if(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; });
     REQUIRE(put != f.transport.requests.end());
     CHECK(put->body.contains("<hdmiOutput>1920x1080p-60</hdmiOutput>"));
     CHECK(put->body.contains(R"(<prop name="garlic.uptime.player" value=")"));
+}
+
+TEST_CASE("system report: cpuUsage is the load since the previous system report, the first one since the start")
+{
+    Fixture f;
+    f.serve("http://hub/index.smil", indexText("", 3600, R"x(<metadata><subscription><type>SystemReport</type>
+            <action>http://hub/system.xml</action><refreshInterval>20</refreshInterval></subscription></metadata>)x"),
+            "application/smil+xml");
+    REQUIRE(f.runtime->start().has_value());
+    f.run(reports::Reporter::first_system_report + 21s);
+    std::vector<std::string> bodies;
+    for (const auto &request : f.transport.requests)
+        if (request.method == downloader::HttpMethod::Put)
+            bodies.push_back(request.body);
+    REQUIRE(bodies.size() == 2);
+    for (const std::string &body : bodies)
+    {
+        CHECK(body.contains("<cpuUsage>"));
+        CHECK_FALSE(body.contains("<cpuUsage></cpuUsage>"));
+    }
 }
 
 TEST_CASE("system report: the operating hours of the screen as garlic prop, only where a supervisor tells them")
@@ -831,7 +864,7 @@ TEST_CASE("system report: the operating hours of the screen as garlic prop, only
             "application/smil+xml");
     f.runtime->setDisplayOperatingHours(19712);
     REQUIRE(f.runtime->start().has_value());
-    f.run(2s);
+    f.run(reports::Reporter::first_system_report + 2s);
     auto put = std::ranges::find_if(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; });
     REQUIRE(put != f.transport.requests.end());
     CHECK(put->body.contains(R"(<prop name="garlic.display.operating_hours" value="19712"/>)"));
@@ -858,6 +891,7 @@ TEST_CASE("nextDeadline: fast while a report is uploaded (curl needs poll())")
         return std::ranges::any_of(f.transport.requests, [](const auto &r) { return r.method == downloader::HttpMethod::Put; }) &&
                f.transport.activeCount() == 1;
     };
+    f.clock.advance(reports::Reporter::first_system_report);
     for (int i = 0; i < 100 && !uploading(); ++i)
         (void)f.runtime->poll();
     REQUIRE(uploading()); // the PUT of the system report runs, the downloads are done

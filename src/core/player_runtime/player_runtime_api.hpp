@@ -356,8 +356,8 @@ namespace garlic::core
             };
             std::optional<CpuSample> cpu_of_debug_info; // the last debugInfo()
             std::optional<CpuSample> cpu_of_log;        // the last resource log
-            std::optional<int>       cpu_system_of_log; // the load of the system over the 5 minutes of the last log
-            std::optional<int>       cpu_player_of_log; // the load of the player, the same
+            std::optional<CpuSample> cpu_of_report;     // the last system report: cpuUsage of the next one
+            std::optional<int>       cpu_player_of_log; // the load of the player over the 5 minutes of the last log
             std::string              display_mode;      // setDisplayMode: hdmiOutput of the reports
             std::array<std::string, 4> display_hardware;  // setDisplayHardware: model, product id, serial, vendor
             std::optional<int>         display_operating_hours; // setDisplayOperatingHours

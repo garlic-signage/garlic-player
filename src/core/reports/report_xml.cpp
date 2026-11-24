@@ -171,10 +171,10 @@ namespace garlic::core::reports
         return begin(uuid, now) + "<taskState>" + std::string(tasks) + "</taskState>" + end();
     }
 
-    std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now, const SystemInfo &system,
+    std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now,
                                 const std::vector<InventoryObject> &objects)
     {
-        std::string text = begin(uuid, now) + systemInfo(system) + "<contentDirectory><objectInfo>";
+        std::string text = begin(uuid, now) + "<contentDirectory><objectInfo>";
         for (const InventoryObject &object : objects)
             text += "<object id=\"" + escape(object.id) + "\" persistent=\"false\">" +
                     tag("resourceURI", object.resource_uri) + tag("state", object.state) +

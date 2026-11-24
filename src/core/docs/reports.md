@@ -30,7 +30,8 @@ Every upload is an HTTP `PUT` with `Content-Type: application/xml` and the user 
 `<id>` is a new random UUID with the end of the player UUID, so every log upload has its own name (garlic-lib:
 `createUuid().mid(0,23) + uuid.mid(23)`). Other types (`TaskSchedule`) are not reports.
 
-- **When**: at once when a subscription is new or changed, then every `refreshInterval` seconds. An unchanged
+- **When**: at once when a subscription is new or changed, then every `refreshInterval` seconds. The system report
+  not before 5 s after the start (`Reporter::first_system_report`), so its CPU load covers a few seconds. An unchanged
   subscription in a new index keeps its schedule; garlic-lib created all managers again and sent at every index.
 - **Without `refreshInterval`**: every 3600 s, as garlic-lib (`SubScription::refresh_interval`).
 - **`refreshInterval` 0**: only once. garlic-lib started a timer of 0 ms, which fires all the time.
@@ -60,8 +61,7 @@ The text is written without line breaks; values are escaped.
     play log:   <contentPlayLog> lines of play_log.xml </contentPlayLog>
     event log:  <playerEventLog> lines of event_log.xml </playerEventLog>
     tasks:      <taskState><task id="…"><lastUpdateTime>local ISO</lastUpdateTime><state>…</state></task> …</taskState>
-    inventory:  <systemInfo>…</systemInfo>
-                <contentDirectory><objectInfo>
+    inventory:  <contentDirectory><objectInfo>
                   <object id="<file name up to the first dot>" persistent="false">
                     <resourceURI/><state/><contentType/><contentLength/><lastModified/><expires/><transferLength/>
                   </object> …
@@ -73,10 +73,10 @@ The text is written without line breaks; values are escaped.
 </report>
 ```
 
-- `<systemInfo>` (also in the inventory): `systemStartTime`, `systemTimeZone`, `totalCapacity` and `totalFreeSpace`
-  in bytes, `cpuUsage` with `%` (the load of the whole system in percent of all cores, the 5-minute average of the
-  resource log; where the system cannot be read, Android 8+, the load of the player process as in the information
-  dialog; empty before the first line of the log; garlic-lib left it empty), `cpuTemperature` with `°C` (the CPU temperature as
+- `<systemInfo>` (only in the system report; garlic-lib had it in the inventory too): `systemStartTime`, `systemTimeZone`, `totalCapacity` and `totalFreeSpace`
+  in bytes, `cpuUsage` with `%` (the load of the whole system in percent of all cores, the average since the previous
+  system report, the first one since the start; where the system cannot be read, Android 8+, the load of the player
+  process; garlic-lib left it empty), `cpuTemperature` with `°C` (the CPU temperature as
   in the information dialog, `system::thermal()`; not in the reports of IAdea, empty where unknown), `memoryTotal` and
   `memoryUsed`
   in bytes like garlic-lib (IAdea seems to give KB: an evaluation has to treat IAdea reports apart), `hdmiOutput` as the frontend tells it with `PlayerRuntimeApi::setDisplayMode` (`1920x1080p-60`, WASM without

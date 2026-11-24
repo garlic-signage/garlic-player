@@ -47,7 +47,8 @@ namespace garlic::core::reports
      *   TaskExecutionReport the last state of every task in task_execution_log.xml to <action>; the log is kept,
      *                       because the hub overwrites its file with every upload (garlic-lib sent no task states)
      *
-     * Sent at once when a subscription is new or changed, then every refreshInterval seconds (0: only once). After a
+     * Sent at once when a subscription is new or changed, then every refreshInterval seconds (0: only once); the system
+     * report not before first_system_report after the start, so its CPU load covers some seconds. After a
      * failed upload the next try comes after retryInterval seconds (garlic-lib ignored it and waited for the next
      * refresh). A log file is renamed to "<log>.sending" while it is uploaded, so a rotation of the logger cannot move
      * it; it is deleted only after a successful upload and sent first at the next try.
@@ -55,7 +56,9 @@ namespace garlic::core::reports
     class Reporter
     {
         public:
-            using SystemInfoSource = std::function<SystemInfo()>;
+            using SystemInfoSource = std::function<SystemInfo()>; // for the system report only
+
+            static constexpr std::chrono::seconds first_system_report{5};
 
             Reporter(downloader::HttpTransport &transport, common::FileSystem &fs, const common::Clock &clock,
                      logger::Logger &logger, configuration::Configuration &config,
@@ -97,6 +100,7 @@ namespace garlic::core::reports
             const database::InventoryTable &inventory;
             std::string                     cache_dir;
             SystemInfoSource                system_info;
+            std::chrono::steady_clock::time_point system_not_before; // the start + first_system_report
             std::vector<std::unique_ptr<Job>> jobs;
 
             void        send(Job &job);

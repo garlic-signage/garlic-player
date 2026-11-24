@@ -43,6 +43,7 @@ namespace
 
         Fixture()
         {
+            clock.advance(Reporter::first_system_report); // the tests start after the delay of the system report
             REQUIRE(config.load().has_value());
             REQUIRE(inventory.open(":memory:").has_value());
             answer(201);
@@ -318,7 +319,7 @@ TEST_CASE("another report type at the same URL is a new subscription")
     CHECK(f.puts()[1].starts_with("http://hub/logs/event-"));
 }
 
-TEST_CASE("system and inventory report carry the information of the system")
+TEST_CASE("only the system report carries the information of the system")
 {
     Fixture  f;
     Reporter reporter{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", []
@@ -328,6 +329,7 @@ TEST_CASE("system and inventory report carry the information of the system")
                           return system;
                       }};
     reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("InventoryReport", "http://hub/b.xml")});
+    f.clock.advance(Reporter::first_system_report);
     for (int i = 0; i < 10; ++i)
     {
         reporter.poll();
@@ -335,7 +337,31 @@ TEST_CASE("system and inventory report carry the information of the system")
     }
     REQUIRE(f.transport.requests.size() == 2);
     for (const auto &request : f.transport.requests)
-        CHECK(request.body.contains("<totalFreeSpace>4242</totalFreeSpace>"));
+        CHECK(request.body.contains("<totalFreeSpace>4242</totalFreeSpace>") == (request.url == "http://hub/a.xml"));
+}
+
+TEST_CASE("the first system report comes first_system_report after the start, the others at once")
+{
+    Fixture  f;
+    Reporter reporter{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", nullptr};
+    reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("InventoryReport", "http://hub/b.xml")});
+    auto run = [&]
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            reporter.poll();
+            f.transport.poll();
+        }
+    };
+    run();
+    REQUIRE(f.puts() == std::vector<std::string>{"http://hub/b.xml"});
+    CHECK(reporter.nextDeadline() == f.clock.monotonic() + Reporter::first_system_report);
+    f.clock.advance(Reporter::first_system_report - 1s);
+    run();
+    CHECK(f.puts().size() == 1);
+    f.clock.advance(1s);
+    run();
+    CHECK(f.puts() == std::vector<std::string>{"http://hub/b.xml", "http://hub/a.xml"});
 }
 
 TEST_CASE("the same report type twice: the last subscription counts")
@@ -358,6 +384,7 @@ TEST_CASE("a running upload is cancelled when its subscription goes or the repor
     {
         Reporter other{f.transport, f.fs, f.clock, f.logger, f.config, f.inventory, "cache", nullptr};
         other.subscribe({subscription("SystemReport", "http://hub/a.xml")});
+        f.clock.advance(Reporter::first_system_report);
         other.poll();
         REQUIRE(f.transport.activeCount() == 1);
     }
@@ -456,6 +483,7 @@ TEST_CASE("without a source of system information and with a short uuid nothing 
     f.logger.played("first", f.clock.now());
     reporter.subscribe({subscription("SystemReport", "http://hub/a.xml"), subscription("InventoryReport", "http://hub/b.xml"),
                         subscription("PlaylogCollection", "http://hub/logs")});
+    f.clock.advance(Reporter::first_system_report);
     for (int i = 0; i < 10; ++i)
     {
         reporter.poll();

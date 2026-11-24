@@ -52,7 +52,7 @@ namespace garlic::core::reports
     /// tasks: <task id="…"> elements of the task log, one per task; garlic-lib had no such report.
     std::string taskExecutionReport(std::string_view uuid, std::chrono::system_clock::time_point now,
                                     std::string_view tasks);
-    std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now, const SystemInfo &system,
+    std::string inventoryReport(std::string_view uuid, std::chrono::system_clock::time_point now,
                                 const std::vector<InventoryObject> &objects);
     /// As the Android players of IAdea, with our namespace; see systemInfo and configuration in report_xml.cpp, the own
     /// values as props "garlic.*".

@@ -148,12 +148,16 @@ namespace garlic::core
             { return system::collectSystemInfo(cache, started); };
 #endif
         settings.system_info = system_info;
-        // the reports with the load of the system from the resource log, a 5-minute average (empty before the first)
+        // the system report with the load since the previous system report, the first since the start
         auto report_info = [this, system_info]
         {
             reports::SystemInfo info = system_info ? system_info() : reports::SystemInfo{};
-                    if (!info.cpu_usage) // the system, where it cannot be read (Android 8+) the player
-                info.cpu_usage = cpu_system_of_log ? cpu_system_of_log : cpu_player_of_log;
+            if (!info.cpu_usage) // the system, where it cannot be read (Android 8+) the player
+            {
+                DebugInfo load;
+                trackProcess(load, cpu_of_report);
+                info.cpu_usage = load.cpu_system ? load.cpu_system : load.cpu;
+            }
             if (info.hdmi_output.empty())
                 info.hdmi_output = display_mode;
 #if GARLIC_CORE_WITH_SYSTEM
@@ -231,6 +235,9 @@ namespace garlic::core
 
         planReboot();
         announceDeviceSettings();
+        DebugInfo first; // the base of the load: the first log 5 minutes later and the first system report have it
+        trackProcess(first, cpu_of_log);
+        cpu_of_report = cpu_of_log;
         next_resource_log = clock.monotonic() + resource_log;
         index->start();
         return {};
@@ -715,7 +722,6 @@ namespace garlic::core
     {
         DebugInfo process;
         trackProcess(process, cpu_of_log);
-        cpu_system_of_log = process.cpu_system;
         cpu_player_of_log = process.cpu;
         if (process.cpu && (!cpu_max || *process.cpu > *cpu_max)) // the average of the 5 minutes since the last log
         {

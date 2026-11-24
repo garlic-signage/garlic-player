@@ -102,7 +102,7 @@ namespace garlic::core::reports
                        configuration::Configuration &cfg, const database::InventoryTable &inv, std::string cache,
                        SystemInfoSource info)
         : transport(t), fs(f), clock(c), logger(log), config(cfg), inventory(inv), cache_dir(std::move(cache)),
-          system_info(std::move(info))
+          system_info(std::move(info)), system_not_before(c.monotonic() + first_system_report)
     {
     }
 
@@ -131,6 +131,8 @@ namespace garlic::core::reports
             }
             auto job = std::make_unique<Job>(*this, static_cast<Kind>(*kind), subscription);
             job->due = clock.monotonic(); // new or changed: at once
+            if (job->kind == Kind::System)
+                job->due = std::max(*job->due, system_not_before);
             next.push_back(std::move(job));
         }
         for (auto &job : jobs)
@@ -279,7 +281,7 @@ namespace garlic::core::reports
                                        row.content_type, row.content_length, row.last_update,
                                        fs.fileSize(file).value_or(0)});
                 }
-                return inventoryReport(config.uuid(), now, system_info ? system_info() : SystemInfo{}, objects);
+                return inventoryReport(config.uuid(), now, objects);
             }
             case Kind::TaskExecution:
                 return taskExecutionReport(config.uuid(), now, taskStates());
