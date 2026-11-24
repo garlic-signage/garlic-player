@@ -18,14 +18,17 @@
 #include "rest_api/rest_api.hpp"
 
 #include "common/md5.hpp"
+#include "common/sha256.hpp"
 #include "common/text.hpp"
 #include "common/time_format.hpp"
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <format>
 #include <optional>
 
@@ -110,6 +113,49 @@ namespace garlic::core::rest_api
             return request.header("content-type").starts_with("application/json");
         }
 
+        /// A value of the JSON body as text: strings as they are, numbers and booleans as JSON writes them
+        std::string textValue(const json &object, const char *key)
+        {
+            auto it = object.find(key);
+            if (it == object.end() || it->is_null() || it->is_object() || it->is_array())
+                return {};
+            return it->is_string() ? it->get<std::string>() : it->dump();
+        }
+
+        /**
+         * IAdea soundLevel: "mute", "0.0..100.0%", 0..1.0 or "-number..0dB" → percent 0…100; nullopt for anything
+         * else. The numbers are already on the logarithmic scale of the device (IAdea), dB become a factor.
+         */
+        std::optional<int> soundLevel(std::string text)
+        {
+            if (text == "mute")
+                return 0;
+            double scale = 100;
+            if (text.ends_with('%'))
+            {
+                text.pop_back();
+                scale = 1;
+            }
+            bool decibel = text.ends_with("dB");
+            if (decibel)
+                text.resize(text.size() - 2);
+            double value = 0;
+            auto [end, error] = common::fromChars(text.data(), text.data() + text.size(), value);
+            if (error != std::errc() || end != text.data() + text.size() || text.empty())
+                return std::nullopt;
+            if (decibel)
+            {
+                if (value > 0)
+                    return std::nullopt;
+                value = std::pow(10.0, value / 20);
+                scale = 100;
+            }
+            value *= scale;
+            if (value < 0 || value > 100)
+                return std::nullopt;
+            return static_cast<int>(std::lround(value));
+        }
+
         // --- file names like QFileInfo
 
         /// "abc.def.jpg" → "abc" (QFileInfo::baseName: up to the first dot)
@@ -187,6 +233,8 @@ namespace garlic::core::rest_api
         router.add("*", "/v2/system/{name}", [this](const Request &r) { return system(r); });
         router.add("*", "/v2/app/{name}", [this](const Request &r) { return app(r); });
         router.add("*", "/v2/task/{name}", [this](const Request &r) { return task(r); });
+        router.add("*", "/v2/hardware/{name}", [this](const Request &r) { return hardware(r); });
+        router.add("*", "/v2/security/users/{name}", [this](const Request &r) { return securityUser(r); });
         router.setFallback([](const Request &) { return notFound(); });
     }
 
@@ -209,10 +257,11 @@ namespace garlic::core::rest_api
 
         if (grant_type != "password")
             return respondError("wrong grant_type");
-        // like garlic-lib: fixed user without password, real credentials are a later topic
+        // like garlic-lib the one user admin; without a password set (security/users/admin) an empty one
         if (username != "admin")
             return respondError("wrong username");
-        if (!password.empty())
+        std::string stored = config.value("api_password");
+        if (stored.empty() ? !password.empty() : common::Sha256::hex(password) != stored)
             return respondError("wrong password");
 
         // garlic-lib passed its (always empty) members, not the request values
@@ -222,9 +271,16 @@ namespace garlic::core::rest_api
                             {"expires_in", config.value("api_access_token_expire")}});
     }
 
+    /// The token as access_token (URL or form) or, as IAdea allows, in "Authorization: Bearer <token>"
     bool RestApi::validToken(const Request &request) const
     {
         std::string token  = request.param("access_token");
+        if (token.empty())
+        {
+            std::string authorization = request.header("authorization");
+            if (authorization.starts_with("Bearer "))
+                token = authorization.substr(7);
+        }
         std::string expire = config.value("api_access_token_expire");
         return token == config.apiAccessToken() && isoTime(clock.now()) <= expire;
     }
@@ -420,6 +476,10 @@ namespace garlic::core::rest_api
                                 {"manufacturerURL", "https://garlic-player.com"},
                                 {"PCB", "garlic-player"},
                                 {"options", ""}});
+        if (name == "playerInfo") // IAdea: playerId, serialNumber is the MAC, factoryDefaults an add-on package
+            return respond(json{{"playerId", config.uuid()},
+                                {"serialNumber", actions.serialNumber ? actions.serialNumber() : ""},
+                                {"factoryDefaults", ""}});
         return notFound();
     }
 
@@ -522,7 +582,202 @@ namespace garlic::core::rest_api
         }
         if (name == "screenshot")
             return screenshot();
+        if (name == "importConfiguration")
+            return importConfiguration(request);
+        if (name == "commitConfiguration")
+            return commitConfiguration(request);
+        if (name == "exportConfiguration")
+            return exportConfiguration();
         return notFound();
+    }
+
+    namespace
+    {
+        json userPref(const configuration::Props &props)
+        {
+            json list = json::array();
+            for (const auto &[name, value] : props)
+                list.push_back(json{{"name", name}, {"value", value}});
+            return list;
+        }
+    }
+
+    /**
+     * IAdea: the new settings as userPref [{name, value}], kept until commitConfiguration with the returned commitId.
+     * userPref as JSON body or as JSON text in a form field. The props of a configuration.xml (prop_keys); unknown
+     * ones are kept in the answer, but not applied. Another import replaces the waiting one.
+     */
+    Response RestApi::importConfiguration(const Request &request)
+    {
+        json list;
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            if (auto it = body->find("userPref"); it != body->end())
+                list = *it;
+        }
+        else
+            list = json::parse(request.param("userPref"), nullptr, false);
+        if (!list.is_array())
+            return respondError("userPref missed");
+
+        configuration::Props props;
+        for (const json &entry : list)
+        {
+            if (!entry.is_object())
+                return respondError("userPref missed");
+            std::string name = textValue(entry, "name");
+            if (name.empty())
+                return respondError("userPref missed");
+            props.emplace_back(std::move(name), textValue(entry, "value"));
+        }
+        imported  = std::move(props);
+        commit_id = configuration::Configuration::createUuid();
+        return respond(json{{"commitId", commit_id}, {"userPref", userPref(imported)}, {"restartRequired", false}});
+    }
+
+    /// IAdea: applies the import of commitId like a configuration.xml; the player takes it without a restart
+    Response RestApi::commitConfiguration(const Request &request)
+    {
+        std::string id = request.param("commitId");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            id = stringValue(*body, "commitId");
+        }
+        if (commit_id.empty() || id != commit_id)
+            return respondError("wrong commitId");
+
+        config.applyProps(imported);
+        imported.clear();
+        commit_id.clear();
+        if (actions.configurationChanged)
+            actions.configurationChanged();
+        return respond(json{{"commitId", id}, {"restartRequired", false}});
+    }
+
+    /// IAdea: every setting of a configuration.xml under its first prop, "" where it is not set
+    Response RestApi::exportConfiguration() const
+    {
+        return respond(json{{"userPref", userPref(config.exportProps())}});
+    }
+
+    // ------------------------------------------------------------------ hardware (IAdea)
+
+    Response RestApi::hardware(const Request &request)
+    {
+        if (!validToken(request))
+            return accessViolation();
+
+        std::string name = request.path_params.at("name");
+        if (name == "display")
+            return display(request);
+        if (name == "audioOut")
+            return audioOut(request);
+        if (name == "videoOut")
+            return videoOut(request);
+        return notFound();
+    }
+
+    /**
+     * IAdea: power "on" or "standby". Switching goes only through the supervisor (launcher, SICP); without one the
+     * frontend does nothing. Without power the answer tells the last one set.
+     */
+    Response RestApi::display(const Request &request)
+    {
+        std::string power = request.param("power");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            power = stringValue(*body, "power");
+        }
+        if (power == "on" || power == "standby")
+        {
+            screen_on = power == "on";
+            if (actions.screenPower)
+                actions.screenPower(screen_on);
+        }
+        else if (!power.empty())
+            return respondError("wrong power");
+        return respond(json{{"id", "0"}, {"power", screen_on ? "on" : "standby"}});
+    }
+
+    /// IAdea: masterSoundLevel into audio/volume, which the frontend applies; without it the answer tells the stored one
+    Response RestApi::audioOut(const Request &request)
+    {
+        std::string level = request.param("masterSoundLevel");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            level = textValue(*body, "masterSoundLevel");
+        }
+        if (!level.empty())
+        {
+            auto percent = soundLevel(level);
+            if (!percent)
+                return respondError("wrong masterSoundLevel");
+            config.setValue("audio/volume", std::to_string(*percent));
+            if (actions.deviceSettingsChanged)
+                actions.deviceSettingsChanged();
+        }
+        std::string volume = config.value("audio/volume");
+        if (!volume.empty() && !volume.ends_with('%'))
+            volume += "%";
+        return respond(json{{"id", "0"}, {"soundLevel", volume}});
+    }
+
+    /**
+     * IAdea: of the HDMI settings only rotation ("0", "90", "180", "270") into display/rotation, like
+     * hardware.videoOut.0.rotation of a configuration.xml; format, margin, CEC and HDCP are not supported.
+     */
+    Response RestApi::videoOut(const Request &request)
+    {
+        std::string rotation = request.param("rotation");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            rotation = textValue(*body, "rotation");
+        }
+        if (rotation == "0" || rotation == "90" || rotation == "180" || rotation == "270")
+            config.setValue("display/rotation", rotation);
+        else if (!rotation.empty())
+            return respondError("wrong rotation");
+        return respond(json{{"id", "0"}, {"rotation", config.value("display/rotation")}});
+    }
+
+    // ------------------------------------------------------------------ security (IAdea)
+
+    /**
+     * IAdea: the password of admin, stored as SHA-256 in api_password; an empty one means "without password" again.
+     * Tokens given before stay valid until they expire.
+     */
+    Response RestApi::securityUser(const Request &request)
+    {
+        if (!validToken(request))
+            return accessViolation();
+        if (request.path_params.at("name") != "admin")
+            return notFound();
+
+        std::string password = request.param("password");
+        if (isJson(request))
+        {
+            auto body = parseObject(request.body);
+            if (!body)
+                return respondError("No JSON found");
+            password = stringValue(*body, "password");
+        }
+        config.setValue("api_password", password.empty() ? std::string{} : common::Sha256::hex(password));
+        return respond(json{{"name", "admin"}});
     }
 
     /**

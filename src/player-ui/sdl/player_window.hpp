@@ -79,7 +79,11 @@ namespace player
             /// Before the player ends on purpose (menu, Ctrl+Q, debug dialog): e.g. closing("user")
             void setOnQuit(std::function<void()> on_quit) { quit_hook = std::move(on_quit); }
 
-            void setScreenControl(ScreenControl *control) { blank_screen.setControl(control); }
+            void setScreenControl(ScreenControl *control)
+            {
+                screen_control = control;
+                blank_screen.setControl(control);
+            }
             void setDeviceControl(DeviceControl *control) { device_control = control; }
             void setIdentityLocked(bool locked) { identity_locked = locked; }
 
@@ -147,6 +151,7 @@ namespace player
             Clock::time_point       next_tick{};
 
             BlankScreen            blank_screen;
+            ScreenControl         *screen_control = nullptr; // the supervisor: REST hardware/display
             DeviceControl         *device_control  = nullptr;
             bool                   identity_locked = false;
             bool                   is_locked       = false;

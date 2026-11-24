@@ -48,13 +48,19 @@ namespace garlic::core::rest_api
         // /v2/files/new: room for fileSize bytes (CacheSpace); returns 0 or the bytes that could not be made free
         std::function<std::uint64_t(std::uint64_t bytes)> makeSpace;
         std::function<void(std::string resource_uri)>    removed; // /v2/files/delete: a file was deleted (an event)
+        // /v2/task/commitConfiguration: the props are in the ini, the runtime takes them like a configuration.xml
+        std::function<void()>        configurationChanged;
+        std::function<void()>        deviceSettingsChanged; // /v2/hardware/audioOut: audio/volume changed
+        std::function<void(bool on)> screenPower;           // /v2/hardware/display: through the supervisor
+        std::function<std::string()> serialNumber;          // /v2/system/playerInfo: the MAC of the device
     };
 
     /**
      * REST API v2 of the player (IAdea compatible), ported 1:1 from garlic-lib: same paths, parameters, JSON fields,
      * error texts and status codes, so existing clients keep working.
      *
-     * /v2/oauth2/token, /v2/files, /v2/system, /v2/app, /v2/task.
+     * /v2/oauth2/token, /v2/files, /v2/system, /v2/app, /v2/task; of the IAdea REST API guide 1.0.2 (10/2024)
+     * also /v2/hardware, /v2/security/users and the configuration tasks.
      */
     class RestApi
     {
@@ -78,6 +84,8 @@ namespace garlic::core::rest_api
             httpd::Response system(const httpd::Request &request);
             httpd::Response app(const httpd::Request &request);
             httpd::Response task(const httpd::Request &request);
+            httpd::Response hardware(const httpd::Request &request);
+            httpd::Response securityUser(const httpd::Request &request);
 
             /// The frontend has saved the screenshot (or tried): the held answer is sent.
             void screenshotTaken(std::string_view path);
@@ -109,6 +117,17 @@ namespace garlic::core::rest_api
             };
             std::vector<Screenshot> screenshots;
 
+            /// task/importConfiguration waits here for task/commitConfiguration
+            std::string                  commit_id;
+            configuration::Props         imported;
+            bool                         screen_on = true; // the last hardware/display power
+
+            httpd::Response importConfiguration(const httpd::Request &request);
+            httpd::Response commitConfiguration(const httpd::Request &request);
+            httpd::Response exportConfiguration() const;
+            httpd::Response display(const httpd::Request &request);
+            httpd::Response audioOut(const httpd::Request &request);
+            httpd::Response videoOut(const httpd::Request &request);
             httpd::Response appStart(const httpd::Request &request, bool temporary);
             httpd::Response screenshot();
             httpd::Response screenshotFile(const std::string &path) const;

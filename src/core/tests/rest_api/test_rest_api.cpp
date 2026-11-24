@@ -18,6 +18,7 @@
 #include <doctest/doctest.h>
 
 #include "common/md5.hpp"
+#include "common/sha256.hpp"
 #include "common/memory_file_system.hpp"
 #include "failing_file_system.hpp"
 #include "fake_clock.hpp"
@@ -25,6 +26,8 @@
 #include "rest_api/rest_api.hpp"
 
 #include <nlohmann/json.hpp>
+
+#include <algorithm>
 
 using namespace garlic::core;
 using httpd::Request;
@@ -56,6 +59,10 @@ namespace
             a.playTemporary = [this](std::string uri) { calls.push_back("temporary " + uri); };
             a.screenshot    = [this](std::string path) { calls.push_back("screenshot " + path); };
             a.removed       = [this](std::string uri) { calls.push_back("removed " + uri); };
+            a.configurationChanged  = [this] { calls.push_back("configuration"); };
+            a.deviceSettingsChanged = [this] { calls.push_back("device settings"); };
+            a.screenPower  = [this](bool on) { calls.push_back(on ? "screen on" : "screen off"); };
+            a.serialNumber = [] { return std::string("aa:bb:cc:dd:ee:ff"); };
             a.makeSpace     = [this](std::uint64_t bytes) -> std::uint64_t
             {
                 calls.push_back("space " + std::to_string(bytes));
@@ -725,4 +732,156 @@ TEST_CASE("task/screenshot: a file that cannot be read gives the text of garlic-
     f.api.screenshotTaken("logs/20260101000000.jpg");
     REQUIRE(r.pending->isComplete());
     CHECK(r.pending->response->body == "file not readable.");
+}
+
+// ------------------------------------------------------------------ of the IAdea REST API guide 1.0.2
+
+TEST_CASE("the token also in Authorization: Bearer, as IAdea allows")
+{
+    Fixture f;
+    Request r;
+    r.method                   = "GET";
+    r.path                     = "/v2/system/firmwareInfo";
+    r.headers["authorization"] = "Bearer " + f.token();
+    CHECK(f.router.handle(r).status == 200);
+
+    r.headers["authorization"] = "Bearer wrong";
+    CHECK(f.router.handle(r).status == 403);
+    r.headers["authorization"] = f.token(); // without "Bearer "
+    CHECK(f.router.handle(r).status == 403);
+}
+
+TEST_CASE("security/users/admin: a password, then the token only with it; empty means without password again")
+{
+    Fixture f;
+    auto set = f.call("POST", "/v2/security/users/admin", f.auth(), {}, R"({"password":"geheim"})");
+    CHECK(body(set) == json{{"name", "admin"}});
+    CHECK(f.config.value("api_password") == common::Sha256::hex("geheim"));
+
+    auto token = [&f](const std::string &password)
+    {
+        return body(f.call("POST", "/v2/oauth2/token", {},
+                           {{"grant_type", "password"}, {"username", "admin"}, {"password", password}}));
+    };
+    CHECK(token("") == json{{"error", "wrong password"}});
+    CHECK(token("falsch") == json{{"error", "wrong password"}});
+    std::string access = token("geheim")["access_token"].get<std::string>();
+
+    f.call("POST", "/v2/security/users/admin", {{"access_token", access}}, {{"password", ""}});
+    CHECK(f.config.value("api_password").empty());
+    CHECK(token("").contains("access_token"));
+
+    CHECK(f.call("POST", "/v2/security/users/admin", {}, {{"password", "x"}}).status == 403);
+    CHECK(f.call("POST", "/v2/security/users/other", f.auth(), {{"password", "x"}}).status == 404);
+}
+
+TEST_CASE("system/playerInfo: uuid and the MAC of the device")
+{
+    Fixture f;
+    auto info = body(f.call("GET", "/v2/system/playerInfo", f.auth()));
+    CHECK(info["playerId"] == f.config.uuid());
+    CHECK(info["serialNumber"] == "aa:bb:cc:dd:ee:ff");
+    CHECK(info["factoryDefaults"] == "");
+}
+
+TEST_CASE("task/exportConfiguration: every setting of a configuration.xml under its first prop")
+{
+    Fixture f;
+    f.config.setValue("audio/volume", "80");
+    f.config.setStandbyMode("deep");
+    auto list = body(f.call("GET", "/v2/task/exportConfiguration", f.auth()))["userPref"];
+    REQUIRE(list.is_array());
+    CHECK(list.size() == 12);
+    auto has = [&list](const std::string &name, const std::string &value)
+    { return std::ranges::find(list, json{{"name", name}, {"value", value}}) != list.end(); };
+    CHECK(has("hardware.audioOut.0.masterSoundLevel", "80"));
+    CHECK(has("standby_mode", "deep"));
+    CHECK(has("info.playerName", f.config.playerName()));
+    CHECK(has("time.tzCode", ""));
+}
+
+TEST_CASE("task/importConfiguration and commitConfiguration: applied only with the commitId")
+{
+    Fixture f;
+    auto imported = body(f.call("POST", "/v2/task/importConfiguration", f.auth(), {},
+                                R"({"userPref":[{"name":"volume","value":"40"},{"name":"standby_mode","value":"deep"},)"
+                                R"({"name":"unknown.prop","value":"x"}]})"));
+    REQUIRE(imported.contains("commitId"));
+    CHECK(imported["restartRequired"] == false);
+    CHECK(imported["userPref"].size() == 3);
+    CHECK(f.config.value("audio/volume").empty()); // not yet
+
+    CHECK(body(f.call("POST", "/v2/task/commitConfiguration", f.auth(), {{"commitId", "wrong"}})) ==
+          json{{"error", "wrong commitId"}});
+    CHECK(f.calls.empty());
+
+    std::string id = imported["commitId"].get<std::string>();
+    auto        committed = body(f.call("POST", "/v2/task/commitConfiguration", f.auth(), {}, json{{"commitId", id}}.dump()));
+    CHECK(committed == json{{"commitId", id}, {"restartRequired", false}});
+    CHECK(f.config.value("audio/volume") == "40");
+    CHECK(f.config.standbyMode() == "deep");
+    CHECK(f.calls == std::vector<std::string>{"configuration"});
+
+    // committed once: the id is gone
+    CHECK(body(f.call("POST", "/v2/task/commitConfiguration", f.auth(), {{"commitId", id}})) ==
+          json{{"error", "wrong commitId"}});
+}
+
+TEST_CASE("task/importConfiguration: userPref as JSON text in a form field, errors")
+{
+    Fixture f;
+    auto form = body(f.call("POST", "/v2/task/importConfiguration", f.auth(),
+                            {{"userPref", R"([{"name":"info.playerName","value":"Lobby"}])"}}));
+    CHECK(form["userPref"] == json::array({json{{"name", "info.playerName"}, {"value", "Lobby"}}}));
+
+    CHECK(body(f.call("POST", "/v2/task/importConfiguration", f.auth())) == json{{"error", "userPref missed"}});
+    CHECK(body(f.call("POST", "/v2/task/importConfiguration", f.auth(), {}, R"({"userPref":[{"value":"x"}]})")) ==
+          json{{"error", "userPref missed"}});
+}
+
+TEST_CASE("hardware/display: on and standby to the frontend, without power the last one")
+{
+    Fixture f;
+    CHECK(body(f.call("POST", "/v2/hardware/display", f.auth())) == json{{"id", "0"}, {"power", "on"}});
+    CHECK(body(f.call("POST", "/v2/hardware/display", f.auth(), {}, R"({"id":"0","power":"standby"})")) ==
+          json{{"id", "0"}, {"power", "standby"}});
+    CHECK(body(f.call("POST", "/v2/hardware/display", f.auth(), {{"power", "on"}})) == json{{"id", "0"}, {"power", "on"}});
+    CHECK(f.calls == std::vector<std::string>{"screen off", "screen on"});
+    CHECK(body(f.call("POST", "/v2/hardware/display", f.auth(), {{"power", "off"}})) == json{{"error", "wrong power"}});
+    CHECK(f.call("POST", "/v2/hardware/display", {}, {{"power", "on"}}).status == 403);
+    CHECK(f.call("POST", "/v2/hardware/light", f.auth()).status == 404);
+}
+
+TEST_CASE("hardware/audioOut: the forms of IAdea into audio/volume")
+{
+    Fixture f;
+    auto level = [&f](const std::string &value)
+    { return body(f.call("POST", "/v2/hardware/audioOut", f.auth(), {{"id", "0"}, {"masterSoundLevel", value}})); };
+
+    CHECK(level("mute")["soundLevel"] == "0%");
+    CHECK(level("55.4%")["soundLevel"] == "55%");
+    CHECK(level("0.8")["soundLevel"] == "80%");
+    CHECK(level("0dB")["soundLevel"] == "100%");
+    CHECK(level("-6dB")["soundLevel"] == "50%");
+    CHECK(f.config.value("audio/volume") == "50");
+    CHECK(level("loud") == json{{"error", "wrong masterSoundLevel"}});
+    CHECK(level("2") == json{{"error", "wrong masterSoundLevel"}});
+    CHECK(level("3dB") == json{{"error", "wrong masterSoundLevel"}});
+    CHECK(std::ranges::count(f.calls, std::string("device settings")) == 5);
+
+    auto number = body(f.call("POST", "/v2/hardware/audioOut", f.auth(), {}, R"({"masterSoundLevel":0.3})"));
+    CHECK(number["soundLevel"] == "30%");
+    CHECK(body(f.call("GET", "/v2/hardware/audioOut", f.auth())) == json{{"id", "0"}, {"soundLevel", "30%"}});
+}
+
+TEST_CASE("hardware/videoOut: only the rotation, stored like a configuration.xml")
+{
+    Fixture f;
+    CHECK(body(f.call("POST", "/v2/hardware/videoOut", f.auth(), {{"rotation", "90"}})) ==
+          json{{"id", "0"}, {"rotation", "90"}});
+    CHECK(f.config.value("display/rotation") == "90");
+    CHECK(body(f.call("POST", "/v2/hardware/videoOut", f.auth(), {{"rotation", "auto"}})) ==
+          json{{"error", "wrong rotation"}});
+    CHECK(body(f.call("POST", "/v2/hardware/videoOut", f.auth(), {}, R"({"format":"CEA_1080P60"})")) ==
+          json{{"id", "0"}, {"rotation", "90"}});
 }

@@ -270,6 +270,14 @@ namespace player
                             result.set("path", e.path);
                             return result;
                         },
+                        // the browser has no supervisor: the page ignores it
+                        [](const ScreenPower &e)
+                        {
+                            val result = val::object();
+                            result.set("type", std::string("screenPower"));
+                            result.set("on", e.on);
+                            return result;
+                        },
                         // the browser has no supervisor: the page may ignore it
                         [](const DeviceSettings &e)
                         {

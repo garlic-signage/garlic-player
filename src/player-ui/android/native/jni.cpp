@@ -245,6 +245,7 @@ namespace
                         [](const tasks::ClearCaches &e)
                         { return json{{"type", "clearCaches"}, {"player", e.player}, {"web", e.web}}; },
                         [](const Screenshot &e) { return json{{"type", "screenshot"}, {"path", e.path}}; },
+                        [](const ScreenPower &e) { return json{{"type", "screenPower"}, {"on", e.on}}; },
                         [](const DeviceSettings &e)
                         {
                             return json{{"type", "deviceSettings"},

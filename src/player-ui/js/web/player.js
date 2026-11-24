@@ -137,6 +137,7 @@ class GarlicPlayer {
         case 'screenshot': this.#call(() => this.#player.screenshotTaken(event.path)); break;
         // master volume and brightness are for a supervisor, the browser has none
         case 'deviceSettings': break;
+        case 'screenPower': console.info('hardware/display: no supervisor in a browser, the screen stays as it is'); break;
         case 'layout':
             // as preview in an overlay of garlic-hub: the page around gets the size of the layout for its proportions
             if (window.parent !== window)

@@ -357,6 +357,14 @@ public class GarlicActivity extends Activity implements Media.Reports
                 break;
             case "clearCaches": clearCaches(event.optBoolean("web")); break;
             case "screenshot": screenshot(event.optString("path")); break;
+            case "screenPower": // REST hardware/display: only through the launcher
+                if (launcher == null)
+                    Log.i(TAG, "hardware/display: no launcher, the screen stays as it is");
+                else if (event.optBoolean("on", true))
+                    launcher.setScreenOn();
+                else
+                    launcher.setScreenOff();
+                break;
             case "downloads": downloads = event; break;
             case "deviceSettings":
                 if (!event.isNull("volume"))

@@ -23,15 +23,51 @@
 #include "configuration/ini_file.hpp"
 #include "httpd/httpd_settings.hpp"
 
+#include <array>
 #include <expected>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace garlic::core::configuration
 {
     inline constexpr std::string_view standby_none      = "no_standby";
     inline constexpr std::string_view standby_partially = "partially";
     inline constexpr std::string_view standby_deep      = "deep";
+
+    /// A setting as a prop (configuration.xml, userPref of the REST API) and its ini key
+    struct PropKey
+    {
+        std::string_view prop;
+        std::string_view key;
+    };
+
+    /**
+     * The props of garlic-lib (XMLConfiguration::parse) and their ini keys. Several props may give the same key; the
+     * first one of a key is its name in an export (the one of IAdea where there is one).
+     */
+    inline constexpr std::array<PropKey, 17> prop_keys = {{
+        {"info.playerName", "player_name"},
+        {"content.serverUrl", "index_uri"},
+        {"display.brightness", "display/brightness"},
+        {"brightness", "display/brightness"},
+        {"hardware.videoOut.0.rotation", "display/rotation"},
+        {"hardware.audioOut.0.masterSoundLevel", "audio/volume"},
+        {"audio.soundlevel", "audio/volume"},
+        {"volume", "audio/volume"},
+        {"time.tzDescription", "time/tzDescription"},
+        {"time.tzCode", "time/tzCode"},
+        {"time.autoUpdate.protocol", "time/protocol"},
+        {"time.autoUpdate.server", "time/server"},
+        {"task.scheduledReboot.days", "schedule/reboot_days"},
+        {"schedule.reboot.days", "schedule/reboot_days"},
+        {"task.scheduledReboot.time", "schedule/reboot_time"},
+        {"schedule.reboot.time", "schedule/reboot_time"},
+        {"standby_mode", "standby_mode"},
+    }};
+
+    using Props = std::vector<std::pair<std::string, std::string>>;
 
     /**
      * Configuration of the player, stored in garlic-player.ini (compatible with the QSettings files of garlic-lib).
@@ -82,6 +118,12 @@ namespace garlic::core::configuration
             void        setRebootDays(std::string days) { setValue("schedule/reboot_days", std::move(days)); }
             std::string rebootTime() const { return value("schedule/reboot_time"); }
             void        setRebootTime(std::string time) { setValue("schedule/reboot_time", std::move(time)); }
+
+            /// Props as of a configuration.xml into their ini keys (prop_keys), in their order; unknown ones are left out
+            void applyProps(const Props &props);
+
+            /// Every setting of prop_keys under its first prop, with its value ("" where not set)
+            Props exportProps() const;
 
             /// Token for the REST API. Valid for one day, a new one is created after it expired.
             std::string determineApiAccessToken(std::string_view username, std::string_view password);

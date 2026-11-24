@@ -37,6 +37,7 @@ std::string ua = config.userAgent();
 | `rebootDays()`, `rebootTime()`, `set…`   | `schedule/reboot_days`, `schedule/reboot_time` |
 | `determineApiAccessToken(user, pass)`    | `api_access_token`, `api_access_token_expire` |
 | `value(key)`, `setValue(key, value)`     | any other key, e.g. `audio/volume`        |
+| `applyProps(props)`, `exportProps()`     | the props of a configuration.xml (`prop_keys`: `info.playerName`, `hardware.audioOut.0.masterSoundLevel`, …) and their keys; the task scheduler and the REST API use the same table |
 
 `httpd()` returns the `HttpdSettings` of the HTTP server, see [httpd](httpd.md).
 

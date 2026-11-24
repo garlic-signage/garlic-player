@@ -95,6 +95,12 @@ namespace garlic::core
         std::string path;
     };
 
+    /// REST /v2/hardware/display: the frontend switches the screen on or off through its supervisor (none: nothing).
+    struct ScreenPower
+    {
+        bool on = true;
+    };
+
     /**
      * Master volume and brightness of the configuration (audio/volume, display/brightness), 0…100; nullopt: not set
      * or no number. At the start and whenever a configuration changes them. The player applies neither, the frontend
@@ -126,7 +132,8 @@ namespace garlic::core
 
     /// Everything the frontend gets from poll(), in this order: e.g. StopMedia of the old index, NewLayout, StartMedia.
     using CoreEvent = std::variant<smil::StartMedia, smil::StopMedia, smil::RepeatMedia, smil::PauseMedia, smil::ResumeMedia,
-                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot, DeviceSettings, Downloads>;
+                                   NewLayout, BackgroundImage, tasks::ClearCaches, Screenshot, ScreenPower, DeviceSettings,
+                                   Downloads>;
 
     struct PlayerRuntimeConfig
     {

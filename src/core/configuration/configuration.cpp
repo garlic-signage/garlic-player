@@ -118,6 +118,31 @@ namespace garlic::core::configuration
         return ini.value(key).value_or("");
     }
 
+    void Configuration::applyProps(const Props &props)
+    {
+        for (const auto &[name, prop_value] : props)
+            for (const PropKey &entry : prop_keys)
+                if (entry.prop == name)
+                {
+                    setValue(std::string(entry.key), prop_value);
+                    break;
+                }
+    }
+
+    Props Configuration::exportProps() const
+    {
+        Props props;
+        std::vector<std::string_view> done;
+        for (const PropKey &entry : prop_keys)
+        {
+            if (std::ranges::find(done, entry.key) != done.end())
+                continue;
+            done.push_back(entry.key);
+            props.emplace_back(std::string(entry.prop), value(entry.key));
+        }
+        return props;
+    }
+
     void Configuration::setValue(std::string key, std::string new_value)
     {
         if (ini.value(key) == new_value)

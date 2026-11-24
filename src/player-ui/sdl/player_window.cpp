@@ -463,6 +463,15 @@ namespace player
                        [this](const BackgroundImage &e) { backgroundImage(e); },
                        [this](const tasks::ClearCaches &e) { clearCaches(e); },
                        [this](const Screenshot &e) { screenshot_path = e.path; },
+                       [this](const ScreenPower &e)
+                       {
+                           if (screen_control == nullptr)
+                               std::cerr << "hardware/display: no supervisor, the screen stays as it is\n";
+                           else if (e.on)
+                               screen_control->screenOn();
+                           else
+                               screen_control->screenOff();
+                       },
                        [this](const DeviceSettings &e)
                        {
                            if (device_control != nullptr)

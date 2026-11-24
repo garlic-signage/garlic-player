@@ -178,6 +178,31 @@ namespace garlic::core
         // IAdea: OBJECT_REMOVED for a file removed on purpose, LRU_OBJECT_REMOVED is the cleanup of CacheSpace
         actions.removed = [this](std::string uri)
         { logger->event(logger::Severity::Informational, "ContentManager", "OBJECT_REMOVED", {{"resourceURI", uri}}); };
+        actions.configurationChanged = [this]
+        {
+            queue->setUserAgent(config.userAgent()); // a new player name
+            onTask(tasks::ApplyConfiguration{});
+        };
+        actions.deviceSettingsChanged = [this] { announceDeviceSettings(); };
+        actions.screenPower           = [this](bool on) { events.emplace_back(ScreenPower{on}); };
+        actions.serialNumber          = [this]
+        {
+            // the MAC of the first ethernet interface, else of the first one with a MAC
+            if (!settings.system_info)
+                return std::string{};
+            reports::SystemInfo info = settings.system_info();
+            std::string         first;
+            for (const auto &interface : info.network)
+            {
+                if (interface.mac.empty())
+                    continue;
+                if (interface.type == "ethernet")
+                    return interface.mac;
+                if (first.empty())
+                    first = interface.mac;
+            }
+            return first;
+        };
         if (cache_space)
             actions.makeSpace = [this](std::uint64_t bytes) -> std::uint64_t
             {

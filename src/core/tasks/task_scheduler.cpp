@@ -234,33 +234,7 @@ namespace garlic::core::tasks
         }
         logger.event(logger::Severity::Informational, "TaskScheduler", "CONFIGURATION_LOADED", metadata(path));
 
-        for (const auto &[name, value] : *settings)
-        {
-            if (name == "info.playerName")
-                config.setPlayerName(value);
-            else if (name == "content.serverUrl")
-                config.setIndexUri(value);
-            else if (name == "display.brightness" || name == "brightness")
-                config.setValue("display/brightness", value);
-            else if (name == "hardware.videoOut.0.rotation")
-                config.setValue("display/rotation", value);
-            else if (name == "audio.soundlevel" || name == "volume" || name == "hardware.audioOut.0.masterSoundLevel")
-                config.setValue("audio/volume", value);
-            else if (name == "time.tzDescription")
-                config.setValue("time/tzDescription", value);
-            else if (name == "time.tzCode")
-                config.setValue("time/tzCode", value);
-            else if (name == "time.autoUpdate.protocol")
-                config.setValue("time/protocol", value);
-            else if (name == "time.autoUpdate.server")
-                config.setValue("time/server", value);
-            else if (name == "task.scheduledReboot.days" || name == "schedule.reboot.days")
-                config.setRebootDays(value);
-            else if (name == "task.scheduledReboot.time" || name == "schedule.reboot.time")
-                config.setRebootTime(value);
-            else if (name == "standby_mode")
-                config.setStandbyMode(value);
-        }
+        config.applyProps(*settings); // the props and ini keys of configuration::prop_keys
         return true;
     }
 

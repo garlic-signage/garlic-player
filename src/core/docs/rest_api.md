@@ -12,7 +12,8 @@ api.poll();                              // with every poll of the core: screens
 ```
 
 The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it gets as `RestActions`: `notify`,
-`reboot`, `reloadIndex`, `playTemporary`, `screenshot`, `makeSpace` (empty functions do nothing).
+`reboot`, `reloadIndex`, `playTemporary`, `screenshot`, `makeSpace`, `removed`, `configurationChanged`,
+`deviceSettingsChanged`, `screenPower`, `serialNumber` (empty functions do nothing).
 
 ## Endpoints
 
@@ -32,9 +33,17 @@ The REST API does not know the `PlayerRuntimeApi`. What it cannot do itself it g
 | `/v2/task/notify`     | any    | `smilEvent`: `notify(…)` triggers of the engine                    |
 | `/v2/task/reboot`     | any    | restart the device (`reboot("httpd: <local time>")` of the supervisor)  |
 | `/v2/task/screenshot` | any    | the frontend saves a JPEG; the answer waits for it                |
+| `/v2/task/exportConfiguration` | any | `{"userPref": [{"name", "value"}, …]}`: every setting of a configuration.xml |
+| `/v2/task/importConfiguration` | any | `userPref` (JSON body, or JSON text in a form field): kept, answers a `commitId` |
+| `/v2/task/commitConfiguration` | any | `commitId`: applies the import like a configuration.xml       |
+| `/v2/system/playerInfo` | any  | `{"playerId": uuid, "serialNumber": MAC, "factoryDefaults": ""}`  |
+| `/v2/hardware/display` | any   | `power` `on` / `standby`: the screen through the supervisor       |
+| `/v2/hardware/audioOut` | any  | `masterSoundLevel`: into `audio/volume`                           |
+| `/v2/hardware/videoOut` | any  | `rotation` `0`/`90`/`180`/`270`: into `display/rotation`          |
+| `/v2/security/users/admin` | any | `password`: the password of admin                              |
 
-All calls except the token need `access_token` (URL or form); parameters come as form, URL or JSON
-(`Content-Type: application/json`). `/v2/system`, `/v2/app` and `/v2/task` check the token first, then the name: an
+All calls except the token need `access_token` (URL or form) or, as IAdea allows, `Authorization: Bearer <token>`;
+parameters come as form, URL or JSON (`Content-Type: application/json`). `/v2/system`, `/v2/app` and `/v2/task` check the token first, then the name: an
 unknown name is 403 without and 404 with a valid token (RequestMapper of garlic-lib).
 
 `/v2/files/new` makes room for `fileSize` first (`RestActions::makeSpace`, the cache cleanup of the content module);
@@ -58,6 +67,34 @@ of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
   an answer of the host after 5 s it is `file not created.`. garlic-lib waited one second in the event loop and sent
   whatever was there.
 
+### Of the IAdea REST API guide 1.0.2 (10/2024)
+
+Taken from the guide where the player has the matching setting or action; IAdea hardware (`hardware/rs232`,
+`hardware/light`), Android app management (`app/solutions/*`), `WifiManager`/`EthernetManager` and the time server
+(`app/settings/com.iadea.console`) are not. An unknown name under `/v2/hardware` is 404 like the other groups.
+
+- `task/exportConfiguration`: every setting of `configuration::prop_keys` under its first prop (the IAdea name where
+  there is one, e.g. `hardware.audioOut.0.masterSoundLevel`), `""` where it is not set.
+- `task/importConfiguration` keeps the `userPref` and answers `{"commitId", "userPref", "restartRequired": false}`;
+  an empty or broken list, or an entry without `name`, is `{"error":"userPref missed"}`. Another import replaces the
+  waiting one. `task/commitConfiguration` with that `commitId` applies the known props like a configuration.xml
+  (`Configuration::applyProps`; unknown ones are left out) and calls `configurationChanged`: the runtime takes it like
+  a configuration from the hub (restart times, device settings, index). Another id is `{"error":"wrong commitId"}`.
+  No restart is needed, so `restartRequired` is always false.
+- `system/playerInfo`: `serialNumber` is the MAC of the first ethernet interface, else of the first one with a MAC
+  (`serialNumber` of `RestActions`, from the system info), empty where unknown.
+- `hardware/display`: `power` `on` or `standby` becomes the event `ScreenPower` for the frontend, which switches only
+  through its supervisor (SDL: supervisor protocol, Android: launcher or SICP); without one the screen stays as it is.
+  The answer `{"id":"0","power"}` tells the last power set (`on` after the start); another value is
+  `{"error":"wrong power"}`.
+- `hardware/audioOut`: `masterSoundLevel` `mute`, `0.0..100.0%`, `0..1.0` or `-number..0dB` becomes a percent in
+  `audio/volume`, the frontend applies it (`DeviceSettings`). The answer is `{"id":"0","soundLevel":"80%"}`, also
+  without a level; another value is `{"error":"wrong masterSoundLevel"}`.
+- `hardware/videoOut`: only `rotation` (`0`, `90`, `180`, `270`; not `auto`), stored in `display/rotation` like a
+  configuration.xml; no frontend applies it yet. `format`, `margin`, `cecEnabled`, `hdcpEnabled` are ignored.
+- `security/users/admin`: the password is stored as SHA-256 hex in `api_password`; from then on the token needs it.
+  An empty password goes back to "without password". Tokens given before stay valid until they expire.
+
 ## Answers
 
 - Success and errors: status **200**, `Content-Type: application/json; charset=utf-8`,
@@ -70,7 +107,8 @@ of garlic-lib. `/v2/files/{id}` did not check in garlic-lib and does not now.
 
 ## Known issues (kept for compatibility, security comes later)
 
-- Login is fixed: user `admin` with an **empty password**.
+- Login: user `admin`, with an **empty password** until `security/users/admin` sets one (SHA-256 without salt in the
+  ini).
 - The token is `MD5(expire)` in uppercase: garlic-lib passed its never-set username/password members to the hash.
   Since `expires_in` is in the answer, the token can be guessed.
 - The 403 body is no valid JSON (single quotes).
