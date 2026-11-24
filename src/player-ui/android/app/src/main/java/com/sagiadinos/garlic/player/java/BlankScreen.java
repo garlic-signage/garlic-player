@@ -20,24 +20,28 @@ package com.sagiadinos.garlic.player.java;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
- * adapi:blankScreen with the standby_mode of the configuration, like BlankScreen of the other players
- * (supervisor/blank_screen.cpp; garlic-lib: PlayerRefCommand):
+ * adapi:blankScreen, like BlankScreen of the sdl player (garlic-lib: PlayerRefCommand): the activity covers the whole
+ * screen black while an element runs (covers()), on every device and with every standby_mode. Switching the screen
+ * off goes only through the launcher, with the standby_mode of the configuration:
  *   partially   the screen goes off until the element ends
  *   deep        the launcher sleeps until the planned end of the element and wakes the device; without a planned end
  *               the screen goes off instead
- *   no_standby  nothing (also any other value)
- * Without launcher the screen stays on.
+ *   no_standby  only black (also any other value)
+ * Without launcher only black.
  */
 final class BlankScreen
 {
     private static final String TAG = "garlic-player";
 
     private LauncherInterface        control;
-    private final Map<Long, Boolean> active = new HashMap<>(); // instance → the screen was switched off
+    private final Set<Long>          covering = new HashSet<>(); // instances of running elements
+    private final Map<Long, Boolean> active   = new HashMap<>(); // instance → the screen was switched off
 
     void setControl(LauncherInterface launcher)
     {
@@ -47,11 +51,12 @@ final class BlankScreen
     /** The element begins; remaining (seconds, -1 unknown) is asked only for deep */
     void begin(long instance, String standby_mode, LongSupplier remaining)
     {
+        covering.add(instance);
         if (!standby_mode.equals("partially") && !standby_mode.equals("deep"))
             return;
         if (control == null)
         {
-            Log.i(TAG, "blankScreen: no launcher, the screen stays on");
+            Log.i(TAG, "blankScreen: no launcher, the screen stays on, only black");
             return;
         }
         if (standby_mode.equals("deep"))
@@ -75,6 +80,7 @@ final class BlankScreen
      */
     void end(long instance)
     {
+        covering.remove(instance);
         Boolean switched_off = active.remove(instance);
         if (switched_off == null || control == null)
             return;
@@ -82,5 +88,11 @@ final class BlankScreen
             control.setScreenOn();
         else
             control.deepStandbyEnded();
+    }
+
+    /** An element runs: black over everything but the dialogs */
+    boolean covers()
+    {
+        return !covering.isEmpty();
     }
 }

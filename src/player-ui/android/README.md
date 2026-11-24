@@ -76,9 +76,11 @@ What the native build needs on Android, also for a CI:
   not let an app read `/proc/stat`); temperatures where the thermal zones are readable, throttling from Android 11 on.
 - "Loading 1 / X" with the bar of the first download until the first medium of a layout, centered.
 - Without an index the settings dialog comes first; Cancel ends the player.
-- `adapi:blankScreen` with the `standby_mode` of the configuration: `partially` screen off until the element ends,
-  `deep` the launcher sleeps until its planned end (without one: screen off), otherwise nothing; without launcher the
-  screen stays on. Other commands fail.
+- `adapi:blankScreen`: black over the whole screen while the element runs (over all regions and "Loading", below the
+  dialogs; it takes the touches, the menu gesture still counts), with every `standby_mode` and without launcher, as in
+  the sdl and js players. Switching off only through the launcher, with the `standby_mode` of the configuration:
+  `partially` screen off until the element ends, `deep` the launcher sleeps until its planned end (without one: screen
+  off). Other commands fail.
 
 ## Launcher
 

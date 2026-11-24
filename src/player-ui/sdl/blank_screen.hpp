@@ -24,6 +24,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <set>
 #include <string_view>
 
 namespace player
@@ -47,12 +48,14 @@ namespace player
     };
 
     /**
-     * adapi:blankScreen with the standby_mode of the configuration:
+     * adapi:blankScreen: the window covers the whole screen black while an element runs (covers()), on every device
+     * and with every standby_mode. Switching the screen off goes only through the supervisor, with the standby_mode
+     * of the configuration:
      *   partially   the screen goes off until the element ends
      *   deep        the supervisor sleeps until the planned end of the element and wakes the device; without a
      *               planned end the screen goes off instead
-     *   no_standby  nothing (also any other value)
-     * Without ScreenControl the screen stays on.
+     *   no_standby  only black (also any other value)
+     * Without ScreenControl only black.
      */
     class BlankScreen
     {
@@ -67,9 +70,13 @@ namespace player
             /// The element ends: the screen goes on again if begin() switched it off. Unknown instances: nothing.
             void end(int instance);
 
+            /// An element runs: the window draws black over everything but menu and dialogs
+            bool covers() const { return !covering.empty(); }
+
         private:
             ScreenControl      *control = nullptr;
-            std::map<int, bool> active; // instance → the screen was switched off
+            std::set<int>       covering; // instances of running elements
+            std::map<int, bool> active;   // instance → the screen was switched off
     };
 }
 

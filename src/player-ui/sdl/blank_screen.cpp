@@ -27,11 +27,12 @@ namespace player
 
     void BlankScreen::begin(int instance, std::string_view standby_mode, const Remaining &remaining)
     {
+        covering.insert(instance);
         if (standby_mode != cfg::standby_partially && standby_mode != cfg::standby_deep)
             return;
         if (control == nullptr)
         {
-            std::cerr << "blankScreen: no supervisor, the screen stays on\n";
+            std::cerr << "blankScreen: no supervisor, the screen stays on, only black\n";
             return;
         }
         if (standby_mode == cfg::standby_deep)
@@ -50,6 +51,7 @@ namespace player
 
     void BlankScreen::end(int instance)
     {
+        covering.erase(instance);
         auto it = active.find(instance);
         if (it == active.end())
             return;

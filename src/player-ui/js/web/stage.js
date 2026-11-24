@@ -243,6 +243,8 @@ export class Stage {
     #reports;
     #regions = [];
     #loading;
+    #black;              // adapi:blankScreen: over stage and loading, takes the clicks
+    #blanks = new Set(); // instances of running adapi:blankScreen elements
     #downloads = { done: 0, total: 0, bytesDone: 0, bytesTotal: 0 };
     #mediaShown = false; // since the layout: "Loading" only before its first medium, not in gaps later
     #rootImageSrc = '';
@@ -260,6 +262,10 @@ export class Stage {
         this.#loading.hidden = true;
         this.#loading.innerHTML = '<span></span><div class="bar"><div></div></div>';
         element.after(this.#loading);
+        this.#black = document.createElement('div');
+        this.#black.id = 'black';
+        this.#black.hidden = true;
+        this.#loading.after(this.#black);
     }
 
     /// The events of the core that change what is shown.
@@ -350,10 +356,13 @@ export class Stage {
     /// shown in all regions with the name of the instance
     #start(event) {
         this.#stop(event.id); // the same instance again: start anew
-        if (event.kind === 'command') { // garlic-lib only knew adapi:blankScreen, which needs the launcher
-            if (event.source.toLowerCase() === 'adapi:blankscreen')
-                console.info('blankScreen: no launcher, the screen stays on');
-            else
+        if (event.kind === 'command') {
+            // adapi:blankScreen: black over the whole screen, like the other players; switching the screen off needs
+            // a supervisor, a browser has none
+            if (event.source.toLowerCase() === 'adapi:blankscreen') {
+                this.#blanks.add(event.id);
+                this.#black.hidden = false;
+            } else
                 this.#reports.failed(event.id, MEDIA_ERROR.open, `unknown command ${event.source}`);
             return;
         }
@@ -373,6 +382,8 @@ export class Stage {
     }
 
     #stop(id) {
+        if (this.#blanks.delete(id))
+            this.#black.hidden = this.#blanks.size === 0;
         for (const region of this.#regions)
             region.remove(id);
     }

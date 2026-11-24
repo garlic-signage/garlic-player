@@ -91,6 +91,7 @@ public class GarlicActivity extends Activity implements Media.Reports
 
     private LauncherInterface       launcher; // null without one
     private final BlankScreen       blank_screen    = new BlankScreen();
+    private View                    black; // adapi:blankScreen: over stage and loading, takes the touches
     private final BroadcastReceiver config_receiver = new ConfigReceiver(this::applyConfiguration);
     private final BroadcastReceiver index_receiver  = new SmilIndexReceiver(this::playIndex);
     private final Watchdog          watchdog        = new Watchdog(this::uiHangs);
@@ -112,6 +113,11 @@ public class GarlicActivity extends Activity implements Media.Reports
         root.addView(stage, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(createLoading(), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                                                                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        black = new View(this);
+        black.setBackgroundColor(Color.BLACK);
+        black.setClickable(true); // nothing of the content under it takes a touch; the menu gesture still counts
+        black.setVisibility(View.GONE);
+        root.addView(black, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
 
         if (isPackageInstalled(GarlicLauncher.PACKAGE_NAME))
@@ -322,6 +328,7 @@ public class GarlicActivity extends Activity implements Media.Reports
             case "start": start(event); break;
             case "stop":
                 blank_screen.end(id);
+                updateBlack();
                 stage.stop(id);
                 break;
             case "repeat": forEach(id, Media::replay); break;
@@ -382,7 +389,10 @@ public class GarlicActivity extends Activity implements Media.Reports
         if (kind.equals("command")) // garlic-lib only knew adapi:blankScreen, which needs the launcher
         {
             if (source.equalsIgnoreCase("adapi:blankScreen"))
+            {
                 blank_screen.begin(id, core.standbyMode(), () -> core.remainingTime(id));
+                updateBlack();
+            }
             else
             {
                 Log.w(TAG, "unknown command " + source);
@@ -711,6 +721,12 @@ public class GarlicActivity extends Activity implements Media.Reports
         loading.setVisibility(View.VISIBLE);
     }
 
+    /** Black over the whole screen while an adapi:blankScreen runs */
+    private void updateBlack()
+    {
+        black.setVisibility(blank_screen.covers() ? View.VISIBLE : View.GONE);
+    }
+
     // ------------------------------------------------------------------ input
 
     @Override
@@ -746,7 +762,7 @@ public class GarlicActivity extends Activity implements Media.Reports
     /** A touch on a region activates its top medium (activateEvent of the SMIL) */
     private void activate(float x, float y)
     {
-        if (core == null)
+        if (core == null || blank_screen.covers())
             return;
         Stage.Region hit = null;
         for (int i = stage.getChildCount() - 1; i >= 0 && hit == null; --i)

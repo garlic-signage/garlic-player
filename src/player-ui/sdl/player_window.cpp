@@ -382,7 +382,7 @@ namespace player
         bool press = event.phase == ui::PointerPhase::Down;
         if (!is_locked)
             menuGesture(press, event.position);
-        if (!press)
+        if (!press && !blank_screen.covers()) // nothing under the black of adapi:blankScreen takes a click
             regionClicked(in_pixels);
     }
 
@@ -615,7 +615,7 @@ namespace player
     /// keyboard, a press elsewhere takes it away
     void PlayerWindow::forwardMouse(const SDL_Event &event, float x, float y)
     {
-        if (menu.isOpen() || dialog)
+        if (menu.isOpen() || dialog || blank_screen.covers())
             return;
         float pixels = SDL_GetWindowPixelDensity(window);
         x *= pixels;
@@ -958,6 +958,11 @@ namespace player
         }
         SDL_SetRenderClipRect(renderer, nullptr);
         drawLoading();
+        if (blank_screen.covers()) // adapi:blankScreen: nothing of the content, only menu and dialogs above
+        {
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderFillRect(renderer, &whole);
+        }
 
         if (screenshot_path)
         {

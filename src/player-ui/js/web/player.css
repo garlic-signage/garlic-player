@@ -73,6 +73,19 @@ body.hide-cursor {
     height: 100%;
 }
 
+/* adapi:blankScreen: black over the whole screen, below menu and dialogs; takes the clicks of the media under it
+   (stage.js) */
+#black {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    background: black;
+}
+
+#black[hidden] {
+    display: none;
+}
+
 /* the menu: ten fast clicks or one held for 10 s */
 #menu {
     position: fixed;
