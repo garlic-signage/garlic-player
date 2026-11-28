@@ -31,6 +31,10 @@ namespace garlic::core::common
 #ifdef _WIN32
             localtime_s(&local, &t);
 #else
+            // localtime_r need not read the time zone again (POSIX), bionic does not: an app inherits the zone of the
+            // zygote, which may have started before Android set the zone (Android 7: UTC instead of CET).
+            // tzset() also follows a later change of the zone.
+            tzset();
             localtime_r(&t, &local);
 #endif
             return local;
